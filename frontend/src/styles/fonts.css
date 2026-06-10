@@ -1,0 +1,7 @@
+@import "pretendard/dist/web/static/pretendard.css";
+@font-face {
+  font-family: "D2CodingWeb";
+  src: url("../assets/fonts/D2Coding.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
