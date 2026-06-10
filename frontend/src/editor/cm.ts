@@ -6,7 +6,7 @@
 // named imports/exports for the npm bundle.
 import { EditorState, Compartment, StateField, StateEffect } from "@codemirror/state";
 import type { Range } from "@codemirror/state";
-import { EditorView, Decoration, ViewPlugin, WidgetType, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
+import { EditorView, Decoration, WidgetType, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
 import { syntaxTree, StreamLanguage, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
@@ -342,7 +342,7 @@ const baseTheme = EditorView.theme({
 });
 
 // ---------- public API ----------
-const editable = new Compartment();
+const editable = new Compartment(); // reserved: read-only 모드용 (프로토타입 계승)
 
 export interface CreateOpts {
   doc?: string;
@@ -352,7 +352,7 @@ export interface CreateOpts {
 }
 
 export function create(parent: Element, opts?: CreateOpts): EditorView {
-  const { doc = "", onChange, onFocusEditable } = opts || {};
+  const { doc = "", onChange, onFocusEditable } = opts || {}; // onFocusEditable: reserved: read-only 모드용 (프로토타입 계승)
   const state = EditorState.create({
     doc,
     extensions: [
