@@ -1,2 +1,7 @@
 import { createRoot } from "react-dom/client";
-createRoot(document.getElementById("root")!).render(<div>WorkNote (migrating)</div>);
+import "./styles/fonts.css";
+import "./styles/app.css";
+import "./styles/settings.css";
+import { App } from "./App";
+
+createRoot(document.getElementById("root")!).render(<App />);
