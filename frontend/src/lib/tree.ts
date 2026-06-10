@@ -1,9 +1,6 @@
 import { newId } from "./id";
 import type { VaultTree, VaultNode, FolderNode, NoteNode } from "../types";
 
-// deep clone (data is plain JSON-able)
-const clone = <T>(t: T): T => JSON.parse(JSON.stringify(t));
-
 // walk: cb(node, parent, depth, pathArr)
 function walk(
   tree: VaultTree,
@@ -46,37 +43,76 @@ export function findNode(
   return { node: found, parentArr, parentNode, path };
 }
 
+// --- structural sharing helpers ---
+
+// Walks nodes, copying only the path to the target id. Returns null if id not found.
+function updateAt(nodes: VaultTree, id: string, mutate: (n: VaultNode) => void): VaultTree | null {
+  let changed = false;
+  const next = nodes.map((n) => {
+    if (n.id === id) {
+      // Copy the target node. For folders, also spread children so mutate
+      // operates on a fresh array — prevents accidental shared-children mutation.
+      const copy: VaultNode = n.type === "folder" ? { ...n, children: [...n.children] } : { ...n };
+      mutate(copy);
+      changed = true;
+      return copy;
+    }
+    if (n.type === "folder") {
+      const sub = updateAt(n.children, id, mutate);
+      if (sub) { changed = true; return { ...n, children: sub }; }
+    }
+    return n;  // untouched: same reference
+  });
+  return changed ? next : null;
+}
+
 // returns NEW tree with mutator applied to node of given id
 export function updateNode(tree: VaultTree, id: string, mutate: (n: VaultNode) => void): VaultTree {
-  const t = clone(tree);
-  const { node } = findNode(t, id);
-  if (node) mutate(node);
-  return t;
+  return updateAt(tree, id, mutate) ?? tree;
+}
+
+// Walks nodes, copying only the path to the target folder. Returns null if folderId not found.
+function insertAt(nodes: VaultTree, folderId: string, child: VaultNode): VaultTree | null {
+  let changed = false;
+  const next = nodes.map((n) => {
+    if (n.id === folderId && n.type === "folder") {
+      changed = true;
+      return { ...n, open: true, children: [...(n.children || []), child] };
+    }
+    if (n.type === "folder") {
+      const sub = insertAt(n.children, folderId, child);
+      if (sub) { changed = true; return { ...n, children: sub }; }
+    }
+    return n;  // untouched: same reference
+  });
+  return changed ? next : null;
 }
 
 // insert child into folder (id) or root if id == null
 export function insertChild(tree: VaultTree, folderId: string | null, child: VaultNode): VaultTree {
-  const t = clone(tree);
-  if (folderId == null) { t.push(child); return t; }
-  const { node } = findNode(t, folderId);
-  if (node && node.type === "folder") {
-    node.open = true;
-    node.children = node.children || [];
-    node.children.push(child);
+  if (folderId == null) return [...tree, child];
+  return insertAt(tree, folderId, child) ?? tree;
+}
+
+// Walks nodes, copying only the path to the first matching id. Returns null if id not found.
+function removeAt(nodes: VaultTree, id: string): VaultTree | null {
+  const idx = nodes.findIndex((n) => n.id === id);
+  if (idx >= 0) {
+    return [...nodes.slice(0, idx), ...nodes.slice(idx + 1)];
   }
-  return t;
+  let changed = false;
+  const next = nodes.map((n) => {
+    if (n.type === "folder") {
+      const sub = removeAt(n.children, id);
+      if (sub) { changed = true; return { ...n, children: sub }; }
+    }
+    return n;  // untouched: same reference
+  });
+  return changed ? next : null;
 }
 
 export function removeNode(tree: VaultTree, id: string): VaultTree {
-  const t = clone(tree);
-  function rec(arr: VaultTree): boolean {
-    const i = arr.findIndex((n) => n.id === id);
-    if (i >= 0) { arr.splice(i, 1); return true; }
-    for (const n of arr) if (n.type === "folder" && n.children && rec(n.children)) return true;
-    return false;
-  }
-  rec(t);
-  return t;
+  return removeAt(tree, id) ?? tree;
 }
 
 // flatten all notes with their folder path, for search

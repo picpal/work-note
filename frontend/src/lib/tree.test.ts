@@ -67,3 +67,25 @@ describe("tree", () => {
     expect(seen).toContainEqual(["n2", 2]);
   });
 });
+
+describe("structural sharing", () => {
+  it("updateNode preserves untouched sibling references", () => {
+    const t = make();
+    const t2 = updateNode(t, "n1", (n) => { (n as NoteNode).title = "ONE"; });
+    expect(t2[1]).toBe(t[1]);                                  // 건드리지 않은 루트 노트: 같은 참조
+    const f2old = ((t[0] as FolderNode).children[1]) as FolderNode;
+    const f2new = ((t2[0] as FolderNode).children[1]) as FolderNode;
+    expect(f2new).toBe(f2old);                                  // 형제 폴더 서브트리: 같은 참조
+    expect(t2[0]).not.toBe(t[0]);                               // 변경 경로: 새 객체
+  });
+  it("insertChild preserves sibling references", () => {
+    const t = make();
+    const t2 = insertChild(t, "f2", note("n9", "nine"));
+    expect(t2[1]).toBe(t[1]);
+  });
+  it("removeNode preserves sibling references", () => {
+    const t = make();
+    const t2 = removeNode(t, "n2");
+    expect(t2[1]).toBe(t[1]);
+  });
+});
