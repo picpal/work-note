@@ -37,7 +37,7 @@ function MenuList({ items, onClose, style }: MenuListProps): React.ReactElement 
         },
         it.icon && React.createElement("span", { className: "ic" }, React.createElement(Icon, { name: it.icon })),
         React.createElement("span", null, it.label),
-        (it as { kbd?: string }).kbd && React.createElement("span", { className: "kbd" }, (it as { kbd?: string }).kbd),
+        it.kbd && React.createElement("span", { className: "kbd" }, it.kbd),
         hasSub && React.createElement("span", { className: "chev" }, React.createElement(Icon, { name: "chevron" })),
         hasSub && openSub === i &&
           React.createElement(MenuList, {

@@ -4,6 +4,7 @@ export interface MenuItem {
   icon?: string;
   label?: string;
   danger?: boolean;
+  kbd?: string;
   sep?: boolean;
   submenu?: MenuItem[];
   onClick?: () => void;
