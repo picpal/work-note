@@ -83,7 +83,7 @@ export function removeNode(tree: VaultTree, id: string): VaultTree {
 export function flattenNotes(tree: VaultTree): Array<{ note: NoteNode; path: string[] }> {
   const out: Array<{ note: NoteNode; path: string[] }> = [];
   walk(tree, (n, _parent, _d, p) => {
-    if (n.type === "note") out.push({ note: n as NoteNode, path: p });
+    if (n.type === "note") out.push({ note: n, path: p });
   });
   return out;
 }

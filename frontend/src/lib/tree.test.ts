@@ -29,6 +29,11 @@ describe("tree", () => {
     expect(f2.open).toBe(true);
     expect(f2.children.map((c) => c.id)).toContain("n4");
   });
+  it("insertChild opens a closed folder", () => {
+    const t: VaultTree = [{ id: "fc", type: "folder", name: "C", open: false, children: [] }];
+    const t2 = insertChild(t, "fc", note("n9", "nine"));
+    expect((findNode(t2, "fc").node as FolderNode).open).toBe(true);
+  });
   it("insertChild with null folderId appends to root", () => {
     const t2 = insertChild(make(), null, note("n4", "four"));
     expect(t2[t2.length - 1].id).toBe("n4");
@@ -49,6 +54,12 @@ describe("tree", () => {
     const t: VaultTree = [note("x", "a"), note("x", "b")];
     dedupeIds(t);
     expect(t[0].id).not.toBe(t[1].id);
+  });
+  it("dedupeIds reassigns duplicates in nested folders", () => {
+    const t: VaultTree = [folder("f1", "A", [note("x", "a"), note("x", "b")])];
+    dedupeIds(t);
+    const kids = (t[0] as FolderNode).children;
+    expect(kids[0].id).not.toBe(kids[1].id);
   });
   it("walkTree visits every node with depth", () => {
     const seen: Array<[string, number]> = [];
