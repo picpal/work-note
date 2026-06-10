@@ -40,7 +40,7 @@ const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: s
 ];
 
 export function App() {
-  const { tree, actions, savedTick } = useVault();
+  const { tree, actions, savedTick, ready } = useVault();
   const { settings, set } = useSettings();
   const [activeId, setActiveId] = usePersist<string | null>("wn.activeId", null);
   const [collapsed, setCollapsed] = usePersist<boolean>("wn.sbCollapsed", false);
@@ -66,13 +66,14 @@ export function App() {
   const found = useMemo(() => (activeId ? findNode(tree, activeId) : { node: null, path: [] }), [tree, activeId]);
   const activeNote = found.node && found.node.type === "note" ? found.node : null;
 
-  // open default note on first load
+  // open default note on first load (after ready — seed→saved replacement may change nodes)
   useEffect(() => {
+    if (!ready) return;
     if (activeId && findNode(tree, activeId).node) return;
     const all = flattenNotes(tree);
     const def = all.find((n) => n.note.title === SEED_DEFAULT_TITLE) || all[0];
     if (def) setActiveId(def.note.id);
-  }, []);
+  }, [ready]);
 
   // ---- toasts ----
   const toast = useCallback((msg: string, icon?: string) => {
@@ -152,6 +153,8 @@ export function App() {
   const appClass = "app" + (collapsed ? " sb-collapsed" : "") + (settings.guides ? " guides" : "") + (settings.showIcons ? "" : " no-icons");
 
   const callTb = (fn: (h: ToolbarHandlers) => void) => fn(toolbarRef.current);
+
+  if (!ready) return null;
 
   return createElement(
     "div", { className: appClass, style: appStyle },
