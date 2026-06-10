@@ -1,7 +1,7 @@
 /* Admin screen 4: Permission management */
 import React from "react";
 import { ADMIN_USERS, ADMIN_TREE, ADMIN_GRANTS, ADMIN_PUBLIC, AdminTreeNode, Grant } from "../data";
-import { SecHead, Avatar, Switch } from "../common";
+import { SecHead, Avatar, Switch, RoleBadge } from "../common";
 import { walkAdminTree } from "../tree";
 import { Icon } from "../../components/Icon";
 
@@ -85,7 +85,7 @@ function ResourceView() {
           h("tbody", null,
             accessors.map((u) => h("tr", { key: u.id },
               h("td", { className: "mono" }, u.emp),
-              h("td", null, h("span", { className: "badge role" + (u.role === "관리자" ? " radmin" : "") }, u.role)),
+              h("td", null, h(RoleBadge, { role: u.role })),
               h("td", { className: "right" }, h("span", { className: "badge role" }, u.role === "관리자" ? "전체" : ((ADMIN_GRANTS[u.id] || {})[nodeId]?.edit || (ADMIN_GRANTS[u.id] || {})["f-arch"]?.edit) ? "읽기+편집" : "읽기")))))))));
 }
 
