@@ -40,15 +40,16 @@ pnpm preview
 
 ### 권한 모델
 
-- 유효 권한 = 역할 상한(Role ceiling) ∩ ACL 범위(Explicit allow)
-- deny는 절대 우선 — 공유 링크 접근만 예외(링크 소지자 임시 read)
-- 팀 = 그룹(멤버 집합), 단일 vault + 팀 스페이스(폴더 prefix)
+- 유효 권한 = 역할 상한(능력) ∩ ACL 범위(리소스). 역할은 enforce되는 권한 집합, ACL은 폴더 상속 + 카브아웃 deny
+- deny는 절대 우선 (개인 grant도 팀 deny를 못 뚫음) — 유일 예외는 만료·취소·로깅되는 공유 링크(read 전용)
+- 다중 주체(개인+팀) 해석 = deny-우선 합집합. public = 폴더 cascade + 노트 exclude, 새 노트 기본 제외
+- 팀 = 그룹(역할 아님). 단일 vault + 최상위 팀 스페이스(1급 메타데이터, 소유 팀 자동 grant)
 - 상세: `docs/superpowers/specs/2026-06-10-worknote-권한-디렉토리-design.md`
 
 ### 스토리지 스왑 지점
 
-`frontend/src/storage/VaultRepository` 인터페이스 — 1단계 IndexedDB, 2단계 HTTP API로 교체.
+`frontend/src/storage/VaultRepository` 인터페이스 — 현재 localStorage 구현. 1단계 SQLite, 2단계 HTTP API로 교체.
 
 ### 디렉토리 설계
 
-폴더 트리는 경로 문자열(path prefix)로 관리. 이동 = path rename. 상세 스펙 동일 문서 참조.
+트리는 **인접 리스트(`parent_id`) + 안정적 id** 로 관리 — path 문자열 아님. 이름은 라벨일 뿐(rename은 권한 무영향), 권한 상속 해석은 조상 walk(재귀 CTE), 이동은 위치 따름 + 가드(노출 변경 경고·감사). 삭제는 휴지통(soft-delete, 30일 purge). 상세 스펙 동일 문서 참조.

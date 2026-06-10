@@ -35,9 +35,9 @@ pnpm build
 
 ```
 src/
-  components/   UI 컴포넌트 (NoteList, Editor, Sidebar 등)
-  state/        Zustand 스토어 + vault reducer (단일 진실 공급원)
-  storage/      VaultRepository 인터페이스 + IndexedDB 구현
+  components/   UI 컴포넌트 (Sidebar, Editor, Outline, SearchModal 등)
+  state/        커스텀 훅 + vault reducer (useReducer 기반 단일 진실 공급원)
+  storage/      VaultRepository 인터페이스 + LocalStorageRepository 구현
   lib/          markdown 렌더링, 유틸리티
   editor/       CodeMirror 6 Live Preview 래퍼 (cm.ts)
   commands/     커맨드 패턴 핸들러
@@ -49,7 +49,8 @@ src/
 ## 아키텍처 메모
 
 - **vault reducer**: `state/` 내 단일 진실 공급원. 모든 노트 CRUD는 reducer를 통해 처리.
-- **VaultRepository 스왑 지점**: 현재 IndexedDB 구현. 2단계에서 HTTP API 구현으로 교체 예정 — 인터페이스만 맞추면 됨.
+- **VaultRepository 스왑 지점**: 현재 localStorage 구현(`LocalStorageRepository`). 1단계 SQLite, 2단계 HTTP API 구현으로 교체 예정 — 인터페이스(`load`/`save`, async)만 맞추면 됨. HTTP 구현 시 `useVault`의 언로드 플러시(`saveSync` instanceof 분기)를 `sendBeacon`/keepalive로 일반화할 것.
+- **markdown 렌더링**: `marked.parse`를 동기(string) 계약으로 사용 — `marked.use({ walkTokens: async })` 류 확장 금지 (`lib/markdown.ts` 참조).
 - **디자인 원본**: `../docs/design-handoff/prototype/` (비교 서버: `python3 -m http.server`)
 
 ## 알려진 주의사항
