@@ -110,7 +110,7 @@ export function Outline({ content, title, viewRef }: OutlineProps) {
     compute();
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => { scroller.removeEventListener("scroll", onScroll); clearTimeout(rafRef.current); };
-  }, [content, headings.length, offsetFor]);
+  }, [content, headings.length, title, offsetFor]);
 
   if (headings.length === 0) return null;
 

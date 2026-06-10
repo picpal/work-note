@@ -84,7 +84,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       window.removeEventListener("resize", close);
       document.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [onClose]);
 
   return React.createElement(
     "div",
