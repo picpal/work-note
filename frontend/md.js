@@ -1,0 +1,166 @@
+/* Markdown rendering: marked + highlight.js + mermaid, monochrome.
+   Exposes: window.renderMarkdown(src) -> html string (sync)
+            window.enhanceMermaid(rootEl)  -> renders mermaid blocks (async)
+            window.setMermaidTheme(isDark)  -> reconfigures + re-renders all
+            window.mdSnippet(src, query)    -> plain-text snippet for search   */
+(function () {
+  // ---- marked config ----
+  if (window.marked && marked.setOptions) {
+    marked.setOptions({ gfm: true, breaks: true });
+  }
+
+  let mermaidReady = false;
+  function initMermaid(isDark) {
+    if (!window.mermaid) return;
+    const v = isDark
+      ? { bg: "#1d1c1a", line: "#5f5d57", text: "#dcdbd6", node: "#262521", border: "#3d3b36", alt: "#2c2b27" }
+      : { bg: "#fbfbfa", line: "#bdbdb5", text: "#2a2a27", node: "#ffffff", border: "#dcdcd6", alt: "#f1f1ee" };
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "loose",
+      fontFamily: '"Pretendard", system-ui, sans-serif',
+      fontSize: 15,
+      flowchart: { htmlLabels: true, padding: 14, diagramPadding: 10, nodeSpacing: 52, rankSpacing: 50, useMaxWidth: true },
+      sequence: { useMaxWidth: true, boxMargin: 12 },
+      theme: "base",
+      themeVariables: {
+        background: v.bg,
+        primaryColor: v.node,
+        primaryBorderColor: v.border,
+        primaryTextColor: v.text,
+        lineColor: v.line,
+        textColor: v.text,
+        mainBkg: v.node,
+        nodeBorder: v.border,
+        clusterBkg: v.alt,
+        clusterBorder: v.border,
+        edgeLabelBackground: v.bg,
+        // sequence
+        actorBkg: v.node,
+        actorBorder: v.border,
+        actorTextColor: v.text,
+        actorLineColor: v.line,
+        signalColor: v.text,
+        signalTextColor: v.text,
+        labelBoxBkgColor: v.alt,
+        labelBoxBorderColor: v.border,
+        labelTextColor: v.text,
+        loopTextColor: v.text,
+        noteBkgColor: v.alt,
+        noteBorderColor: v.border,
+        noteTextColor: v.text,
+        sequenceNumberColor: v.text,
+        // flow decisions
+        tertiaryColor: v.alt,
+        tertiaryBorderColor: v.border,
+      },
+    });
+    mermaidReady = true;
+  }
+  window.setMermaidTheme = function (isDark) {
+    initMermaid(isDark);
+    // re-render everything currently on screen
+    document.querySelectorAll(".mermaid-wrap").forEach((el) => { el.removeAttribute("data-done"); });
+    document.querySelectorAll(".doc, .search-box, body").forEach(() => {});
+    window.enhanceMermaid(document.body);
+  };
+
+  function escAttr(s) { return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  window.renderMarkdown = function (src) {
+    if (!window.marked) return escAttr(src);
+    let html;
+    try { html = marked.parse(src || ""); } catch (e) { return "<p>" + escAttr(src) + "</p>"; }
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    const frag = tpl.content;
+
+    // code blocks
+    frag.querySelectorAll("pre > code").forEach((code) => {
+      const pre = code.parentElement;
+      const cls = code.className || "";
+      const m = cls.match(/language-([\w-]+)/);
+      const lang = m ? m[1].toLowerCase() : "";
+      const raw = code.textContent;
+      if (lang === "mermaid") {
+        const wrap = document.createElement("div");
+        wrap.className = "mermaid-wrap";
+        wrap.setAttribute("data-src", encodeURIComponent(raw));
+        pre.replaceWith(wrap);
+        return;
+      }
+      // highlight
+      if (window.hljs) {
+        try {
+          let res;
+          if (lang && hljs.getLanguage(lang)) res = hljs.highlight(raw, { language: lang });
+          else res = hljs.highlightAuto(raw);
+          code.innerHTML = res.value;
+          code.classList.add("hljs");
+        } catch (e) { /* leave raw */ }
+      }
+      if (lang) {
+        const tag = document.createElement("span");
+        tag.className = "lang-tag";
+        tag.textContent = lang;
+        pre.appendChild(tag);
+      }
+    });
+
+    // task list items
+    frag.querySelectorAll("li").forEach((li) => {
+      const cb = li.querySelector(":scope > input[type=checkbox]");
+      if (!cb) return;
+      const done = cb.checked;
+      li.classList.add("task-list-item");
+      if (done) li.classList.add("done");
+      const ul = li.closest("ul");
+      if (ul) ul.classList.add("contains-task-list");
+      cb.remove();
+      // wrap remaining content
+      const body = document.createElement("span");
+      body.className = "body";
+      while (li.firstChild) body.appendChild(li.firstChild);
+      const tick = document.createElement("span");
+      tick.className = "tick";
+      if (done) tick.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      li.appendChild(tick);
+      li.appendChild(body);
+    });
+
+    return tpl.innerHTML;
+  };
+
+  window.enhanceMermaid = function (root) {
+    if (!window.mermaid) return;
+    if (!mermaidReady) initMermaid(document.documentElement.getAttribute("data-theme") === "dark");
+    const nodes = root.querySelectorAll(".mermaid-wrap:not([data-done])");
+    nodes.forEach((el, i) => {
+      const src = decodeURIComponent(el.getAttribute("data-src") || "");
+      el.setAttribute("data-done", "1");
+      const id = "mmd-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + "-" + i;
+      const doRender = () => {
+        try {
+          mermaid.render(id, src).then(({ svg }) => { el.innerHTML = svg; })
+            .catch(() => { el.innerHTML = '<pre style="margin:0;font-size:12px;color:var(--text-3)">' + escAttr(src) + "</pre>"; });
+        } catch (e) {
+          el.innerHTML = '<pre style="margin:0;font-size:12px;color:var(--text-3)">' + escAttr(src) + "</pre>";
+        }
+      };
+      // render only after web fonts are ready, so node sizing uses correct metrics
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(doRender); else doRender();
+    });
+  };
+
+  // plain-text + highlighted snippet for search
+  window.mdToText = function (src) {
+    return (src || "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`[^`]*`/g, " ")
+      .replace(/[#>*_~\-|]/g, " ")
+      .replace(/\[[xX ]\]/g, " ")
+      .replace(/\n+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+})();
