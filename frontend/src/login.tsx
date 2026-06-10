@@ -1,2 +1,6 @@
 import { createRoot } from "react-dom/client";
-createRoot(document.getElementById("root")!).render(<div>WorkNote login (migrating)</div>);
+import "./styles/fonts.css";
+import "./styles/app.css";
+import "./styles/login.css";
+import { LoginPage } from "./login/LoginPage";
+createRoot(document.getElementById("root")!).render(<LoginPage />);
