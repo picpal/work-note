@@ -19,12 +19,16 @@ export function useVault(repo: VaultRepository = defaultRepo) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeRef = useRef(tree);
   const readyRef = useRef(false);
+  const justLoadedRef = useRef(false);
   treeRef.current = tree;
 
   // async initial load — replace seed with persisted data if available
   useEffect(() => {
     repo.load().then((saved) => {
-      if (saved) dispatch({ type: "replace", tree: dedupeIds(saved) });
+      if (saved) {
+        justLoadedRef.current = true;
+        dispatch({ type: "replace", tree: dedupeIds(saved) });
+      }
       readyRef.current = true;
       setReady(true);
     });
@@ -34,6 +38,7 @@ export function useVault(repo: VaultRepository = defaultRepo) {
   // debounced persistence — only writes once typing pauses
   useEffect(() => {
     if (firstRef.current) { firstRef.current = false; return; } // skip the initial render
+    if (justLoadedRef.current) { justLoadedRef.current = false; return; } // skip the initial replace — no spurious save/toast
     if (!readyRef.current) return; // ready 전에는 저장 금지 (시드가 저장본을 덮어쓰지 않도록)
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
