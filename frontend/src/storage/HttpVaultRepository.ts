@@ -4,8 +4,11 @@ import type { VaultTree } from "../types";
 import { VaultApi } from "./VaultApi";
 
 export class HttpVaultRepository implements VaultRepository {
+  wasEmpty = false; // 최초 load가 빈 서버였는지 — 시드 부트스트랩 판단용 (useVaultSync.bootstrapIfEmpty)
+
   async load(): Promise<VaultTree | null> {
     const tree = await VaultApi.tree();
+    this.wasEmpty = tree.length === 0;
     return tree.length ? tree : null; // 빈 서버 = 시드 부트스트랩 대상 (Task 7)
   }
 

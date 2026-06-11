@@ -11,6 +11,7 @@ import { Outline } from "./components/Outline";
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { useVault } from "./state/useVault";
+import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { repository } from "./storage";
 import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
@@ -41,7 +42,7 @@ const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: s
 ];
 
 export function App() {
-  const { tree, actions, savedTick, ready } = useVault(repository);
+  const { tree, actions: rawActions, savedTick, ready } = useVault(repository);
   const { settings, set } = useSettings();
   const [activeId, setActiveId] = usePersist<string | null>("wn.activeId", null);
   const [collapsed, setCollapsed] = usePersist<boolean>("wn.sbCollapsed", false);
@@ -82,6 +83,16 @@ export function App() {
     setToasts((ts) => [...ts, { id, msg, icon }]);
     setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), 2400);
   }, []);
+
+  // ---- server sync (HTTP 모드: 액션 단위 동기화, local 모드: rawActions 그대로) ----
+  const actions = useVaultSync(rawActions, toast);
+
+  // 빈 서버였으면 시드 1회 업로드 (HTTP 모드 한정 — 내부 가드)
+  useEffect(() => {
+    if (!ready) return;
+    void bootstrapIfEmpty(tree, toast);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   // ---- save notification (fires when a debounced save lands) ----
   useEffect(() => {
