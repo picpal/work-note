@@ -14,6 +14,8 @@ public interface AclMapper {
     List<PublicFlagRow> findAllPublicFlags();
     void insertAcl(AclRow row);
     void insertPublicFlag(@Param("nodeId") String nodeId, @Param("mode") String mode);
+    void upsertPublicFlag(@Param("nodeId") String nodeId, @Param("mode") String mode);
+    int deletePublicFlag(@Param("nodeId") String nodeId);
 
     /** 주체(팀/사용자) 삭제 시 ACL 정리 — 잔여 행은 id 재사용 시 권한 부활(purge 원칙과 동일). */
     void deleteAclByPrincipal(@Param("type") String type, @Param("id") String id);

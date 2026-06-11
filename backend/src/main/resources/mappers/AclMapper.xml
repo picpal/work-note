@@ -41,6 +41,16 @@
     INSERT INTO public_flag (node_id, mode) VALUES (#{nodeId}, #{mode})
   </insert>
 
+  <insert id="upsertPublicFlag">
+    <!-- Oracle 전환 시 MERGE INTO로 교체 -->
+    INSERT INTO public_flag (node_id, mode) VALUES (#{nodeId}, #{mode})
+    ON CONFLICT(node_id) DO UPDATE SET mode = excluded.mode
+  </insert>
+
+  <delete id="deletePublicFlag">
+    DELETE FROM public_flag WHERE node_id = #{nodeId}
+  </delete>
+
   <delete id="deleteAclByPrincipal">
     DELETE FROM acl WHERE principal_type = #{type} AND principal_id = #{id}
   </delete>

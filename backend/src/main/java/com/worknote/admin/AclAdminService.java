@@ -78,6 +78,20 @@ public class AclAdminService {
         return "";
     }
 
+    @Transactional
+    public void setPublic(String nodeId, String mode) {
+        requireActiveNode(nodeId);
+        acl.upsertPublicFlag(nodeId, mode);
+    }
+
+    @Transactional
+    public void unsetPublic(String nodeId) {
+        requireActiveNode(nodeId);
+        if (acl.deletePublicFlag(nodeId) == 0) {
+            throw VaultException.notFound("public 설정이 없습니다: " + nodeId);
+        }
+    }
+
     private void validatePrincipal(AclEntryRequest e) {
         switch (e.principalType()) {
             case "user" -> {

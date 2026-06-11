@@ -1,6 +1,8 @@
 package com.worknote.vault;
 
 import com.worknote.acl.AclMapper;
+import com.worknote.acl.AclResolver;
+import com.worknote.acl.PublicFlagRow;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -8,6 +10,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +70,10 @@ public class VaultService {
         String updatedAt = isNote ? nowIso() : null;
         mapper.insert(new NodeRow(id, parentId, type, name, position,
             isNote ? content : null, updatedAt, null, null));
+        if (isNote && parentId != null && isPubliclyVisible(parentId)) {
+            // 스펙 §7: public 폴더 하위 새 노트는 기본 제외 — 명시 exclude로 박제
+            aclMapper.insertPublicFlag(id, "exclude");
+        }
         if (isNote) {
             return new VaultNode(id, NOTE, null, name, null, null, List.of(), toDate(updatedAt), content);
         }
@@ -154,6 +161,19 @@ public class VaultService {
     }
 
     // ---- internal ----
+
+    /** 부모 체인 기준 public 노출 여부 — 새 노트 자동 exclude 판정용. */
+    private boolean isPubliclyVisible(String parentId) {
+        List<String> chain = aclMapper.ancestorChain(parentId);
+        if (chain.isEmpty()) {
+            return false;
+        }
+        Map<String, String> flags = new HashMap<>();
+        for (PublicFlagRow f : aclMapper.findPublicFlagsForNodes(chain)) {
+            flags.put(f.nodeId(), f.mode());
+        }
+        return AclResolver.publicRead(chain, flags);
+    }
 
     private List<VaultNode> assemble(String parentId, Map<String, List<NodeRow>> byParent,
                                      Map<String, List<String>> tagsByNode) {

@@ -1,6 +1,7 @@
 package com.worknote.admin;
 
 import com.worknote.acl.AclRow;
+import com.worknote.admin.dto.PublicRequest;
 import com.worknote.admin.dto.SetAclRequest;
 import com.worknote.audit.AuditService;
 import com.worknote.auth.AuthFilter;
@@ -50,5 +51,24 @@ public class AdminAclController {
         guard.requireAdmin(actor);
         String suffix = svc.replace(id, body.entries());
         audit.log(actor, "acl.set", id + " (" + body.entries().size() + "건)" + suffix, req.getRemoteAddr());
+    }
+
+    @PutMapping("/nodes/{id}/public")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setPublic(@PathVariable String id, @Valid @RequestBody PublicRequest body,
+                          HttpServletRequest req) {
+        UserRow actor = user(req);
+        guard.requireAdmin(actor);
+        svc.setPublic(id, body.mode());
+        audit.log(actor, "public.set", id + " " + body.mode(), req.getRemoteAddr());
+    }
+
+    @DeleteMapping("/nodes/{id}/public")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unsetPublic(@PathVariable String id, HttpServletRequest req) {
+        UserRow actor = user(req);
+        guard.requireAdmin(actor);
+        svc.unsetPublic(id);
+        audit.log(actor, "public.unset", id, req.getRemoteAddr());
     }
 }

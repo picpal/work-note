@@ -24,6 +24,7 @@ class VaultControllerTest {
     @BeforeEach
     void clean() {
         jdbc.update("DELETE FROM tag");
+        jdbc.update("DELETE FROM public_flag"); // 잔여 flag는 같은 id 재생성 시 create의 자동 exclude와 충돌
         jdbc.update("DELETE FROM node");
     }
 
