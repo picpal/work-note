@@ -80,7 +80,9 @@ public class AdminTeamController {
     public void removeMember(@PathVariable String id, @PathVariable String userId, HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        svc.removeMember(id, userId);
-        audit.log(actor, "team.member.remove", id + " - " + userId, req.getRemoteAddr());
+        UserRow member = svc.removeMember(id, userId);
+        // member.add와 동일하게 emp로 기록 — 고아 멤버십 행(사용자 삭제 후 잔존)만 userId 폴백
+        String target = id + " - " + (member != null ? member.emp() : userId);
+        audit.log(actor, "team.member.remove", target, req.getRemoteAddr());
     }
 }

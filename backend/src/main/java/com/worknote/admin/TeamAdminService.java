@@ -78,12 +78,15 @@ public class TeamAdminService {
         return user;
     }
 
+    /** @return 제거된 멤버 — 감사 target은 emp로 기록(user 계열 감사와 정합). 고아 멤버십 행(사용자 없음)이면 null. */
     @Transactional
-    public void removeMember(String teamId, String userId) {
+    public UserRow removeMember(String teamId, String userId) {
         require(teamId);
+        UserRow user = users.findById(userId);
         if (teams.removeMember(teamId, userId) == 0) {
             throw VaultException.notFound("팀 멤버가 아닙니다: " + userId);
         }
+        return user;
     }
 
     private TeamRow require(String id) {
