@@ -74,7 +74,7 @@ cd backend
 
 ### 1단계
 
-- **SQLite FK enforcement 의도적 OFF** — 무결성은 서비스 계층 검증이 담당 (parent 존재/타입/비삭제 검증, purge는 tag 선삭제 → node 삭제 순서). Oracle 전환 시 FK가 statement-level로 검사되므로 현 쿼리 구조 그대로 안전.
+- **SQLite FK enforcement 의도적 OFF** — 무결성은 서비스 계층 검증이 담당 (parent 존재/타입/비삭제 검증, purge는 tag·acl·public_flag·space 선삭제 → node 삭제 순서 — id 재사용 시 옛 권한 부활 방지). Oracle 전환 시 FK가 statement-level로 검사되므로 현 쿼리 구조 그대로 안전.
 - **Hikari pool 1** — SQLite 단일 라이터, SQLITE_BUSY 방지.
 - **쓰기 API는 204** — 빈 200 바디는 프런트의 `fetch res.json()` 크래시를 유발.
 

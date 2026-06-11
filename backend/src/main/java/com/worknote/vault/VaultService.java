@@ -1,5 +1,6 @@
 package com.worknote.vault;
 
+import com.worknote.acl.AclMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +21,12 @@ public class VaultService {
     private static final String NOTE = "note";
 
     private final NodeMapper mapper;
+    private final AclMapper aclMapper;
     private final Clock clock;
 
-    public VaultService(NodeMapper mapper, Clock clock) {
+    public VaultService(NodeMapper mapper, AclMapper aclMapper, Clock clock) {
         this.mapper = mapper;
+        this.aclMapper = aclMapper;
         this.clock = clock;
     }
 
@@ -119,7 +122,13 @@ public class VaultService {
         if (row.deletedAt() == null) {
             throw VaultException.invalid("활성 노드는 purge할 수 없습니다 (휴지통으로 먼저 이동): " + id);
         }
-        mapper.deleteTagsIn(mapper.subtreeIds(id));
+        // purge = node + 종속행(tag·acl·public_flag·space) 영구 삭제 — 스펙 §4.3.
+        // create가 클라이언트 id를 받으므로 잔여 행을 남기면 같은 id 재생성 시 옛 권한이 부활(fail-open)한다.
+        List<String> ids = mapper.subtreeIds(id);
+        mapper.deleteTagsIn(ids);
+        aclMapper.deleteAclIn(ids);
+        aclMapper.deletePublicFlagIn(ids);
+        aclMapper.deleteSpaceIn(ids);
         mapper.purgeSubtree(id);
     }
 

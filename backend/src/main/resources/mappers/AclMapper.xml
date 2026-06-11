@@ -41,4 +41,19 @@
     INSERT INTO public_flag (node_id, mode) VALUES (#{nodeId}, #{mode})
   </insert>
 
+  <delete id="deleteAclIn">
+    DELETE FROM acl WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
+  <delete id="deletePublicFlagIn">
+    DELETE FROM public_flag WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
+  <delete id="deleteSpaceIn">
+    DELETE FROM space WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
 </mapper>

@@ -14,4 +14,9 @@ public interface AclMapper {
     List<PublicFlagRow> findAllPublicFlags();
     void insertAcl(AclRow row);
     void insertPublicFlag(@Param("nodeId") String nodeId, @Param("mode") String mode);
+
+    // purge 종속행 정리 — NodeMapper.deleteTagsIn과 동일 패턴 (IN-리스트 비지 않음 계약)
+    void deleteAclIn(@Param("ids") List<String> ids);
+    void deletePublicFlagIn(@Param("ids") List<String> ids);
+    void deleteSpaceIn(@Param("ids") List<String> ids);
 }

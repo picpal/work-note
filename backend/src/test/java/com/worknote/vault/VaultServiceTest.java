@@ -13,7 +13,13 @@ class VaultServiceTest {
     @Autowired VaultService svc;
     @Autowired JdbcTemplate jdbc;
 
-    @BeforeEach void clean() { jdbc.update("DELETE FROM tag"); jdbc.update("DELETE FROM node"); }
+    @BeforeEach void clean() {
+        jdbc.update("DELETE FROM tag");
+        jdbc.update("DELETE FROM acl");
+        jdbc.update("DELETE FROM public_flag");
+        jdbc.update("DELETE FROM space");
+        jdbc.update("DELETE FROM node");
+    }
 
     @Test
     void createAssignsPositionAndBuildsTree() {
@@ -94,6 +100,29 @@ class VaultServiceTest {
         svc.create("n1", null, "note", "x", "");
         assertThatThrownBy(() -> svc.purge("n1"))
             .isInstanceOf(VaultException.class);
+    }
+
+    @Test
+    void purgeRemovesAclAndPublicFlagRows() {
+        // create는 클라이언트 id를 받으므로, purge가 권한 행을 안 지우면 같은 id 재생성 시 옛 권한이 부활(fail-open)
+        svc.create("f1", null, "folder", "팀폴더", null);
+        svc.create("n1", "f1", "note", "노트", "");
+        jdbc.update("INSERT INTO acl (principal_type, principal_id, node_id, grant_type) VALUES ('user','u1','f1','edit')");
+        jdbc.update("INSERT INTO acl (principal_type, principal_id, node_id, grant_type) VALUES ('team','t1','n1','read')");
+        jdbc.update("INSERT INTO public_flag (node_id, mode) VALUES ('f1','public')");
+        jdbc.update("INSERT INTO space (node_id, team_id) VALUES ('f1', NULL)");
+
+        svc.trash("f1", "S2019-0007");
+        svc.purge("f1");   // 서브트리(f1, n1) 전체의 종속행이 함께 삭제되어야 함
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM acl WHERE node_id IN ('f1','n1')", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM public_flag WHERE node_id IN ('f1','n1')", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM space WHERE node_id IN ('f1','n1')", Integer.class)).isZero();
+
+        // 같은 id 재생성 — 잔여 권한 없음 (옛 ACL·public이 새 노드에 붙지 않는다)
+        svc.create("f1", null, "folder", "재생성", null);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM acl WHERE node_id = 'f1'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM public_flag WHERE node_id = 'f1'", Integer.class)).isZero();
     }
 
     @Test
