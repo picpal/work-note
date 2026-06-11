@@ -70,7 +70,8 @@ class VaultControllerTest {
         createNote("n1", null, "원래 제목");
         mvc.perform(patch("/api/nodes/n1").contentType(APPLICATION_JSON)
                 .content("{\"name\":\"새 제목\",\"content\":\"abc\",\"tags\":[\"운영\"]}"))
-            .andExpect(status().isOk());
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
         mvc.perform(get("/api/tree"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].title").value("새 제목"))
@@ -89,6 +90,16 @@ class VaultControllerTest {
     }
 
     @Test
+    void moveReturns204WithEmptyBody() throws Exception {
+        createFolder("f1", null);
+        createNote("n1", null, "x");
+        mvc.perform(post("/api/nodes/n1/move").contentType(APPLICATION_JSON)
+                .content("{\"parentId\":\"f1\"}"))
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
+    }
+
+    @Test
     void deleteToTrashAndRestore() throws Exception {
         createFolder("f1", null);
         createNote("n1", "f1", "x");
@@ -99,7 +110,9 @@ class VaultControllerTest {
         mvc.perform(get("/api/trash"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].id").value("f1"));
-        mvc.perform(post("/api/trash/f1/restore")).andExpect(status().isOk());
+        mvc.perform(post("/api/trash/f1/restore"))
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
         mvc.perform(get("/api/tree"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)));

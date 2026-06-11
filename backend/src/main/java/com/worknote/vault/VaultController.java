@@ -39,11 +39,13 @@ public class VaultController {
     }
 
     @PatchMapping("/nodes/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void update(@PathVariable String id, @RequestBody UpdateNodeRequest req) {
         svc.update(id, req.name(), req.content(), req.tags());
     }
 
     @PostMapping("/nodes/{id}/move")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void move(@PathVariable String id, @RequestBody MoveNodeRequest req) {
         svc.move(id, req.parentId());
     }
@@ -60,6 +62,7 @@ public class VaultController {
     }
 
     @PostMapping("/trash/{id}/restore")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void restore(@PathVariable String id) {
         svc.restore(id);
     }
