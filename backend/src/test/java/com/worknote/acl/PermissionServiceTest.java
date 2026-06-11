@@ -1,5 +1,6 @@
 package com.worknote.acl;
 
+import com.worknote.auth.RoleCaps;
 import com.worknote.auth.UserRow;
 import com.worknote.vault.NodeMapper;
 import com.worknote.vault.NodeRow;
@@ -18,6 +19,7 @@ class PermissionServiceTest {
     @Autowired TeamMapper teams;
     @Autowired NodeMapper nodes;
     @Autowired JdbcTemplate jdbc;
+    @Autowired RoleCaps roleCaps;
 
     private static final UserRow OPERATOR = new UserRow("u1", "10001", null, "운영", "operator", "active", null);
     private static final UserRow VISITOR  = new UserRow("u2", "10002", null, "방문", "visitor", "active", null);
@@ -162,5 +164,50 @@ class PermissionServiceTest {
     @Test
     void readableIdsEmptyForNoGrants() {
         assertThat(perm.readableIds(OPERATOR, nodes.findActive())).isEmpty();
+    }
+
+    @Test
+    void unknownNodeIdIsDenied() {
+        // 미존재 nodeId → 빈 체인 → default-deny (크래시 아님)
+        assertThat(perm.canRead(OPERATOR, "ghost")).isFalse();
+        assertThat(perm.canEdit(OPERATOR, "ghost")).isFalse();
+    }
+
+    @Test
+    void sameNodeMultiplePrincipals() {
+        // 같은 노드에 개인 read + 소속 팀 deny → deny-우선 합집합으로 차단
+        teams.insertTeam("t1", "결제팀");
+        teams.addMember("t1", "u1");
+        acl.insertAcl(new AclRow("user", "u1", "n1", "read"));
+        acl.insertAcl(new AclRow("team", "t1", "n1", "deny"));
+        assertThat(perm.canRead(OPERATOR, "n1")).isFalse();
+    }
+
+    @Test
+    void rootLevelNoteResolves() {
+        // 루트 직속 노트(parentId=null) — 체인 길이 1도 정상 해석
+        node("n3", null, "note");
+        acl.insertAcl(new AclRow("user", "u1", "n3", "read"));
+        assertThat(perm.canRead(OPERATOR, "n3")).isTrue();
+        assertThat(perm.readableIds(OPERATOR, nodes.findActive())).containsExactly("n3");
+    }
+
+    @Test
+    void serverModeNullUserIsDenied() {
+        // server 모드 이중 안전망 박제 — 필터가 막지만 user=null이 새어 들어와도 차단
+        PermissionService server = new PermissionService(acl, teams, roleCaps, "server");
+        assertThat(server.canRead(null, "n1")).isFalse();
+        assertThat(server.canEdit(null, "n1")).isFalse();
+        // 대비: local 모드 빈(perm)은 user=null 전체 허용
+        assertThat(perm.canRead(null, "n1")).isTrue();
+        assertThat(perm.canEdit(null, "n1")).isTrue();
+    }
+
+    @Test
+    void excludeIsNotStickyNearestFlagWins() {
+        // public 카브아웃은 deny와 달리 nearest-explicit — exclude@f1보다 가까운 public@f2가 이김 (스펙 §5.2)
+        acl.insertPublicFlag("f1", "exclude");
+        acl.insertPublicFlag("f2", "public");
+        assertThat(perm.canRead(VISITOR, "n1")).isTrue();
     }
 }
