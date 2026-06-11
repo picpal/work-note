@@ -10,6 +10,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -39,7 +40,8 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.emp").value("10001"))
             .andExpect(jsonPath("$.name").value("홍길동"))
             .andExpect(jsonPath("$.roleId").value("operator"))
-            .andExpect(jsonPath("$.caps").isArray());
+            .andExpect(jsonPath("$.caps").isArray())
+            .andExpect(jsonPath("$.caps", hasItem("res.read")));
         assertThat(session.getAttribute(AuthController.SESSION_USER)).isEqualTo("u1");
     }
 
@@ -77,6 +79,7 @@ class AuthControllerTest {
         mvc.perform(get("/api/auth/me"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("local"))
-            .andExpect(jsonPath("$.roleId").value("admin"));
+            .andExpect(jsonPath("$.roleId").value("admin"))
+            .andExpect(jsonPath("$.caps", hasItem("admin.permissions")));   // 합성 admin도 caps 채움 — 모드 무관 동일 API
     }
 }

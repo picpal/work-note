@@ -19,17 +19,22 @@ public class AuthController {
     public static final String SESSION_USER = "worknote.userId";
 
     private final AuthService auth;
+    private final RoleCaps roleCaps;
     private final boolean serverMode;
 
-    public AuthController(AuthService auth, @Value("${worknote.mode:local}") String mode) {
+    public AuthController(AuthService auth, RoleCaps roleCaps,
+                          @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
+        this.roleCaps = roleCaps;
         this.serverMode = "server".equals(mode);
     }
 
     @PostMapping("/login")
     public MeResponse login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         AuthService.AuthUser result = auth.login(req.emp(), req.password());
-        http.getSession(true).setAttribute(SESSION_USER, result.user().id());
+        HttpSession session = http.getSession(true);
+        http.changeSessionId();   // 세션 고정 방어 — 공용 PC 교대 로그인 시 세션 id 재사용 방지 (내용 유지, id만 교체)
+        session.setAttribute(SESSION_USER, result.user().id());
         return toMe(result.user(), result.caps());
     }
 
@@ -52,7 +57,8 @@ public class AuthController {
             // server 모드에선 필터가 먼저 401을 반환 — 방어적 가드
             throw AuthException.unauthorized("인증이 필요합니다");
         }
-        return new MeResponse("local", "local", "local", "admin", Set.of());  // 1단계 호환
+        // 1단계 호환 — caps도 실제 admin 시드로 채움 (프런트 caps 기반 UI 가드가 모드 무관하게 동작)
+        return new MeResponse("local", "local", "local", "admin", roleCaps.of("admin"));
     }
 
     private static MeResponse toMe(UserRow user, Set<String> caps) {
