@@ -1,6 +1,5 @@
 package com.worknote;
 
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,15 +19,15 @@ class SchemaMigrationTest {
 
     @Test
     void phase2TablesExist() {
-        List<String> tables = jdbc.queryForList(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", String.class);
+        var tables = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='table'", String.class);
         assertThat(tables).contains("role", "app_user", "user_credential",
-            "team", "team_member", "space", "acl", "public_flag", "audit");
+            "team", "team_member", "space", "acl", "public_flag", "audit_log");
     }
 
     @Test
     void systemRolesSeeded() {
-        List<String> roles = jdbc.queryForList("SELECT id FROM role WHERE system = 1 ORDER BY id", String.class);
+        var roles = jdbc.queryForList("SELECT id FROM role WHERE system = 1 ORDER BY id", String.class);
         assertThat(roles).containsExactly("admin", "operator", "visitor");
         String adminCaps = jdbc.queryForObject("SELECT caps FROM role WHERE id = 'admin'", String.class);
         assertThat(adminCaps).contains("admin.permissions").contains("res.share");

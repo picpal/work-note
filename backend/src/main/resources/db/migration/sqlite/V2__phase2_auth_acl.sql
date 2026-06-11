@@ -33,6 +33,7 @@ CREATE TABLE team_member (
   user_id TEXT NOT NULL REFERENCES app_user(id),
   PRIMARY KEY (team_id, user_id)
 );
+CREATE INDEX idx_team_member_user ON team_member(user_id);  -- 권한 해석: 사용자→소속 팀(teamsOf) 조회
 
 -- 팀 스페이스(1급): 최상위 폴더 ↔ 소유 팀. 관리자 API(다음 계획)에서 사용 — 스키마는 한 번에
 CREATE TABLE space (
@@ -43,26 +44,27 @@ CREATE TABLE space (
 CREATE TABLE acl (
   principal_type TEXT NOT NULL CHECK (principal_type IN ('user','team','all')),
   principal_id   TEXT NOT NULL,      -- @all은 센티넬 '@all'
-  node_id        TEXT NOT NULL,
+  node_id        TEXT NOT NULL REFERENCES node(id),
   grant_type     TEXT NOT NULL CHECK (grant_type IN ('read','edit','deny')),
   PRIMARY KEY (principal_type, principal_id, node_id)
 );
 CREATE INDEX idx_acl_node ON acl(node_id);
 
 CREATE TABLE public_flag (
-  node_id TEXT PRIMARY KEY,
+  node_id TEXT PRIMARY KEY REFERENCES node(id),
   mode    TEXT NOT NULL CHECK (mode IN ('public','exclude'))
 );
 
-CREATE TABLE audit (
-  id     INTEGER PRIMARY KEY AUTOINCREMENT,
+-- AUDIT은 Oracle 완전 예약어 → audit_log 사용 (app_user/grant_type와 동일 규칙)
+CREATE TABLE audit_log (
+  id     INTEGER PRIMARY KEY,        -- SQLite rowid 별칭 = 자동 증가 (AUTOINCREMENT 불필요)
   at     TEXT NOT NULL,
   who    TEXT NOT NULL,
   act    TEXT NOT NULL,
   target TEXT,
   ip     TEXT
 );
-CREATE INDEX idx_audit_at ON audit(at);
+CREATE INDEX idx_audit_log_at ON audit_log(at);
 
 INSERT INTO role (id, name, system, caps) VALUES
  ('admin',    '관리자', 1, '["admin.users","admin.permissions","admin.roles","admin.security","admin.audit","res.read","res.edit","res.create","res.delete","res.export","res.share"]'),
