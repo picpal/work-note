@@ -15,6 +15,7 @@ public class AuthFilterConfig {
     public FilterRegistrationBean<AuthFilter> authFilter(UserMapper users, ObjectMapper json) {
         FilterRegistrationBean<AuthFilter> reg = new FilterRegistrationBean<>(new AuthFilter(users, json));
         reg.addUrlPatterns("/api/*");
+        reg.setOrder(0);   // 인증 필터 순서 명시 — 후속 필터 추가 시 암묵 order 의존 방지
         return reg;
     }
 }

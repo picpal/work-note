@@ -29,7 +29,9 @@ public class AuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
-        if (ALLOWLIST.contains(req.getRequestURI())) {
+        // contextPath 분리 — non-root context 배포 시 allowlist 불일치로 인한 전면 락아웃 방지
+        String path = req.getRequestURI().substring(req.getContextPath().length());
+        if (ALLOWLIST.contains(path)) {
             chain.doFilter(req, res);
             return;
         }

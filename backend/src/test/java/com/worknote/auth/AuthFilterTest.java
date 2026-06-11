@@ -48,6 +48,7 @@ class AuthFilterTest {
         mvc.perform(get("/api/tree"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").exists());
+        mvc.perform(get("/api/healthz")).andExpect(status().isUnauthorized());   // allowlist 정확 일치 회귀 고정
     }
 
     @Test
