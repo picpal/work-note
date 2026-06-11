@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** 트리 조립·검증·트랜잭션 경계. 영속은 NodeMapper에 위임, FK enforcement off — 검증은 앱 레벨. */
 @Service
@@ -28,9 +29,16 @@ public class VaultService {
 
     @Transactional(readOnly = true)
     public List<VaultNode> tree() {
+        return tree(null);
+    }
+
+    /** readable=null이면 무필터(local/관리자). 필터 시 포함 노드만 조립 — 스텁 폴더는 readable에 이미 포함. */
+    @Transactional(readOnly = true)
+    public List<VaultNode> tree(Set<String> readable) {
         // findActive는 parent_id, position, id 정렬 — LinkedHashMap 그룹핑으로 순서 유지
         Map<String, List<NodeRow>> byParent = new LinkedHashMap<>();
         for (NodeRow row : mapper.findActive()) {
+            if (readable != null && !readable.contains(row.id())) continue;
             byParent.computeIfAbsent(row.parentId(), k -> new ArrayList<>()).add(row);
         }
         Map<String, List<String>> tagsByNode = new LinkedHashMap<>();
@@ -110,8 +118,15 @@ public class VaultService {
 
     @Transactional(readOnly = true)
     public List<VaultNode> trashList() {
+        return trashList(null);
+    }
+
+    /** deletedBy=null이면 전체(관리자/local), 아니면 본인 삭제분만 (스펙 §4.3). */
+    @Transactional(readOnly = true)
+    public List<VaultNode> trashList(String deletedBy) {
         List<VaultNode> out = new ArrayList<>();
         for (NodeRow row : mapper.findTrashRoots()) {
+            if (deletedBy != null && !deletedBy.equals(row.deletedBy())) continue;
             if (NOTE.equals(row.type())) {
                 out.add(new VaultNode(row.id(), NOTE, null, row.name(), null, null,
                     List.of(), toDate(row.updatedAt()), null));

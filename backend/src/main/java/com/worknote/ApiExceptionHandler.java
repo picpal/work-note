@@ -20,6 +20,7 @@ public class ApiExceptionHandler {
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
             case INVALID -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
         };
         return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
     }
