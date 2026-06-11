@@ -7,7 +7,7 @@
 ```
 work-note/
   frontend/                    Vite 6 + TypeScript + React 18 (구현 완료)
-  backend/                     Java 21 + Gradle + SQLite (예정)
+  backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite (1단계 구현 완료)
   docs/
     superpowers/
       specs/                   권한·디렉토리 설계 스펙 문서
@@ -25,15 +25,22 @@ work-note/
 - 커맨드 패턴: 에디터 툴바 액션은 `commands/`에 집중
 - 모노톤 디자인: Pretendard(UI) + D2Coding(코드), CSS 변수 기반
 
-## 명령어 (frontend)
+## 명령어
 
 ```bash
+# frontend
 cd frontend
 pnpm install
-pnpm dev       # 개발 서버
-pnpm build     # dist/ 정적 빌드 (CDN 의존 0)
+pnpm dev       # 개발 서버 (localStorage 모드. HTTP 모드: VITE_STORAGE=http pnpm dev — 백엔드 기동 필요)
+pnpm build     # dist/ 정적 빌드 (CDN 의존 0, .env.production → 항상 HTTP 모드)
 pnpm test      # Vitest
 pnpm preview
+
+# backend
+cd backend
+./gradlew test       # 테스트
+./gradlew bootJar    # 단일 jar (frontend dist를 classpath:/static으로 포함 — pnpm build 선행 필요)
+java -jar build/libs/worknote-0.1.0.jar   # 실행 (WORKNOTE_DB 환경변수로 DB 경로 지정)
 ```
 
 ## 핵심 설계 결정
@@ -48,7 +55,7 @@ pnpm preview
 
 ### 스토리지 스왑 지점
 
-`frontend/src/storage/VaultRepository` 인터페이스 — 현재 localStorage 구현. 1단계 SQLite, 2단계 HTTP API로 교체.
+`frontend/src/storage/VaultRepository` 인터페이스 — **1단계 완료**: HTTP API + SQLite 동작 중. `VITE_STORAGE`로 모드 스위치(local=localStorage, http=백엔드 API). 쓰기 동기화는 `useVaultSync`(액션→API 즉시, content/tags/title은 1.5초 디바운스 PATCH).
 
 ### 디렉토리 설계
 

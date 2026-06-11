@@ -1,6 +1,6 @@
 # backend
 
-work-note 서버. 1단계: 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite).
+work-note 서버. 1단계: 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 구현 완료** — 31 tests green, E2E 검증 완료.
 
 ## 스택 (확정)
 
@@ -18,6 +18,46 @@ cd backend
 ./gradlew build      # 빌드 (build/libs/worknote-*.jar)
 ./gradlew bootRun    # 실행 (기본 DB: ./worknote.db, WORKNOTE_DB 환경변수로 변경)
 ```
+
+## API
+
+| 메서드 | 경로 | 설명 | 성공 코드 |
+|--------|------|------|-----------|
+| GET | `/api/tree` | 전체 트리 조회 | 200 |
+| POST | `/api/nodes` | 노드 생성 | 201 |
+| PATCH | `/api/nodes/{id}` | 노드 수정 (title/content/tags 등) | 204 |
+| POST | `/api/nodes/{id}/move` | 노드 이동 | 204 |
+| DELETE | `/api/nodes/{id}` | 휴지통으로 이동 (soft-delete) | 204 |
+| GET | `/api/trash` | 휴지통 목록 | 200 |
+| POST | `/api/trash/{id}/restore` | 휴지통 복구 | 204 |
+| DELETE | `/api/trash/{id}` | 영구 삭제 (purge) | 204 |
+| GET | `/api/health` | 헬스 체크 | 200 |
+
+오류 응답: 404/409/422 → `{"error": "메시지"}`, 요청 검증 실패 → 400.
+
+## 아키텍처
+
+컨트롤러 → 서비스 → 매퍼(MyBatis) 3계층. 트리는 인접 리스트(`parent_id`)로 저장하고 하위 트리 해석은 재귀 CTE로 수행한다. 삭제는 soft-delete 휴지통 — 복구는 배치 의미론(같은 `deleted_at`을 가진 노드들이 한 단위로 복구)을 따른다.
+
+## 설계 결정 기록
+
+- **SQLite FK enforcement 의도적 OFF** — 무결성은 서비스 계층 검증이 담당 (parent 존재/타입/비삭제 검증, purge는 tag 선삭제 → node 삭제 순서). Oracle 전환 시 FK가 statement-level로 검사되므로 현 쿼리 구조 그대로 안전.
+- **Hikari pool 1** — SQLite 단일 라이터, SQLITE_BUSY 방지.
+- **쓰기 API는 204** — 빈 200 바디는 프런트의 `fetch res.json()` 크래시를 유발.
+
+## Oracle 전환 체크리스트
+
+1. `db/migration/oracle/` 디렉토리 추가 — V1 스키마의 TEXT → VARCHAR2/CLOB 매핑
+2. 매퍼 XML의 `WITH RECURSIVE` → `WITH` (주석 표기된 4곳, `mappers/NodeMapper.xml`)
+3. FK가 enforce되므로 데이터 정합 사전 검증
+4. position 동시성(쓰기 경합) 대응 — 2단계 다중 사용자 시
+
+## 2단계 이월 항목
+
+- 권한 엔진 (deny-우선 합집합)
+- 30일 자동 purge 스케줄러
+- fire-and-forget 동기화 충돌 처리
+- useVault 언로드 플러시 `sendBeacon` 일반화
 
 ## 배포 (단일 실행 jar)
 
