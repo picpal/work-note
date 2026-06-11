@@ -37,6 +37,7 @@ class AclMapperTest {
         node("n1", "f2", "note");
         assertThat(acl.ancestorChain("n1")).containsExactly("n1", "f2", "f1");  // 자신→루트 순
         assertThat(acl.ancestorChain("f1")).containsExactly("f1");
+        assertThat(acl.ancestorChain("ghost")).isEmpty();  // 비지-않음 계약은 "존재하는 노드면" — 호출자 책임 경계
     }
 
     @Test
@@ -46,8 +47,12 @@ class AclMapperTest {
         acl.insertAcl(new AclRow("team", "t-pay", "f1", "edit"));
         acl.insertAcl(new AclRow("user", "u1", "n1", "deny"));
         List<AclRow> rows = acl.findAclForNodes(List.of("n1", "f1"));
-        assertThat(rows).hasSize(2);
-        assertThat(acl.findAllAcl()).hasSize(2);
+        assertThat(rows).containsExactlyInAnyOrder(
+            new AclRow("team", "t-pay", "f1", "edit"),
+            new AclRow("user", "u1", "n1", "deny"));
+        assertThat(acl.findAllAcl()).containsExactlyInAnyOrder(
+            new AclRow("team", "t-pay", "f1", "edit"),
+            new AclRow("user", "u1", "n1", "deny"));
     }
 
     @Test
@@ -56,9 +61,12 @@ class AclMapperTest {
         node("n1", "f1", "note");
         acl.insertPublicFlag("f1", "public");
         acl.insertPublicFlag("n1", "exclude");
-        assertThat(acl.findPublicFlagsForNodes(List.of("n1", "f1"))).hasSize(2);
-        assertThat(acl.findAllPublicFlags())
-            .extracting(PublicFlagRow::mode).containsExactlyInAnyOrder("public", "exclude");
+        assertThat(acl.findPublicFlagsForNodes(List.of("n1", "f1"))).containsExactlyInAnyOrder(
+            new PublicFlagRow("f1", "public"),
+            new PublicFlagRow("n1", "exclude"));
+        assertThat(acl.findAllPublicFlags()).containsExactlyInAnyOrder(
+            new PublicFlagRow("f1", "public"),
+            new PublicFlagRow("n1", "exclude"));
     }
 
     @Test
