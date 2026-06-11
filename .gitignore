@@ -3,3 +3,8 @@ dist/
 *.log
 .DS_Store
 .gstack/
+
+# backend
+backend/build/
+backend/.gradle/
+*.db
