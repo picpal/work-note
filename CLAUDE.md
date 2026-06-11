@@ -7,7 +7,10 @@
 ```
 work-note/
   frontend/                    Vite 6 + TypeScript + React 18 (구현 완료)
-  backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite (1단계 구현 완료)
+  backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite
+                               1단계 + 2단계 코어(세션 인증 + 권한 엔진) 구현 완료 — worknote.mode로 스위치(기본 local=무인증)
+                               server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar ...
+                               공유 링크·관리자 API·프런트 연동은 다음 계획
   docs/
     superpowers/
       specs/                   권한·디렉토리 설계 스펙 문서
@@ -40,7 +43,8 @@ pnpm preview
 cd backend
 ./gradlew test       # 테스트
 ./gradlew bootJar    # 단일 jar (frontend dist를 classpath:/static으로 포함 — pnpm build 선행 필요)
-java -jar build/libs/worknote-0.1.0.jar   # 실행 (WORKNOTE_DB 환경변수로 DB 경로 지정)
+java -jar build/libs/worknote-0.1.0.jar   # 실행 (WORKNOTE_DB 환경변수로 DB 경로 지정, 기본 local 모드=무인증)
+WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar build/libs/worknote-0.1.0.jar   # server 모드 (인증+권한 enforce)
 ```
 
 ## 핵심 설계 결정
@@ -50,6 +54,7 @@ java -jar build/libs/worknote-0.1.0.jar   # 실행 (WORKNOTE_DB 환경변수로 
 - 유효 권한 = 역할 상한(능력) ∩ ACL 범위(리소스). 역할은 enforce되는 권한 집합, ACL은 폴더 상속 + 카브아웃 deny
 - deny는 절대 우선 (개인 grant도 팀 deny를 못 뚫음) — 유일 예외는 만료·취소·로깅되는 공유 링크(read 전용)
 - 다중 주체(개인+팀) 해석 = deny-우선 합집합. public = 폴더 cascade + 노트 exclude, 새 노트 기본 제외
+- **deny-sticky**: 같은 주체의 조상 deny는 더 가까운 allow로 못 뒤집음 — 스펙 §5.1 "deny 아래 재허용 없음"을 해석기에서 강제(2단계 구현 확정)
 - 팀 = 그룹(역할 아님). 단일 vault + 최상위 팀 스페이스(1급 메타데이터, 소유 팀 자동 grant)
 - 상세: `docs/superpowers/specs/2026-06-10-worknote-권한-디렉토리-design.md`
 
