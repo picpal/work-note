@@ -41,8 +41,9 @@ public class AdminSpaceController {
     public void set(@PathVariable String nodeId, @Valid @RequestBody SpaceRequest body, HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        svc.set(nodeId, body.teamId());
-        audit.log(actor, "space.set", nodeId + " -> " + (body.teamId() != null ? body.teamId() : "공용"),
+        String auditSuffix = svc.set(nodeId, body.teamId());
+        audit.log(actor, "space.set",
+            nodeId + " -> " + (body.teamId() != null ? body.teamId() : "공용") + auditSuffix,
             req.getRemoteAddr());
     }
 

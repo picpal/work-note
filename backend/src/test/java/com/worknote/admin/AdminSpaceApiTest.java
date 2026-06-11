@@ -57,6 +57,37 @@ class AdminSpaceApiTest {
         assertThat(jdbc.queryForObject(
             "SELECT COUNT(*) FROM acl WHERE principal_type='team' AND principal_id='t1' AND node_id='f1' AND grant_type='edit'",
             Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'space.set' AND target = 'f1 -> t1'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void put_trashedNode_404() throws Exception {
+        jdbc.update("UPDATE node SET deleted_at = '2026-06-12T00:00:00', deleted_by = 'u-admin' WHERE id = 'f1'");
+        mvc.perform(put("/api/admin/spaces/f1").session(admin()).contentType(APPLICATION_JSON).content("{}"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void put_teamSwap_grantsNewTeam_keepsOldGrant_andAuditsResidual() throws Exception {
+        MockHttpSession s = admin();
+        jdbc.update("INSERT INTO team (id, name) VALUES ('t2','정산팀')");
+        mvc.perform(put("/api/admin/spaces/f1").session(s).contentType(APPLICATION_JSON)
+                .content("{\"teamId\":\"t1\"}")).andExpect(status().isNoContent());
+        mvc.perform(put("/api/admin/spaces/f1").session(s).contentType(APPLICATION_JSON)
+                .content("{\"teamId\":\"t2\"}")).andExpect(status().isNoContent());
+        // 새 팀 edit 자동 grant
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM acl WHERE principal_type='team' AND principal_id='t2' AND node_id='f1' AND grant_type='edit'",
+            Integer.class)).isEqualTo(1);
+        // 이전 팀 grant는 회수하지 않음(수동 grant와 출처 구분 불가 — 의도된 보수적 동작)
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM acl WHERE principal_type='team' AND principal_id='t1' AND node_id='f1' AND grant_type='edit'",
+            Integer.class)).isEqualTo(1);
+        // 대신 잔존 사실을 감사 target에 부기
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'space.set' AND target = 'f1 -> t2 (이전 팀 t1 grant 잔존)'",
+            Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -101,6 +132,8 @@ class AdminSpaceApiTest {
             .andExpect(status().isNoContent());
         mvc.perform(delete("/api/admin/spaces/f1").session(s)).andExpect(status().isNoContent());
         mvc.perform(delete("/api/admin/spaces/f1").session(s)).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'space.unset' AND target = 'f1'", Integer.class)).isEqualTo(1);
     }
 
     @Test
