@@ -1,5 +1,6 @@
 package com.worknote.auth;
 
+import com.worknote.audit.AuditService;
 import com.worknote.auth.dto.LoginRequest;
 import com.worknote.auth.dto.MeResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,21 +21,30 @@ public class AuthController {
 
     private final AuthService auth;
     private final RoleCaps roleCaps;
+    private final AuditService audit;
     private final boolean serverMode;
 
-    public AuthController(AuthService auth, RoleCaps roleCaps,
+    public AuthController(AuthService auth, RoleCaps roleCaps, AuditService audit,
                           @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
         this.roleCaps = roleCaps;
+        this.audit = audit;
         this.serverMode = "server".equals(mode);
     }
 
     @PostMapping("/login")
     public MeResponse login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
-        AuthService.AuthUser result = auth.login(req.emp(), req.password());
+        AuthService.AuthUser result;
+        try {
+            result = auth.login(req.emp(), req.password());
+        } catch (AuthException e) {
+            audit.logRaw(req.emp(), "login.fail", null, http.getRemoteAddr());   // 실패도 항상 기록 (스펙 §7)
+            throw e;
+        }
         HttpSession session = http.getSession(true);
         http.changeSessionId();   // 세션 고정 방어 — 공용 PC 교대 로그인 시 세션 id 재사용 방지 (내용 유지, id만 교체)
         session.setAttribute(SESSION_USER, result.user().id());
+        audit.logRaw(result.user().emp(), "login.success", null, http.getRemoteAddr());
         return toMe(result.user(), result.caps());
     }
 
@@ -43,6 +53,9 @@ public class AuthController {
     public void logout(HttpServletRequest http) {
         HttpSession session = http.getSession(false);
         if (session != null) {
+            // local 모드는 CURRENT_USER가 없어 log가 skip — server 모드만 기록
+            UserRow user = (UserRow) http.getAttribute(AuthFilter.CURRENT_USER);
+            audit.log(user, "logout", null, http.getRemoteAddr());
             session.invalidate();
         }
     }
