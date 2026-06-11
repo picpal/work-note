@@ -3,7 +3,7 @@ spring:
     url: jdbc:sqlite:${WORKNOTE_DB:./worknote.db}
     driver-class-name: org.sqlite.JDBC
     hikari:
-      maximum-pool-size: 1   # SQLite 단일 라이터 — 풀 1로 SQLITE_BUSY 방지 (1단계 단일 사용자)
+      maximum-pool-size: 1   # SQLite 단일 라이터 — 풀 1로 SQLITE_BUSY 방지
   flyway:
     locations: classpath:db/migration/sqlite   # Oracle 전환 시 vendor 디렉토리 추가
 mybatis:
@@ -12,3 +12,9 @@ mybatis:
     map-underscore-to-camel-case: true
 server:
   port: 8080
+  servlet:
+    session:
+      timeout: 30m           # server 모드 세션 타임아웃 (스펙 §7 보안 정책)
+worknote:
+  mode: ${WORKNOTE_MODE:local}                     # local=1단계(무인증), server=2단계(인증+권한)
+  admin-password: ${WORKNOTE_ADMIN_PASSWORD:}      # server 모드 최초 기동 시 관리자 비밀번호 (필수)
