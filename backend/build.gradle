@@ -35,3 +35,12 @@ tasks.named('test') {
 processResources {
     from("${rootDir}/../frontend/dist") { into 'static' }
 }
+
+// bootJar만 가드 — test/bootRun은 dist 없이도 동작해야 함 (백엔드 단독 개발)
+tasks.named('bootJar') {
+    doFirst {
+        if (!file("${rootDir}/../frontend/dist/index.html").exists()) {
+            throw new GradleException("frontend/dist 없음 — 먼저 실행: cd ../frontend && pnpm build")
+        }
+    }
+}
