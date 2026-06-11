@@ -24,20 +24,25 @@ public final class PasswordHasher {
     }
 
     public static String hash(String password, String saltBase64) {
-        try {
-            PBEKeySpec spec = new PBEKeySpec(password.toCharArray(),
-                Base64.getDecoder().decode(saltBase64), ITERATIONS, KEY_BITS);
-            byte[] key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                .generateSecret(spec).getEncoded();
-            return Base64.getEncoder().encodeToString(key);
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("PBKDF2 사용 불가", e);
-        }
+        byte[] key = hashBytes(password, Base64.getDecoder().decode(saltBase64));
+        return Base64.getEncoder().encodeToString(key);
     }
 
     public static boolean verify(String password, String saltBase64, String expectedHashBase64) {
-        byte[] actual = Base64.getDecoder().decode(hash(password, saltBase64));
+        byte[] actual = hashBytes(password, Base64.getDecoder().decode(saltBase64));
         byte[] expected = Base64.getDecoder().decode(expectedHashBase64);
         return MessageDigest.isEqual(actual, expected);   // 타이밍 공격 방지 비교
+    }
+
+    private static byte[] hashBytes(String password, byte[] salt) {
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_BITS);
+        try {
+            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                .generateSecret(spec).getEncoded();
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("PBKDF2 사용 불가", e);
+        } finally {
+            spec.clearPassword();   // 메모리에서 비밀번호 사본 제거
+        }
     }
 }
