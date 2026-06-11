@@ -24,12 +24,29 @@ class AdminBootstrapTest {
 
     @Test
     void adminUserCreatedOnFirstBoot() {
-        UserRow admin = users.findById("u-admin");
+        UserRow admin = users.findById(AdminBootstrap.ADMIN_ID);
         assertThat(admin).isNotNull();
         assertThat(admin.emp()).isEqualTo("admin");
         assertThat(admin.roleId()).isEqualTo("admin");
         assertThat(admin.status()).isEqualTo("active");
-        assertThat(users.findCredential("u-admin")).isNotNull();
+        assertThat(users.findCredential(AdminBootstrap.ADMIN_ID)).isNotNull();
+    }
+
+    @Test
+    void secondRunIsIdempotent() {
+        UserRow before = users.findById(AdminBootstrap.ADMIN_ID);
+        CredentialRow credBefore = users.findCredential(AdminBootstrap.ADMIN_ID);
+
+        // 재기동 시뮬레이션 — 다른 비밀번호로 재실행해도 countUsers>0 스킵, 기존 admin 불변
+        new AdminBootstrap(users, "other-pw").run(null);
+
+        UserRow after = users.findById(AdminBootstrap.ADMIN_ID);
+        assertThat(after).isNotNull();
+        assertThat(after.emp()).isEqualTo(before.emp());
+        assertThat(after.roleId()).isEqualTo(before.roleId());
+        CredentialRow credAfter = users.findCredential(AdminBootstrap.ADMIN_ID);
+        assertThat(credAfter.salt()).isEqualTo(credBefore.salt());
+        assertThat(credAfter.passwordHash()).isEqualTo(credBefore.passwordHash());
     }
 
     @Test
