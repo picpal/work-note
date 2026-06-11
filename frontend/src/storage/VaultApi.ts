@@ -4,7 +4,10 @@ import type { VaultTree } from "../types";
 const BASE = "/api";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, { headers: { "Content-Type": "application/json" }, ...init });
+  const res = await fetch(BASE + path, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers as Record<string, string> | undefined) },
+  });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `HTTP ${res.status}`);

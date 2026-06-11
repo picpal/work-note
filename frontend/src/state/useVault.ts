@@ -31,6 +31,10 @@ export function useVault(repo: VaultRepository = defaultRepo) {
       }
       readyRef.current = true;
       setReady(true);
+    }).catch((e) => {
+      console.warn("vault load failed — falling back to seed", e);
+      readyRef.current = true;
+      setReady(true); // 시드 트리로 렌더 (저장은 readyRef 가드로 계속 동작)
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
