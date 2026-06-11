@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.vault.NodeMapper">
+
+  <insert id="insert">
+    INSERT INTO node (id, parent_id, type, name, position, content, updated_at, deleted_at, deleted_by)
+    VALUES (#{id}, #{parentId}, #{type}, #{name}, #{position}, #{content}, #{updatedAt}, #{deletedAt}, #{deletedBy})
+  </insert>
+
+  <select id="findById" resultType="com.worknote.vault.NodeRow">
+    SELECT * FROM node WHERE id = #{id}
+  </select>
+
+  <select id="findActive" resultType="com.worknote.vault.NodeRow">
+    SELECT * FROM node WHERE deleted_at IS NULL ORDER BY parent_id, position, id
+  </select>
+
+  <!-- 재귀 CTE: Oracle 전환 시 'WITH RECURSIVE' → 'WITH' 로만 변경 (구조 동일) -->
+  <select id="subtreeIds" resultType="string">
+    WITH RECURSIVE sub(id) AS (
+      SELECT id FROM node WHERE id = #{id}
+      UNION ALL
+      SELECT n.id FROM node n JOIN sub s ON n.parent_id = s.id
+    )
+    SELECT id FROM sub
+  </select>
+
+  <select id="maxPosition" resultType="int">
+    SELECT COALESCE(MAX(position), 0) FROM node
+    WHERE deleted_at IS NULL
+      AND <if test="parentId != null">parent_id = #{parentId}</if>
+          <if test="parentId == null">parent_id IS NULL</if>
+  </select>
+
+  <update id="updateFields">
+    UPDATE node SET
+      name = COALESCE(#{name}, name),
+      content = CASE WHEN #{content} IS NULL THEN content ELSE #{content} END,
+      updated_at = #{updatedAt}
+    WHERE id = #{id}
+  </update>
+
+  <update id="move">
+    UPDATE node SET parent_id = #{parentId}, position = #{position} WHERE id = #{id}
+  </update>
+
+  <!-- 재귀 CTE: Oracle 전환 시 'WITH RECURSIVE' → 'WITH' (이하 동일 패턴) -->
+  <update id="softDeleteSubtree">
+    UPDATE node SET deleted_at = #{deletedAt}, deleted_by = #{deletedBy}
+    WHERE deleted_at IS NULL AND id IN (
+      WITH RECURSIVE sub(id) AS (
+        SELECT id FROM node WHERE id = #{id}
+        UNION ALL SELECT n.id FROM node n JOIN sub s ON n.parent_id = s.id
+      ) SELECT id FROM sub
+    )
+  </update>
+
+  <update id="restoreSubtree">
+    UPDATE node SET deleted_at = NULL, deleted_by = NULL
+    WHERE id IN (
+      WITH RECURSIVE sub(id) AS (
+        SELECT id FROM node WHERE id = #{id}
+        UNION ALL SELECT n.id FROM node n JOIN sub s ON n.parent_id = s.id
+      ) SELECT id FROM sub
+    )
+  </update>
+
+  <delete id="purgeSubtree">
+    DELETE FROM node WHERE id IN (
+      WITH RECURSIVE sub(id) AS (
+        SELECT id FROM node WHERE id = #{id}
+        UNION ALL SELECT n.id FROM node n JOIN sub s ON n.parent_id = s.id
+      ) SELECT id FROM sub
+    )
+  </delete>
+
+  <delete id="deleteTagsIn">
+    DELETE FROM tag WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
+  <select id="findTrashRoots" resultType="com.worknote.vault.NodeRow">
+    SELECT c.* FROM node c
+    LEFT JOIN node p ON c.parent_id = p.id
+    WHERE c.deleted_at IS NOT NULL AND (p.id IS NULL OR p.deleted_at IS NULL)
+    ORDER BY c.deleted_at DESC
+  </select>
+
+  <select id="findTags" resultType="string">
+    SELECT tag FROM tag WHERE node_id = #{nodeId} ORDER BY tag
+  </select>
+  <delete id="deleteTags">DELETE FROM tag WHERE node_id = #{nodeId}</delete>
+  <insert id="insertTag">INSERT INTO tag (node_id, tag) VALUES (#{nodeId}, #{tag})</insert>
+
+</mapper>
