@@ -30,7 +30,8 @@ public class AuthService {
         this.clock = clock;
     }
 
-    public record AuthUser(UserRow user, Set<String> caps) {}
+    /** credSalt: 로그인 시점 credential salt — 세션에 실어 비밀번호 리셋 시 기존 세션 무효화에 사용. */
+    public record AuthUser(UserRow user, Set<String> caps, String credSalt) {}
 
     @Transactional
     public AuthUser login(String emp, String password) {
@@ -53,7 +54,7 @@ public class AuthService {
         }
         users.stampLastLogin(user.id(),
             LocalDateTime.now(clock).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        return new AuthUser(user, roleCaps.of(user.roleId()));
+        return new AuthUser(user, roleCaps.of(user.roleId()), cred.salt());
     }
 
     /** 가입 신청 — pending 상태 visitor로 생성. 승인 전 로그인은 status 검사가 403으로 차단. */

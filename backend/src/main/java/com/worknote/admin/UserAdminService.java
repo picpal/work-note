@@ -59,6 +59,12 @@ public class UserAdminService {
         if (actor != null && actor.id().equals(id) && (roleId != null || status != null)) {
             throw VaultException.invalid("자기 자신의 역할·상태는 변경할 수 없습니다");
         }
+        if (name != null && name.isBlank()) {
+            throw VaultException.invalid("name은 빈 값일 수 없습니다");
+        }
+        if (email != null && email.isBlank()) {
+            email = null;   // blank email은 미지정으로 정규화 — 기존 값 유지
+        }
         if (roleId != null) {
             requireRole(roleId);
         }

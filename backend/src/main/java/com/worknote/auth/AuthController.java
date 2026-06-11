@@ -21,6 +21,8 @@ import java.util.Set;
 public class AuthController {
 
     public static final String SESSION_USER = "worknote.userId";
+    /** 로그인 시점 credential salt — AuthFilter가 매 요청 현재 DB salt와 비교해 리셋된 세션을 즉시 무효화. */
+    public static final String SESSION_CRED = "worknote.credSalt";
 
     private final AuthService auth;
     private final RoleCaps roleCaps;
@@ -47,6 +49,7 @@ public class AuthController {
         HttpSession session = http.getSession(true);
         http.changeSessionId();   // 세션 고정 방어 — 공용 PC 교대 로그인 시 세션 id 재사용 방지 (내용 유지, id만 교체)
         session.setAttribute(SESSION_USER, result.user().id());
+        session.setAttribute(SESSION_CRED, result.credSalt());
         audit.logRaw(result.user().emp(), "login.success", null, http.getRemoteAddr());
         return toMe(result.user(), result.caps());
     }
