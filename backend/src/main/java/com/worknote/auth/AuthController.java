@@ -3,6 +3,7 @@ package com.worknote.auth;
 import com.worknote.audit.AuditService;
 import com.worknote.auth.dto.LoginRequest;
 import com.worknote.auth.dto.MeResponse;
+import com.worknote.auth.dto.SignupRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -10,9 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Set;
 
-/** 세션 기반 인증 API. server 모드에선 AuthFilter가 login/health 외 전부를 가드한다. */
+/** 세션 기반 인증 API. server 모드에선 AuthFilter가 login/signup/health 외 전부를 가드한다. */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -46,6 +48,14 @@ public class AuthController {
         session.setAttribute(SESSION_USER, result.user().id());
         audit.logRaw(result.user().emp(), "login.success", null, http.getRemoteAddr());
         return toMe(result.user(), result.caps());
+    }
+
+    @PostMapping("/signup")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, String> signup(@Valid @RequestBody SignupRequest req, HttpServletRequest http) {
+        UserRow user = auth.signup(req.emp(), req.name(), req.email(), req.password());
+        audit.logRaw(user.emp(), "signup", null, http.getRemoteAddr());
+        return Map.of("id", user.id(), "status", user.status());
     }
 
     @PostMapping("/logout")

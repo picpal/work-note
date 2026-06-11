@@ -16,7 +16,7 @@ import java.util.Set;
 public class AuthFilter extends OncePerRequestFilter {
 
     public static final String CURRENT_USER = "worknote.currentUser";
-    private static final Set<String> ALLOWLIST = Set.of("/api/auth/login", "/api/health");
+    private static final Set<String> ALLOWLIST = Set.of("/api/auth/login", "/api/auth/signup", "/api/health");
 
     private final UserMapper users;
     private final ObjectMapper json;

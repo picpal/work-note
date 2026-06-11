@@ -1,5 +1,6 @@
 package com.worknote.auth;
 
+import com.worknote.vault.VaultException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -7,6 +8,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Set;
+import java.util.UUID;
 
 /** 로그인 검증·last_login 스탬프. 세션 부여는 AuthController(후속 태스크). */
 @Service
@@ -52,6 +54,20 @@ public class AuthService {
         users.stampLastLogin(user.id(),
             LocalDateTime.now(clock).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         return new AuthUser(user, roleCaps.of(user.roleId()));
+    }
+
+    /** 가입 신청 — pending 상태 visitor로 생성. 승인 전 로그인은 status 검사가 403으로 차단. */
+    @Transactional
+    public UserRow signup(String emp, String name, String email, String password) {
+        if (users.findByEmp(emp) != null) {
+            throw VaultException.conflict("이미 사용 중인 사번입니다: " + emp);
+        }
+        String id = "u-" + UUID.randomUUID();
+        String salt = PasswordHasher.newSalt();
+        UserRow user = new UserRow(id, emp, email, name, "visitor", "pending", null);
+        users.insert(user);
+        users.insertCredential(new CredentialRow(id, salt, PasswordHasher.hash(password, salt)));
+        return user;
     }
 
     /** 세션 사용자의 caps 조회 — 후속 AuthFilter·me 엔드포인트에서 사용. */
