@@ -30,3 +30,8 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// frontend dist를 jar에 포함 (선행: cd frontend && pnpm build)
+processResources {
+    from("${rootDir}/../frontend/dist") { into 'static' }
+}

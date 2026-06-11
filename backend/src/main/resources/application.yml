@@ -2,6 +2,8 @@ spring:
   datasource:
     url: jdbc:sqlite:${WORKNOTE_DB:./worknote.db}
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1   # SQLite 단일 라이터 — 풀 1로 SQLITE_BUSY 방지 (1단계 단일 사용자)
   flyway:
     locations: classpath:db/migration/sqlite   # Oracle 전환 시 vendor 디렉토리 추가
 mybatis:
