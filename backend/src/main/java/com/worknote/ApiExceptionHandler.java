@@ -1,5 +1,6 @@
 package com.worknote;
 
+import com.worknote.auth.AuthException;
 import com.worknote.vault.VaultException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,15 @@ public class ApiExceptionHandler {
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
             case INVALID -> HttpStatus.UNPROCESSABLE_ENTITY;
+        };
+        return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<Map<String, String>> auth(AuthException e) {
+        HttpStatus status = switch (e.status()) {
+            case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
         };
         return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
     }
