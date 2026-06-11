@@ -19,6 +19,7 @@ public class AuditService {
         this.clock = clock;
     }
 
+    /** 호출은 컨트롤러에서 본 작업 성공 후 수행(사후 기록) — 감사 insert 단독 실패 시 본 작업은 이미 커밋됨(의식적 트레이드오프, 폐쇄망·pool=1에서 희박). */
     public void log(UserRow user, String act, String target, String ip) {
         if (user == null) return;
         logRaw(user.emp(), act, target, ip);

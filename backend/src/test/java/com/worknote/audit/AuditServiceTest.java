@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared")
 class AuditServiceTest {
@@ -26,7 +28,8 @@ class AuditServiceTest {
         assertThat(row.get("act")).isEqualTo("node.create");
         assertThat(row.get("target")).isEqualTo("n-123");
         assertThat(row.get("ip")).isEqualTo("10.0.0.5");
-        assertThat((String) row.get("at")).isNotBlank();
+        // at은 ISO_LOCAL_DATE_TIME 포맷 — 파싱 가능해야 함 (포맷 일관성 박제)
+        assertThatCode(() -> LocalDateTime.parse((String) row.get("at"))).doesNotThrowAnyException();
     }
 
     @Test
@@ -37,7 +40,11 @@ class AuditServiceTest {
 
     @Test
     void logRawWritesWithoutUser() {
+        // logRaw는 who NOT NULL 제약에 직접 노출되는 유일 경로 — 값까지 단언
         audit.logRaw("10001", "login.fail", null, "10.0.0.5");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_log", Integer.class)).isEqualTo(1);
+        Map<String, Object> row = jdbc.queryForMap("SELECT * FROM audit_log");
+        assertThat(row.get("who")).isEqualTo("10001");
+        assertThat(row.get("act")).isEqualTo("login.fail");
+        assertThat(row.get("target")).isNull();
     }
 }
