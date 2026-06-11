@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.acl.AclMapper">
+
+  <!-- 재귀 CTE: Oracle 전환 시 'WITH RECURSIVE' → 'WITH' (NodeMapper.xml과 동일 패턴) -->
+  <select id="ancestorChain" resultType="string">
+    WITH RECURSIVE chain(id, parent_id, depth) AS (
+      SELECT id, parent_id, 0 FROM node WHERE id = #{id}
+      UNION ALL
+      SELECT n.id, n.parent_id, c.depth + 1 FROM node n JOIN chain c ON n.id = c.parent_id
+    )
+    SELECT id FROM chain ORDER BY depth
+  </select>
+
+  <select id="findAclForNodes" resultType="com.worknote.acl.AclRow">
+    SELECT principal_type, principal_id, node_id, grant_type FROM acl
+    WHERE node_id IN
+    <foreach item="n" collection="nodeIds" open="(" separator="," close=")">#{n}</foreach>
+  </select>
+
+  <select id="findAllAcl" resultType="com.worknote.acl.AclRow">
+    SELECT principal_type, principal_id, node_id, grant_type FROM acl
+  </select>
+
+  <select id="findPublicFlagsForNodes" resultType="com.worknote.acl.PublicFlagRow">
+    SELECT node_id, mode FROM public_flag
+    WHERE node_id IN
+    <foreach item="n" collection="nodeIds" open="(" separator="," close=")">#{n}</foreach>
+  </select>
+
+  <select id="findAllPublicFlags" resultType="com.worknote.acl.PublicFlagRow">
+    SELECT node_id, mode FROM public_flag
+  </select>
+
+  <insert id="insertAcl">
+    INSERT INTO acl (principal_type, principal_id, node_id, grant_type)
+    VALUES (#{principalType}, #{principalId}, #{nodeId}, #{grantType})
+  </insert>
+
+  <insert id="insertPublicFlag">
+    INSERT INTO public_flag (node_id, mode) VALUES (#{nodeId}, #{mode})
+  </insert>
+
+</mapper>

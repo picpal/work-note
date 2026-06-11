@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.acl.TeamMapper">
+  <insert id="insertTeam">INSERT INTO team (id, name) VALUES (#{id}, #{name})</insert>
+  <insert id="addMember">INSERT INTO team_member (team_id, user_id) VALUES (#{teamId}, #{userId})</insert>
+  <select id="teamsOf" resultType="string">
+    SELECT team_id FROM team_member WHERE user_id = #{userId}
+  </select>
+</mapper>
