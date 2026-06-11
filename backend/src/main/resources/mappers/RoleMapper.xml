@@ -4,4 +4,19 @@
   <select id="findById" resultType="com.worknote.auth.RoleRow">
     SELECT * FROM role WHERE id = #{id}
   </select>
+  <select id="findAll" resultType="com.worknote.auth.RoleRow">
+    SELECT * FROM role ORDER BY system DESC, id
+  </select>
+  <insert id="insert">
+    INSERT INTO role (id, name, system, caps) VALUES (#{id}, #{name}, #{system}, #{caps})
+  </insert>
+  <update id="update">
+    UPDATE role SET name = #{name}, caps = #{caps} WHERE id = #{id}
+  </update>
+  <delete id="delete">
+    DELETE FROM role WHERE id = #{id}
+  </delete>
+  <select id="countUsers" resultType="int">
+    SELECT COUNT(*) FROM app_user WHERE role_id = #{roleId}
+  </select>
 </mapper>
