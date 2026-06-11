@@ -11,6 +11,7 @@ import { Outline } from "./components/Outline";
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { useVault } from "./state/useVault";
+import { repository } from "./storage";
 import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
 import { useSettings } from "./state/useSettings";
@@ -40,7 +41,7 @@ const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: s
 ];
 
 export function App() {
-  const { tree, actions, savedTick, ready } = useVault();
+  const { tree, actions, savedTick, ready } = useVault(repository);
   const { settings, set } = useSettings();
   const [activeId, setActiveId] = usePersist<string | null>("wn.activeId", null);
   const [collapsed, setCollapsed] = usePersist<boolean>("wn.sbCollapsed", false);
