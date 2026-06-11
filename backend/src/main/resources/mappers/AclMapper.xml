@@ -45,6 +45,10 @@
     DELETE FROM acl WHERE principal_type = #{type} AND principal_id = #{id}
   </delete>
 
+  <delete id="deleteAclForNode">
+    DELETE FROM acl WHERE node_id = #{nodeId}
+  </delete>
+
   <delete id="deleteAclIn">
     DELETE FROM acl WHERE node_id IN
     <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
