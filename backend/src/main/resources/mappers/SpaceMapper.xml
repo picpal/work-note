@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.acl.SpaceMapper">
+  <select id="findAll" resultType="com.worknote.acl.SpaceRow">
+    SELECT node_id, team_id FROM space ORDER BY node_id
+  </select>
+  <select id="find" resultType="com.worknote.acl.SpaceRow">
+    SELECT node_id, team_id FROM space WHERE node_id = #{nodeId}
+  </select>
+  <insert id="upsert">
+    <!-- Oracle 전환 시 MERGE INTO로 교체 -->
+    INSERT INTO space (node_id, team_id) VALUES (#{nodeId}, #{teamId})
+    ON CONFLICT(node_id) DO UPDATE SET team_id = excluded.team_id
+  </insert>
+  <delete id="delete">
+    DELETE FROM space WHERE node_id = #{nodeId}
+  </delete>
+</mapper>
