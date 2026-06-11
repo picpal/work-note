@@ -15,19 +15,28 @@ public final class AclResolver {
     private AclResolver() {}
 
     /**
-     * 한 주체의 nearest-explicit grant.
+     * 한 주체의 nearest-explicit + deny-sticky(§5.1) grant.
+     * 체인 어딘가에 그 주체의 deny가 있으면 더 가까운 allow와 무관하게 "deny"
+     * (한 주체 안에서 deny 아래 재허용 없음). deny가 없으면 가장 가까운 명시 entry.
      * @param chain 노드 자신→루트 순 조상 체인
      * @param grantsByNode 그 주체의 nodeId→grant 엔트리
-     * @return 가장 가까운 명시 grant, 없으면 null
+     * @return deny가 체인에 있으면 "deny", 아니면 가장 가까운 명시 grant, 없으면 null
      */
     public static String nearestExplicit(List<String> chain, Map<String, String> grantsByNode) {
+        String nearest = null;
         for (String nodeId : chain) {
             String grant = grantsByNode.get(nodeId);
-            if (grant != null) {
-                return grant;
+            if (grant == null) {
+                continue;
+            }
+            if ("deny".equals(grant)) {
+                return "deny";
+            }
+            if (nearest == null) {
+                nearest = grant;
             }
         }
-        return null;
+        return nearest;
     }
 
     /** 다중 주체 deny-우선 합집합: deny 하나라도 있으면 DENY, 없으면 allow의 최대치. */
@@ -40,12 +49,18 @@ public final class AclResolver {
                 case "deny" -> { return Access.DENY; }
                 case "edit" -> edit = true;
                 case "read" -> read = true;
+                // DB CHECK가 소문자 3종을 보장 — 도달하면 버그. 조용한 무시는 fail-open이라 loud failure.
+                default -> throw new IllegalArgumentException("알 수 없는 grant: " + grant);
             }
         }
         return edit ? Access.EDIT : read ? Access.READ : Access.NONE;
     }
 
-    /** 체인에서 가장 가까운 public_flag가 'public'이면 true ('exclude'가 더 가까우면 false). */
+    /**
+     * 체인에서 가장 가까운 public_flag가 'public'이면 true ('exclude'가 더 가까우면 false).
+     * 호출 순서 계약: combine 결과가 DENY가 아닐 때만 조회할 것 —
+     * deny > public 우선순위(§5.1)는 호출자(PermissionService) 책임이다.
+     */
     public static boolean publicRead(List<String> chain, Map<String, String> flagsByNode) {
         for (String nodeId : chain) {
             String mode = flagsByNode.get(nodeId);

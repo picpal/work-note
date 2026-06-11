@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AclResolverTest {
 
@@ -28,6 +29,18 @@ class AclResolverTest {
     }
 
     @Test
+    void denyStickyBeatsCloserAllow() {
+        // 조상(f1)에 deny가 있으면 더 가까운 allow(n1=read)와 무관하게 deny (§5.1 — deny 아래 재허용 없음)
+        assertThat(AclResolver.nearestExplicit(CHAIN, Map.of("f1", "deny", "n1", "read")))
+            .isEqualTo("deny");
+    }
+
+    @Test
+    void emptyChainYieldsNull() {
+        assertThat(AclResolver.nearestExplicit(List.of(), Map.of("f1", "read"))).isNull();
+    }
+
+    @Test
     void combineDenyWinsOverAnyAllow() {
         // 다중 주체: 개인 edit + 팀 deny → 차단 (deny-우선 합집합)
         assertThat(AclResolver.combine(Arrays.asList("edit", "deny"))).isEqualTo(Access.DENY);
@@ -40,6 +53,33 @@ class AclResolverTest {
         assertThat(AclResolver.combine(Arrays.asList("read", null))).isEqualTo(Access.READ);
         assertThat(AclResolver.combine(Arrays.asList((String) null, null))).isEqualTo(Access.NONE);
         assertThat(AclResolver.combine(List.of())).isEqualTo(Access.NONE);
+    }
+
+    @Test
+    void combineRejectsUnknownGrant() {
+        // DB CHECK가 소문자 3종을 보장 — 도달하면 버그이므로 loud failure (조용한 무시는 fail-open)
+        assertThatThrownBy(() -> AclResolver.combine(List.of("DENY")))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("DENY");
+    }
+
+    @Test
+    void accessHelpersSealComparison() {
+        // ordinal 비교 금지 — 의미 헬퍼로 봉인 (DENY가 최대 ordinal이라 비교가 위험)
+        assertThat(Access.NONE.allowsRead()).isFalse();
+        assertThat(Access.NONE.allowsEdit()).isFalse();
+        assertThat(Access.READ.allowsRead()).isTrue();
+        assertThat(Access.READ.allowsEdit()).isFalse();
+        assertThat(Access.EDIT.allowsRead()).isTrue();
+        assertThat(Access.EDIT.allowsEdit()).isTrue();
+        assertThat(Access.DENY.allowsRead()).isFalse();
+        assertThat(Access.DENY.allowsEdit()).isFalse();
+    }
+
+    @Test
+    void publicCloserThanExcludeWins() {
+        // exclude(f1)보다 public(f2)이 더 가까움 → public
+        assertThat(AclResolver.publicRead(CHAIN, Map.of("f2", "public", "f1", "exclude"))).isTrue();
     }
 
     @Test
