@@ -85,6 +85,17 @@ class AdminRoleApiTest {
     }
 
     @Test
+    void patch_blankName_422() throws Exception {
+        MockHttpSession s = admin();
+        mvc.perform(post("/api/admin/roles").session(s).contentType(APPLICATION_JSON)
+                .content("{\"id\":\"editor\",\"name\":\"편집자\",\"caps\":[\"res.read\"]}"))
+            .andExpect(status().isCreated());
+        mvc.perform(patch("/api/admin/roles/editor").session(s).contentType(APPLICATION_JSON)
+                .content("{\"name\":\"\"}"))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
     void unknownCap_422() throws Exception {
         mvc.perform(post("/api/admin/roles").session(admin()).contentType(APPLICATION_JSON)
                 .content("{\"id\":\"bad\",\"name\":\"x\",\"caps\":[\"res.raed\"]}"))

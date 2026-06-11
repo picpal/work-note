@@ -32,4 +32,18 @@ class SchemaMigrationTest {
         String adminCaps = jdbc.queryForObject("SELECT caps FROM role WHERE id = 'admin'", String.class);
         assertThat(adminCaps).contains("admin.permissions").contains("res.share");
     }
+
+    @Test
+    void seedRoleCaps_allKnownToWhitelist() throws Exception {
+        // 시드 드리프트 가드: 새 cap을 시드에 추가하고 RoleAdminService.KNOWN_CAPS 갱신을 빠뜨리면 즉시 검출
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (String id : java.util.List.of("admin", "operator", "visitor")) {
+            String caps = jdbc.queryForObject("SELECT caps FROM role WHERE id = ?", String.class, id);
+            java.util.Set<String> parsed = json.readValue(caps,
+                new com.fasterxml.jackson.core.type.TypeReference<java.util.Set<String>>() {});
+            assertThat(com.worknote.admin.RoleAdminService.KNOWN_CAPS)
+                .as("시드 역할 %s의 caps는 전부 KNOWN_CAPS에 있어야 한다", id)
+                .containsAll(parsed);
+        }
+    }
 }

@@ -8,6 +8,7 @@ import com.worknote.auth.RoleMapper;
 import com.worknote.auth.RoleRow;
 import com.worknote.auth.UserMapper;
 import com.worknote.vault.VaultException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +24,7 @@ public class RoleAdminService {
 
     private static final Set<String> RES_CAPS = Set.of(
         "res.read", "res.edit", "res.create", "res.delete", "res.export", "res.share");
-    static final Set<String> KNOWN_CAPS;
+    public static final Set<String> KNOWN_CAPS;   // public: SchemaMigrationTest의 시드 드리프트 단언이 참조
     static {
         Set<String> all = new HashSet<>(AclResolver.ADMIN_CAPS);
         all.addAll(RES_CAPS);
@@ -56,7 +57,12 @@ public class RoleAdminService {
         if (roles.findById(id) != null) {
             throw VaultException.conflict("이미 존재하는 역할: " + id);
         }
-        roles.insert(new RoleRow(id, name, 0, toJson(validated(caps))));
+        try {
+            roles.insert(new RoleRow(id, name, 0, toJson(validated(caps))));
+        } catch (DuplicateKeyException e) {
+            // findById 선검사와 insert 사이 race — pool=1로 사실상 도달 불가지만 도달 시 500 대신 409 계약 유지
+            throw VaultException.conflict("이미 존재하는 역할: " + id);
+        }
         return toView(roles.findById(id));
     }
 
@@ -66,6 +72,9 @@ public class RoleAdminService {
         if (row.system() == 1) {
             throw VaultException.invalid("시스템 역할은 수정할 수 없습니다: " + id);
         }
+        if (name != null && name.isBlank()) {
+            throw VaultException.invalid("name은 빈 값일 수 없습니다");
+        }
         String mergedName = name != null ? name : row.name();
         String mergedCaps = row.caps();
         if (caps != null) {
@@ -73,7 +82,7 @@ public class RoleAdminService {
             requireNotLastAdminRoleDowngrade(id, next);
             mergedCaps = toJson(next);
         }
-        roles.update(new RoleRow(id, mergedName, 0, mergedCaps));
+        roles.update(new RoleRow(id, mergedName, row.system(), mergedCaps));
         return toView(roles.findById(id));
     }
 
