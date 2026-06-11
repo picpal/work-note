@@ -115,6 +115,37 @@ class AdminAclApiTest {
     }
 
     @Test
+    void put_onSpaceFolder_withoutOwnerTeamGrant_auditsAbsence() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        jdbc.update("INSERT INTO space (node_id, team_id) VALUES ('f1','t1')");
+        // 소유 팀 t1 엔트리 없이 replace — grant 재주입은 없고(replace-all 계약) 감사에 부재만 부기
+        mvc.perform(put("/api/admin/nodes/f1/acl").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"entries\":[{\"principalType\":\"user\",\"principalId\":\"u1\",\"grantType\":\"read\"}]}"))
+            .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM acl WHERE node_id = 'f1' AND principal_type = 'team'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject(
+            "SELECT target FROM audit_log WHERE act = 'acl.set'", String.class))
+            .isEqualTo("f1 (1건) (스페이스 소유 팀 t1 grant 부재)");
+        // 소유 팀 엔트리를 포함하면 부기 없음
+        mvc.perform(put("/api/admin/nodes/f1/acl").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"entries\":[{\"principalType\":\"team\",\"principalId\":\"t1\",\"grantType\":\"edit\"}]}"))
+            .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject(
+            "SELECT target FROM audit_log WHERE act = 'acl.set' ORDER BY rowid DESC LIMIT 1", String.class))
+            .isEqualTo("f1 (1건)");
+    }
+
+    @Test
+    void put_softDeletedNode_404() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        jdbc.update("UPDATE node SET deleted_at = '2026-06-12T00:00:00' WHERE id = 'f1'");
+        mvc.perform(put("/api/admin/nodes/f1/acl").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"entries\":[]}"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void put_invalidGrantType_400() throws Exception {
         MockHttpSession admin = login("admin", "boot-pass-1");
         mvc.perform(put("/api/admin/nodes/f1/acl").session(admin).contentType(APPLICATION_JSON)

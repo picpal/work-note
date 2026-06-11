@@ -48,7 +48,7 @@ public class AdminAclController {
     public void replace(@PathVariable String id, @Valid @RequestBody SetAclRequest body, HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        svc.replace(id, body.entries());
-        audit.log(actor, "acl.set", id + " (" + body.entries().size() + "건)", req.getRemoteAddr());
+        String suffix = svc.replace(id, body.entries());
+        audit.log(actor, "acl.set", id + " (" + body.entries().size() + "건)" + suffix, req.getRemoteAddr());
     }
 }
