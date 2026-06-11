@@ -15,6 +15,19 @@
     SELECT * FROM app_user WHERE emp = #{emp}
   </select>
 
+  <select id="findAll" resultType="com.worknote.auth.UserRow">
+    SELECT * FROM app_user ORDER BY emp
+  </select>
+
+  <update id="update">
+    UPDATE app_user SET name = #{name}, email = #{email}, role_id = #{roleId}, status = #{status}
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateCredential">
+    UPDATE user_credential SET salt = #{salt}, password_hash = #{passwordHash} WHERE user_id = #{userId}
+  </update>
+
   <select id="countUsers" resultType="int">
     SELECT COUNT(*) FROM app_user
   </select>
