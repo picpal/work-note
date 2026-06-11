@@ -57,7 +57,8 @@
 
   <update id="restoreSubtree">
     UPDATE node SET deleted_at = NULL, deleted_by = NULL
-    WHERE id IN (
+    WHERE deleted_at = (SELECT deleted_at FROM node WHERE id = #{id})
+      AND id IN (
       WITH RECURSIVE sub(id) AS (
         SELECT id FROM node WHERE id = #{id}
         UNION ALL SELECT n.id FROM node n JOIN sub s ON n.parent_id = s.id

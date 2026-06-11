@@ -53,6 +53,17 @@ class NodeMapperTest {
     }
 
     @Test
+    void restoreKeepsIndependentlyDeletedChildInTrash() {
+        mapper.insert(folder("f1", null));
+        mapper.insert(note("n1", "f1"));
+        mapper.softDeleteSubtree("n1", "2026-06-11T09:00:00", "me");   // n1 먼저 독립 삭제
+        mapper.softDeleteSubtree("f1", "2026-06-11T10:00:00", "me");   // 조상 삭제
+        mapper.restoreSubtree("f1");                                    // 조상만 복구
+        assertThat(mapper.findActive()).extracting(NodeRow::id).containsExactly("f1");   // n1은 여전히 삭제
+        assertThat(mapper.findTrashRoots()).extracting(NodeRow::id).containsExactly("n1"); // n1이 휴지통 루트로 재등장
+    }
+
+    @Test
     void purgeSubtreeDeletesRowsAndTags() {
         mapper.insert(folder("f1", null));
         mapper.insert(note("n1", "f1"));
