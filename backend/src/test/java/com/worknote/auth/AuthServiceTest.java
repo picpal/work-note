@@ -48,6 +48,15 @@ class AuthServiceTest {
         Throwable unknown = catchThrowable(() -> auth.login("99999", "pw-1234"));
         Throwable wrongPw = catchThrowable(() -> auth.login("10001", "nope"));
         assertThat(unknown.getMessage()).isEqualTo(wrongPw.getMessage());  // 계정 존재 노출 금지
+        assertThat(unknown).isInstanceOf(AuthException.class)
+            .satisfies(e -> assertThat(((AuthException) e).status()).isEqualTo(AuthException.Status.UNAUTHORIZED));
+    }
+
+    @Test
+    void loginFailureDoesNotStampLastLogin() {
+        createUser("u1", "10001", "operator", "active", "pw-1234");
+        catchThrowable(() -> auth.login("10001", "nope"));
+        assertThat(users.findById("u1").lastLogin()).isNull();
     }
 
     @Test

@@ -24,7 +24,13 @@ public class RoleCaps {
             return Set.of();   // 알 수 없는 역할 = 능력 없음 (default-deny)
         }
         try {
-            return json.readValue(role.caps(), new TypeReference<Set<String>>() {});
+            Set<String> caps = json.readValue(role.caps(), new TypeReference<Set<String>>() {});
+            if (caps == null) {   // JSON 리터럴 "null" → readValue가 null 반환
+                throw new IllegalStateException("role.caps JSON 파싱 실패: " + roleId);
+            }
+            return caps;
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("role.caps JSON 파싱 실패: " + roleId, e);
         }
