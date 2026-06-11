@@ -4,6 +4,7 @@ import com.worknote.audit.AuditService;
 import com.worknote.auth.dto.LoginRequest;
 import com.worknote.auth.dto.MeResponse;
 import com.worknote.auth.dto.SignupRequest;
+import com.worknote.vault.VaultException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -53,7 +54,13 @@ public class AuthController {
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, String> signup(@Valid @RequestBody SignupRequest req, HttpServletRequest http) {
-        UserRow user = auth.signup(req.emp(), req.name(), req.email(), req.password());
+        UserRow user;
+        try {
+            user = auth.signup(req.emp(), req.name(), req.email(), req.password());
+        } catch (VaultException e) {
+            audit.logRaw(req.emp(), "signup.fail", null, http.getRemoteAddr());   // 실패도 항상 기록 (login.fail과 동일 패턴)
+            throw e;
+        }
         audit.logRaw(user.emp(), "signup", null, http.getRemoteAddr());
         return Map.of("id", user.id(), "status", user.status());
     }

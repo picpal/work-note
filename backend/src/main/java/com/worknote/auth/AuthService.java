@@ -65,7 +65,12 @@ public class AuthService {
         String id = "u-" + UUID.randomUUID();
         String salt = PasswordHasher.newSalt();
         UserRow user = new UserRow(id, emp, email, name, "visitor", "pending", null);
-        users.insert(user);
+        try {
+            users.insert(user);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // findByEmp 선검사와 insert 사이 race — pool=1로 사실상 도달 불가지만 도달 시 500 대신 409 계약 유지
+            throw VaultException.conflict("이미 사용 중인 사번입니다: " + emp);
+        }
         users.insertCredential(new CredentialRow(id, salt, PasswordHasher.hash(password, salt)));
         return user;
     }

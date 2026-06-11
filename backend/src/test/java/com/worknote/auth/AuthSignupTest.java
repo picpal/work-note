@@ -56,6 +56,15 @@ class AuthSignupTest {
             .andExpect(status().isCreated());
         mvc.perform(post("/api/auth/signup").contentType(APPLICATION_JSON).content(body("S2026-0142")))
             .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'signup.fail' AND who = 'S2026-0142'",
+            Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void signup_empWithWhitespace_400() throws Exception {
+        mvc.perform(post("/api/auth/signup").contentType(APPLICATION_JSON).content(body("admin ")))
+            .andExpect(status().isBadRequest());
     }
 
     @Test
