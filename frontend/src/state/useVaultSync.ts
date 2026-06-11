@@ -2,24 +2,25 @@
    순수 매핑(syncAction)·부트스트랩 변환(treeToCreateOps)은 테스트 가능한 순수 함수로 분리.
    낙관적 UI: 로컬 상태는 이미 반영됐으므로 실패는 토스트만 — 재시도는 다음 변경에 편승. */
 import { useEffect, useMemo, useRef } from "react";
-import { VaultApi } from "../storage/VaultApi";
+import { VaultApi, ApiError } from "../storage/VaultApi";
 import type { VaultApiType } from "../storage/VaultApi";
 import { storageMode, repository } from "../storage";
 import { HttpVaultRepository } from "../storage/HttpVaultRepository";
 import type { VaultTree } from "../types";
 import type { useVault } from "./useVault";
 
-const PATCH_DEBOUNCE = 1500; // 노트별 content/tags PATCH 디바운스 (타이핑 폭주 방지)
+const PATCH_DEBOUNCE = 1500; // 노트별 title/content/tags PATCH 디바운스 (타이핑 폭주 방지)
 
 type VaultActions = ReturnType<typeof useVault>["actions"];
 type ToastFn = (msg: string) => void;
-type NotePatch = { content?: string; tags?: string[] };
+type UpdatePatch = { name?: string; content?: string; tags?: string[] }; // 서버 PATCH 바디
+type MergedPatch = { title?: string; content?: string; tags?: string[] }; // 디바운스 누적 (클라이언트 필드명)
 
 /** 동기화 연산의 직렬화 가능한 표현 */
 export type SyncOp =
   | { kind: "create"; node: { id: string; parentId: string | null; type: "folder" | "note"; name: string; content?: string } }
   | { kind: "rename"; id: string; name: string }
-  | { kind: "update"; id: string; content?: string; tags?: string[] } // content/tags 디바운스 대상
+  | { kind: "update"; id: string; name?: string; content?: string; tags?: string[] } // title/content/tags 디바운스 대상
   | { kind: "remove"; id: string }
   | { kind: "move"; id: string; parentId: string | null }; // 매핑만 준비 (UI 없음)
 
@@ -33,7 +34,8 @@ export async function syncAction(api: VaultApiType, op: SyncOp): Promise<void> {
       await api.update(op.id, { name: op.name });
       return;
     case "update": {
-      const patch: NotePatch = {};
+      const patch: UpdatePatch = {};
+      if (op.name !== undefined) patch.name = op.name;
       if (op.content !== undefined) patch.content = op.content;
       if (op.tags !== undefined) patch.tags = op.tags;
       await api.update(op.id, patch);
@@ -63,17 +65,39 @@ export function treeToCreateOps(tree: VaultTree, parentId: string | null = null)
   return ops;
 }
 
+/** 디바운스 누적 patch → update op. title은 서버 필드명 name으로 변환 (순수). */
+export function buildUpdateOp(id: string, merged: MergedPatch): SyncOp {
+  const op: Extract<SyncOp, { kind: "update" }> = { kind: "update", id };
+  if (merged.title !== undefined) op.name = merged.title;
+  if (merged.content !== undefined) op.content = merged.content;
+  if (merged.tags !== undefined) op.tags = merged.tags;
+  return op;
+}
+
+/** 부트스트랩 op 순차 실행 — 409(이미 존재)는 성공으로 간주하고 계속 진행 (멱등). */
+export async function runBootstrapOps(api: VaultApiType, ops: SyncOp[]): Promise<void> {
+  for (const op of ops) {
+    try {
+      await syncAction(api, op);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) continue; // 이미 존재 — skip
+      throw e;
+    }
+  }
+}
+
 /** 시드 부트스트랩 — HTTP 모드에서 최초 load가 빈 서버(null)였을 때만, 1회, 순차 업로드. */
 let bootstrapped = false;
 export async function bootstrapIfEmpty(tree: VaultTree, toastFn?: ToastFn): Promise<void> {
   if (bootstrapped) return;
   if (storageMode !== "http") return;
   if (!(repository instanceof HttpVaultRepository) || !repository.wasEmpty) return;
-  bootstrapped = true; // 실패해도 재시도하지 않음 — 부분 업로드 중복 방지
+  bootstrapped = true; // 즉시 set — 중복 진입 방지 우선
   try {
-    for (const op of treeToCreateOps(tree)) await syncAction(VaultApi, op); // 순차 — 부모 먼저
+    await runBootstrapOps(VaultApi, treeToCreateOps(tree)); // 순차 — 부모 먼저, 409 허용
   } catch (e) {
-    toastFn?.("서버 동기화 실패: " + (e instanceof Error ? e.message : String(e)));
+    const msg = e instanceof Error ? e.message : String(e);
+    toastFn?.("시드 업로드 일부 실패 (" + msg + ") — 새로고침으로 재시도하거나 서버 DB 초기화 권장");
   }
 }
 
@@ -84,7 +108,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
   const toastRef = useRef(toastFn);
   toastRef.current = toastFn;
   // 노트별 디바운스 타이머 + 누적 patch
-  const pendingRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; patch: NotePatch }>());
+  const pendingRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; patch: MergedPatch }>());
 
   // 안정 ref만 닫아두므로 첫 렌더 인스턴스를 useMemo/useEffect가 공유해도 안전
   const fire = (op: SyncOp) => {
@@ -114,15 +138,16 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
       },
       updateNote: (id, patch) => {
         actionsRef.current.updateNote(id, patch);
-        if (patch.content === undefined && patch.tags === undefined) return; // title은 rename 경로 담당
+        if (patch.title === undefined && patch.content === undefined && patch.tags === undefined) return;
         const prev = pendingRef.current.get(id);
         if (prev) clearTimeout(prev.timer);
-        const merged: NotePatch = { ...prev?.patch };
+        const merged: MergedPatch = { ...prev?.patch };
+        if (patch.title !== undefined) merged.title = patch.title; // flush 때 name으로 변환
         if (patch.content !== undefined) merged.content = patch.content;
         if (patch.tags !== undefined) merged.tags = patch.tags;
         const timer = setTimeout(() => {
           pendingRef.current.delete(id);
-          fire({ kind: "update", id, ...merged });
+          fire(buildUpdateOp(id, merged));
         }, PATCH_DEBOUNCE);
         pendingRef.current.set(id, { timer, patch: merged });
       },
@@ -145,7 +170,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
     return () => {
       for (const [id, p] of pendingRef.current) {
         clearTimeout(p.timer);
-        fire({ kind: "update", id, ...p.patch });
+        fire(buildUpdateOp(id, p.patch));
       }
       pendingRef.current.clear();
     };

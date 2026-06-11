@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { syncAction, treeToCreateOps } from "./useVaultSync";
+import { syncAction, treeToCreateOps, buildUpdateOp, runBootstrapOps } from "./useVaultSync";
 import type { SyncOp } from "./useVaultSync";
+import { ApiError } from "../storage/VaultApi";
 import type { VaultApiType } from "../storage/VaultApi";
 import type { VaultTree } from "../types";
 
@@ -29,6 +30,11 @@ describe("syncAction", () => {
     await syncAction(api, { kind: "update", id: "n1", content: "본문", tags: ["운영"] });
     expect(api.update).toHaveBeenCalledWith("n1", { content: "본문", tags: ["운영"] });
   });
+  it("maps update with name (title edit) alongside content", async () => {
+    const api = apiMock();
+    await syncAction(api, { kind: "update", id: "n1", name: "새 제목", content: "본문" });
+    expect(api.update).toHaveBeenCalledWith("n1", { name: "새 제목", content: "본문" });
+  });
   it("maps content-only update without a tags key", async () => {
     const api = apiMock();
     await syncAction(api, { kind: "update", id: "n1", content: "본문만" });
@@ -43,6 +49,37 @@ describe("syncAction", () => {
     const api = apiMock();
     await syncAction(api, { kind: "move", id: "n1", parentId: null });
     expect(api.move).toHaveBeenCalledWith("n1", null);
+  });
+});
+
+describe("buildUpdateOp", () => {
+  it("converts merged title to name", () => {
+    expect(buildUpdateOp("n1", { title: "새 제목", content: "본문" }))
+      .toEqual({ kind: "update", id: "n1", name: "새 제목", content: "본문" });
+  });
+  it("omits name when title absent", () => {
+    expect(buildUpdateOp("n1", { content: "본문", tags: ["운영"] }))
+      .toEqual({ kind: "update", id: "n1", content: "본문", tags: ["운영"] });
+  });
+});
+
+describe("runBootstrapOps", () => {
+  const op = (id: string): SyncOp => ({ kind: "create", node: { id, parentId: null, type: "note", name: id, content: "" } });
+
+  it("treats 409 (already exists) as success and continues", async () => {
+    const api = apiMock();
+    (api.create as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(new ApiError("이미 존재", 409))
+      .mockResolvedValueOnce(undefined);
+    await expect(runBootstrapOps(api, [op("a"), op("b")])).resolves.toBeUndefined();
+    expect(api.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("rethrows non-409 errors and stops", async () => {
+    const api = apiMock();
+    (api.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new ApiError("서버 오류", 500));
+    await expect(runBootstrapOps(api, [op("a"), op("b")])).rejects.toThrow("서버 오류");
+    expect(api.create).toHaveBeenCalledTimes(1);
   });
 });
 
