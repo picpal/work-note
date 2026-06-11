@@ -87,6 +87,9 @@
     ORDER BY c.deleted_at DESC
   </select>
 
+  <select id="findAllTags" resultType="com.worknote.vault.TagRow">
+    SELECT node_id, tag FROM tag ORDER BY node_id, tag
+  </select>
   <select id="findTags" resultType="string">
     SELECT tag FROM tag WHERE node_id = #{nodeId} ORDER BY tag
   </select>
