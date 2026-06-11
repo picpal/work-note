@@ -81,7 +81,7 @@ public class VaultService {
 
     @Transactional
     public void move(String id, String newParentId) {
-        requireExists(id);
+        requireActive(id);   // 휴지통 노드는 이동 불가 — trash/update와 동일 패턴 (복구가 유일한 출구)
         if (newParentId != null) {
             requireActiveFolder(newParentId);
             if (mapper.subtreeIds(id).contains(newParentId)) {

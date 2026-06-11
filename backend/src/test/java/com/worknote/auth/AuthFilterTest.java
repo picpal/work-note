@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -28,6 +29,7 @@ class AuthFilterTest {
     @BeforeEach
     void clean() {
         // u-admin 제외 — Task 7 AdminBootstrap이 시드할 admin 보존 (현재는 무해)
+        jdbc.update("DELETE FROM audit_log");   // 공유 인메모리 DB — 다른 테스트 클래스 감사 행 오염 방지
         jdbc.update("DELETE FROM user_credential WHERE user_id <> 'u-admin'");
         jdbc.update("DELETE FROM app_user WHERE id <> 'u-admin'");
         users.insert(new UserRow("u1", "10001", null, "홍길동", "operator", "active", null));
@@ -75,6 +77,9 @@ class AuthFilterTest {
         MockHttpSession session = login("10001", "pw-1234");
         mvc.perform(post("/api/auth/logout").session(session)).andExpect(status().isNoContent());
         mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isUnauthorized());
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'logout' AND who = '10001'", Integer.class))
+            .isEqualTo(1);
     }
 
     @Test

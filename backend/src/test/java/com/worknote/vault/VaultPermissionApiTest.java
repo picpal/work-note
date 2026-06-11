@@ -92,6 +92,9 @@ class VaultPermissionApiTest {
         mvc.perform(post("/api/nodes").session(session).contentType(APPLICATION_JSON)
                 .content("{\"id\":\"n2\",\"parentId\":\"f1\",\"type\":\"note\",\"name\":\"새 노트\"}"))
             .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'node.create' AND who = '10001' AND target = 'n2'",
+            Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -161,9 +164,21 @@ class VaultPermissionApiTest {
         mvc.perform(post("/api/nodes/n1/move").session(session).contentType(APPLICATION_JSON)
                 .content("{\"parentId\":\"f2\"}"))
             .andExpect(status().isNoContent());
+        // 감사 target에 목적지 포함 — 이동에 따른 노출 변경 재구성용 (스펙 §7)
         assertThat(jdbc.queryForObject(
-            "SELECT COUNT(*) FROM audit_log WHERE act = 'node.move' AND target = 'n1'", Integer.class))
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'node.move' AND target = 'n1 -> f2'", Integer.class))
             .isEqualTo(1);
+    }
+
+    @Test
+    void moveTrashedNodeIs404() throws Exception {
+        nodes.insert(new NodeRow("f2", null, "folder", "F2", 2, null, null, null, null));
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        mvc.perform(delete("/api/nodes/n1").session(admin)).andExpect(status().isNoContent());
+        // 휴지통 노드는 이동 불가 — trash/update와 동일하게 requireActive가 404
+        mvc.perform(post("/api/nodes/n1/move").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"parentId\":\"f2\"}"))
+            .andExpect(status().isNotFound());
     }
 
     @Test

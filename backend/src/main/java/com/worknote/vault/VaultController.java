@@ -65,7 +65,9 @@ public class VaultController {
         UserRow user = user(req);
         guard.requireMove(user, id, body.parentId());
         svc.move(id, body.parentId());
-        audit.log(user, "node.move", id, req.getRemoteAddr());
+        // target에 목적지 포함 — 이동에 따른 노출 변경 재구성용 (스펙 §7)
+        audit.log(user, "node.move",
+            id + " -> " + (body.parentId() != null ? body.parentId() : "root"), req.getRemoteAddr());
     }
 
     @DeleteMapping("/nodes/{id}")
