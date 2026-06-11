@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.auth.UserMapper">
+
+  <insert id="insert">
+    INSERT INTO app_user (id, emp, email, name, role_id, status, last_login)
+    VALUES (#{id}, #{emp}, #{email}, #{name}, #{roleId}, #{status}, #{lastLogin})
+  </insert>
+
+  <select id="findById" resultType="com.worknote.auth.UserRow">
+    SELECT * FROM app_user WHERE id = #{id}
+  </select>
+
+  <select id="findByEmp" resultType="com.worknote.auth.UserRow">
+    SELECT * FROM app_user WHERE emp = #{emp}
+  </select>
+
+  <select id="countUsers" resultType="int">
+    SELECT COUNT(*) FROM app_user
+  </select>
+
+  <update id="stampLastLogin">
+    UPDATE app_user SET last_login = #{at} WHERE id = #{id}
+  </update>
+
+  <select id="findCredential" resultType="com.worknote.auth.CredentialRow">
+    SELECT * FROM user_credential WHERE user_id = #{userId}
+  </select>
+
+  <insert id="insertCredential">
+    INSERT INTO user_credential (user_id, salt, password_hash)
+    VALUES (#{userId}, #{salt}, #{passwordHash})
+  </insert>
+
+</mapper>
