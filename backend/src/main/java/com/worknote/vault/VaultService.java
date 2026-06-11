@@ -103,6 +103,13 @@ public class VaultService {
         if (row.deletedAt() == null) {
             throw VaultException.invalid("삭제 상태가 아닙니다: " + id);
         }
+        // 휴지통 루트만 복구 허용 — 중간 노드를 복구하면 부모가 삭제 상태인 활성 고아가 생겨 트리에서 사라짐
+        if (row.parentId() != null) {
+            NodeRow parent = mapper.findById(row.parentId());
+            if (parent != null && parent.deletedAt() != null) {
+                throw VaultException.invalid("휴지통 루트만 복구할 수 있습니다(상위 폴더를 복구하세요): " + id);
+            }
+        }
         mapper.restoreSubtree(id);
     }
 

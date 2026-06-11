@@ -71,6 +71,27 @@ class VaultGuardTest {
         UserRow other = new UserRow("u2", "10002", null, "남", "operator", "active", null);
         assertThatThrownBy(() -> guard.requireRestore(other, "n1")).isInstanceOf(VaultException.class);
         assertThatCode(() -> guard.requireRestore(ADMIN, "n1")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> guard.requireRestore(OPERATOR, "ghost")).isInstanceOf(VaultException.class);  // 미존재 id도 403 — 존재 비노출
+    }
+
+    @Test
+    void requireDeleteNeedsCapAndEdit() {
+        assertThatThrownBy(() -> guard.requireDelete(OPERATOR, "n1")).isInstanceOf(VaultException.class);
+        acl.insertAcl(new AclRow("user", "u1", "f1", "edit"));
+        assertThatCode(() -> guard.requireDelete(OPERATOR, "n1")).doesNotThrowAnyException();
+        // res.delete cap 없는 visitor — edit grant가 있어도 역할 상한 캡으로 403
+        UserRow visitor = new UserRow("u3", "10003", null, "방문", "visitor", "active", null);
+        acl.insertAcl(new AclRow("user", "u3", "f1", "edit"));
+        assertThatThrownBy(() -> guard.requireDelete(visitor, "n1")).isInstanceOf(VaultException.class);
+    }
+
+    @Test
+    void restoreRequiresTrashRoot() {
+        svc.trash("f1", "10001");   // f1>n1 통삭제
+        assertThatThrownBy(() -> svc.restore("n1"))
+            .isInstanceOf(VaultException.class)
+            .satisfies(e -> assertThat(((VaultException) e).status()).isEqualTo(VaultException.Status.INVALID));
+        assertThatCode(() -> svc.restore("f1")).doesNotThrowAnyException();
     }
 
     @Test

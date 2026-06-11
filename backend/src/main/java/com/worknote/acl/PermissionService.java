@@ -171,7 +171,8 @@ public class PermissionService {
         for (NodeRow child : byParent.getOrDefault(node.id(), List.of())) {
             anyChild |= walk(child, byParent, aclByPrincipal, flags, principals, nearest, publicState, out);
         }
-        boolean include = selfReadable || anyChild;   // 폴더 스텁: 자손이 읽히면 경로(이름만) 노출
+        // 폴더 스텁: 자손이 읽히면 경로(이름만) 노출 — 폴더 한정 (데이터 손상으로 노트가 자식을 가져도 노트 content가 스텁으로 노출되지 않게)
+        boolean include = selfReadable || (anyChild && "folder".equals(node.type()));
         if (include) {
             out.add(node.id());
         }
