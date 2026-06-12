@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { statusLabel, capLabel, actLabel, actType, roleName, KNOWN_CAPS } from "./mappers";
+import { statusLabel, capLabel, actLabel, actType, roleName, KNOWN_CAPS, KNOWN_ACTS } from "./mappers";
 
 describe("mappers", () => {
   it("statusLabel", () => {
@@ -15,6 +15,10 @@ describe("mappers", () => {
   it("KNOWN_CAPS는 11종이고 전부 CAPS 라벨이 존재(드리프트 가드)", () => {
     expect(KNOWN_CAPS).toHaveLength(11);
     for (const c of KNOWN_CAPS) expect(capLabel(c), c + " 라벨 누락").not.toBe(c);
+  });
+  it("KNOWN_ACTS는 27종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
+    expect(KNOWN_ACTS).toHaveLength(27);
+    for (const a of KNOWN_ACTS) expect(actLabel(a), a + " 라벨 누락").not.toBe(a);
   });
   it("actLabel은 dot 명명을 한국어로, 미지 act는 원문", () => {
     expect(actLabel("login.success")).toBe("로그인");

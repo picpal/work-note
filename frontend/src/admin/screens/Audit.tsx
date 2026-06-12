@@ -1,7 +1,7 @@
 /* Admin screen 6: Audit log — 실 API(AdminApi.audit) 배선. 필터는 서버 단일 경로(who/act 정확 일치 + from/to 사전순). */
 import React from "react";
 import { AdminApi, ApiAudit } from "../api";
-import { actLabel, actType } from "../mappers";
+import { actLabel, actType, KNOWN_ACTS } from "../mappers";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, SkeletonTable } from "../common";
 import { Icon } from "../../components/Icon";
@@ -10,16 +10,6 @@ const { useState, useEffect } = React;
 const h = React.createElement;
 
 const LIMIT = 50;
-
-/** mappers ACTS와 동일한 act 실값 목록 — 셀렉트 옵션용(라벨은 actLabel로 해석). */
-const ACT_KEYS: string[] = [
-  "login.success", "login.fail", "logout", "signup", "signup.fail",
-  "user.create", "user.update", "user.approve", "user.reset",
-  "role.create", "role.update", "role.delete",
-  "team.create", "team.update", "team.delete", "team.member.add", "team.member.remove",
-  "acl.set", "public.set", "public.unset", "space.set", "space.unset",
-  "node.create", "node.move", "node.trash", "node.restore", "node.purge",
-];
 
 function adminDownload(filename: string, text: string, mime?: string) {
   const blob = new Blob(["﻿" + text], { type: (mime || "text/plain") + ";charset=utf-8" });
@@ -107,11 +97,11 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
       h("div", { className: "afield" }, h(Icon, { name: "search" }),
         h("input", { placeholder: "행위자(사번) — Enter로 적용", value: whoInput,
           onChange: (e: React.ChangeEvent<HTMLInputElement>) => setWhoInput(e.target.value),
-          onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") applyWho(whoInput.trim()); },
+          onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.nativeEvent.isComposing) return; if (e.key === "Enter") applyWho(whoInput.trim()); },
           onBlur: () => applyWho(whoInput.trim()) })),
       h("select", { className: "aselect", value: act, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => applyAct(e.target.value) },
         h("option", { value: "" }, "전체 행위"),
-        ACT_KEYS.map((k) => h("option", { key: k, value: k }, actLabel(k)))),
+        KNOWN_ACTS.map((k) => h("option", { key: k, value: k }, actLabel(k)))),
       h("input", { className: "aselect", type: "date", value: from, title: "시작일",
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => applyFrom(e.target.value) }),
       h("input", { className: "aselect", type: "date", value: to, title: "종료일",

@@ -32,6 +32,16 @@ const ACTS: Record<string, string> = {
 };
 export function actLabel(act: string): string { return ACTS[act] ?? act; }
 
+/** 백엔드가 기록하는 act 27종 — canonical 순서(인증 → user → role → team → acl/public/space → node). ACTS 라벨 맵과 정합은 테스트로 가드. */
+export const KNOWN_ACTS: string[] = [
+  "login.success", "login.fail", "logout", "signup", "signup.fail",
+  "user.create", "user.update", "user.approve", "user.reset",
+  "role.create", "role.update", "role.delete",
+  "team.create", "team.update", "team.delete", "team.member.add", "team.member.remove",
+  "acl.set", "public.set", "public.unset", "space.set", "space.unset",
+  "node.create", "node.move", "node.trash", "node.restore", "node.purge",
+];
+
 /** Audit 화면 배지 색 분류 — 기존 mock 클래스(login/grant/approve/reset/revoke/loginfail) + 폴백 "etc"(Audit.tsx는 loginfail만 색 특수처리라 미지 클래스 무해). */
 export function actType(act: string): string {
   if (act.endsWith(".fail")) return "loginfail";
