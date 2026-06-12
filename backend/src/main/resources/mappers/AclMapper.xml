@@ -29,7 +29,7 @@
   </select>
 
   <select id="findAllPublicFlags" resultType="com.worknote.acl.PublicFlagRow">
-    SELECT node_id, mode FROM public_flag
+    SELECT node_id, mode FROM public_flag ORDER BY node_id
   </select>
 
   <insert id="insertAcl">

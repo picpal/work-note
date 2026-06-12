@@ -1,6 +1,7 @@
 package com.worknote.admin;
 
 import com.worknote.acl.AclRow;
+import com.worknote.acl.PublicFlagRow;
 import com.worknote.admin.dto.PublicRequest;
 import com.worknote.admin.dto.SetAclRequest;
 import com.worknote.audit.AuditService;
@@ -36,6 +37,12 @@ public class AdminAclController {
     public List<AclRow> listAll(HttpServletRequest req) {
         guard.requireAdmin(user(req));
         return svc.listAll();
+    }
+
+    @GetMapping("/public")
+    public List<PublicFlagRow> listPublic(HttpServletRequest req) {
+        guard.requireAdmin(user(req));
+        return svc.listPublicFlags();
     }
 
     @GetMapping("/nodes/{id}/acl")

@@ -136,6 +136,28 @@ class AdminPublicApiTest {
     }
 
     @Test
+    void 전체_public_플래그를_조회한다() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        mvc.perform(put("/api/admin/nodes/f1/public").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"mode\":\"public\"}")).andExpect(status().isNoContent());
+        mvc.perform(put("/api/admin/nodes/n1/public").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"mode\":\"exclude\"}")).andExpect(status().isNoContent());
+        mvc.perform(get("/api/admin/public").session(admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].nodeId").value("f1"))
+            .andExpect(jsonPath("$[0].mode").value("public"))
+            .andExpect(jsonPath("$[1].nodeId").value("n1"))
+            .andExpect(jsonPath("$[1].mode").value("exclude"));
+    }
+
+    @Test
+    void 비관리자는_public_조회_403() throws Exception {
+        MockHttpSession op = login("10001", "pw-1234");
+        mvc.perform(get("/api/admin/public").session(op)).andExpect(status().isForbidden());
+    }
+
+    @Test
     void createNoteUnderPrivateFolder_noExcludeRow() throws Exception {
         MockHttpSession admin = login("admin", "boot-pass-1");
         mvc.perform(post("/api/nodes").session(admin).contentType(APPLICATION_JSON)

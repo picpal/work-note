@@ -2,6 +2,7 @@ package com.worknote.admin;
 
 import com.worknote.acl.AclMapper;
 import com.worknote.acl.AclRow;
+import com.worknote.acl.PublicFlagRow;
 import com.worknote.acl.SpaceMapper;
 import com.worknote.acl.SpaceRow;
 import com.worknote.acl.TeamMapper;
@@ -41,6 +42,10 @@ public class AclAdminService {
 
     public List<AclRow> listAll() {
         return acl.findAllAcl();
+    }
+
+    public List<PublicFlagRow> listPublicFlags() {
+        return acl.findAllPublicFlags();
     }
 
     public List<AclRow> forNode(String nodeId) {
