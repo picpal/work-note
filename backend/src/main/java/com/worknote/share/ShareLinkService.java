@@ -92,11 +92,12 @@ public class ShareLinkService {
         if (row == null) {
             throw VaultException.notFound("공유 링크를 찾을 수 없습니다: " + id);
         }
-        if (row.revokedAt() != null) {
-            throw VaultException.conflict("이미 취소된 링크입니다: " + id);
-        }
+        // 소유권 검사를 conflict보다 먼저 — 타인에게 취소 여부(409/403 구분)를 비노출 (requireRestore와 동일 원칙)
         if (!privileged && !row.createdBy().equals(byEmp)) {
             throw VaultException.forbidden("취소 권한이 없습니다: " + id);
+        }
+        if (row.revokedAt() != null) {
+            throw VaultException.conflict("이미 취소된 링크입니다: " + id);
         }
         mapper.revoke(id, iso(LocalDateTime.now(clock)));
         return row;
