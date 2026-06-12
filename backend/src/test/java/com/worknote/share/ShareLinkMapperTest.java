@@ -103,6 +103,33 @@ class ShareLinkMapperTest {
     }
 
     @Test
+    void findAllActive도_만료_취소_소진을_제외한다() {
+        // 활성 조건 SQL이 두 쿼리에 중복 — 한쪽만 수정되는 드리프트 방지
+        note("sl-n1");
+        mapper.insert(link("s-active", "sl-n1"));
+        mapper.insert(new ShareLinkRow("s-expired", "tok-expired", "sl-n1", "emp1",
+            "2026-06-01T09:00:00", "2026-06-08T09:00:00", null, 0, null, null));
+        mapper.insert(new ShareLinkRow("s-revoked", "tok-revoked", "sl-n1", "emp1",
+            "2026-06-12T09:00:00", "2026-06-19T09:00:00", null, 0, null, NOW));
+        mapper.insert(new ShareLinkRow("s-exhausted", "tok-exhausted", "sl-n1", "emp1",
+            "2026-06-12T09:00:00", "2026-06-19T09:00:00", 3, 3, null, null));
+
+        assertThat(mapper.findAllActive(NOW))
+            .extracting(ActiveShareRow::id).containsExactly("s-active");
+    }
+
+    @Test
+    void 만료_경계는_비활성이다() {
+        // expires_at == now → 비활성(엄격 초과 `>`) — 의도 고정
+        note("sl-n1");
+        mapper.insert(new ShareLinkRow("s-edge", "tok-edge", "sl-n1", "emp1",
+            "2026-06-12T09:00:00", NOW, null, 0, null, null));
+
+        assertThat(mapper.findActiveByNode("sl-n1", NOW)).isEmpty();
+        assertThat(mapper.findAllActive(NOW)).isEmpty();
+    }
+
+    @Test
     void revokeMakesLinkInactive() {
         note("sl-n1");
         mapper.insert(link("s1", "sl-n1"));
