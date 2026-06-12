@@ -157,7 +157,8 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
       onConfirm: () => void applyResetPw(modal.user), onClose: () => setModal(null),
     },
       h("div", { style: { marginBottom: 10 } },
-        h("b", { className: "mono", style: { color: "var(--ink)" } }, modal.user.emp), " 계정의 비밀번호를 새로 설정합니다. 초기화 시 해당 사용자의 기존 세션은 모두 무효화됩니다."),
+        h("b", { className: "mono", style: { color: "var(--ink)" } }, modal.user.emp), " 계정의 비밀번호를 새로 설정합니다. 초기화 시 해당 사용자의 기존 세션은 모두 무효화됩니다.",
+        modal.user.id === me?.id ? " 본인 계정이므로 초기화 직후 다시 로그인해야 합니다." : null),
       fld("새 비밀번호 (8자 이상)", h("input", { className: "tinput", type: "password", value: pw, autoFocus: true,
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPw(e.target.value) }))),
     modal?.kind === "create" && h(Modal, {
