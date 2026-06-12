@@ -14,13 +14,14 @@ function loadProfile(emp: string | undefined) {
 interface ProfileModalProps {
   emp?: string;
   role?: string;
+  name?: string; // http 모드 세션 사용자 이름 — 있으면 localStorage mock보다 우선
   onClose: () => void;
   toast?: (message: string, icon: string) => void;
 }
 
-export function ProfileModal({ emp, role, onClose, toast }: ProfileModalProps) {
+export function ProfileModal({ emp, role, name: sessionName, onClose, toast }: ProfileModalProps) {
   const init = loadProfile(emp);
-  const [name, setName] = useState(init.name);
+  const [name, setName] = useState(sessionName || init.name);
   const [email, setEmail] = useState(init.email);
   const [savedInfo, setSavedInfo] = useState(false);
 

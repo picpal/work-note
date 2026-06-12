@@ -92,6 +92,8 @@ interface SidebarProps {
   onNewFolder: (folderId: string | null) => void;
   onCollapseAll: () => void;
   onToggleSidebar: () => void;
+  showAdmin?: boolean;   // admin.html 진입 링크 노출 (local 모드 또는 http 모드 관리자)
+  showLogout?: boolean;  // 로그아웃 버튼 노출 (http 모드 + 세션 존재)
   onLogout?: () => void;
   onSettings?: () => void;
 }
@@ -131,11 +133,11 @@ export function Sidebar(props: SidebarProps) {
     ),
     React.createElement(
       "div", { className: "sb-footer" },
-      React.createElement("a", { className: "sb-fbtn", href: "admin.html", title: "관리자 페이지" },
+      props.showAdmin && React.createElement("a", { className: "sb-fbtn", href: "admin.html", title: "관리자 페이지" },
         React.createElement(Icon, { name: "shield" })),
       React.createElement(
         "div", { className: "sb-fgroup" },
-        React.createElement("button", { className: "sb-fbtn", title: "로그아웃", onClick: () => props.onLogout && props.onLogout() },
+        props.showLogout && React.createElement("button", { className: "sb-fbtn", title: "로그아웃", onClick: () => props.onLogout && props.onLogout() },
           React.createElement(Icon, { name: "logout" })),
         React.createElement("button", { className: "sb-fbtn", title: "설정", onClick: () => props.onSettings && props.onSettings() },
           React.createElement(Icon, { name: "cog" }))))

@@ -113,6 +113,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
   // 안정 ref만 닫아두므로 첫 렌더 인스턴스를 useMemo/useEffect가 공유해도 안전
   const fire = (op: SyncOp) => {
     syncAction(VaultApi, op).catch((e: unknown) => {
+      if (e instanceof ApiError && e.status === 401) return; // 세션 만료 — 전역 on401 리다이렉트가 처리
       toastRef.current("서버 동기화 실패: " + (e instanceof Error ? e.message : String(e)));
     });
   };

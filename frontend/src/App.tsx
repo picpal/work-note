@@ -12,7 +12,8 @@ import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
-import { repository } from "./storage";
+import { useSession } from "./state/useSession";
+import { repository, storageMode } from "./storage";
 import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
 import { useSettings } from "./state/useSettings";
@@ -55,6 +56,10 @@ export function App() {
   const toolbarRef = useRef<ToolbarHandlers>({} as ToolbarHandlers);
   const editorViewRef = useRef<any>(null);
   const currentEmp = (function () { try { return sessionStorage.getItem("wn.session") || "S2019-0007"; } catch (e) { return "S2019-0007"; } })();
+
+  // ---- session (http 모드 전용 — local 모드는 me=null 고정, 기존 mock 표시 유지) ----
+  const { me, isAdmin, logout } = useSession();
+  const meLabel = me ? me.name + " (" + me.emp + ")" : currentEmp;
 
   // ---- theme ----
   useEffect(() => {
@@ -179,7 +184,9 @@ export function App() {
       onToggle: actions.toggle, onOpen: openNote, onContext,
       onRename: setRenamingId, onRenameCommit,
       onSettings: () => setSettingsOpen(true),
-      onLogout: () => { try { sessionStorage.removeItem("wn.session"); } catch (e) {} location.href = "login.html"; },
+      showAdmin: storageMode === "local" || isAdmin,    // local 모드는 기존 동작 보존, http 모드는 관리자만
+      showLogout: storageMode === "http" && me != null, // 세션이 있을 때만
+      onLogout: logout,
     }),
     createElement(
       "div", { className: "main" },
@@ -201,7 +208,7 @@ export function App() {
           "div", { className: "right" },
           createElement("button", { className: "topbar-me", title: "프로필", onClick: () => setProfileOpen(true) },
             createElement("span", { className: "tm-ic" }, createElement(Icon, { name: "user" })),
-            createElement("span", { className: "tm-emp" }, currentEmp)),
+            createElement("span", { className: "tm-emp" }, meLabel)),
           createElement("button", { className: "icon-btn", title: settings.dark ? "라이트 모드" : "다크 모드", onClick: () => set("dark", !settings.dark) },
             createElement(Icon, { name: settings.dark ? "sun" : "moon" })),
           activeNote && createElement("button", {
@@ -254,7 +261,7 @@ export function App() {
       onOpen: openNote,
     }),
     profileOpen && createElement(ProfileModal, {
-      emp: currentEmp, role: "운영자",
+      emp: me ? me.emp : currentEmp, role: me ? me.roleId : "운영자", name: me?.name,
       onClose: () => setProfileOpen(false),
       toast,
     }),
