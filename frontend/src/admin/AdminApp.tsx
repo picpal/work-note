@@ -12,6 +12,7 @@ import { Users } from "./screens/Users";
 import { Permissions } from "./screens/Permissions";
 import { Roles } from "./screens/Roles";
 import { Teams } from "./screens/Teams";
+import { Shares } from "./screens/Shares";
 import { Audit } from "./screens/Audit";
 import { Security } from "./screens/Security";
 
@@ -25,6 +26,7 @@ const NAV = [
   { id: "permissions", label: "권한 관리", icon: "key" },
   { id: "roles", label: "역할 관리", icon: "roles" },
   { id: "teams", label: "팀·스페이스", icon: "users" },
+  { id: "shares", label: "공유 링크", icon: "link" },
   { id: "audit", label: "감사 로그", icon: "history" },
   { id: "security", label: "보안 설정", icon: "settings" },
 ];
@@ -35,6 +37,7 @@ const TITLES: Record<string, [string, string]> = {
   permissions: ["권한 관리", "리소스 단위 접근 권한 부여"],
   roles: ["역할 관리", "역할별 기본 정책"],
   teams: ["팀·스페이스", "팀 구성·팀 스페이스 관리"],
+  shares: ["공유 링크", "활성 공유 링크 조회·취소"],
   audit: ["감사 로그", "보안 감사 추적"],
   security: ["보안 설정", "인증·세션 정책"],
 };
@@ -87,6 +90,7 @@ export function AdminApp() {
     permissions: Permissions,
     roles: Roles,
     teams: Teams,
+    shares: Shares,
     audit: Audit,
     security: Security,
   };
