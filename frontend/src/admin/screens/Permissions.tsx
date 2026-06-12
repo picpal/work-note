@@ -1,186 +1,264 @@
-/* Admin screen 4: Permission management */
+/* Admin screen 4: 권한 관리 — 노드 중심 ACL 편집·상속 표시·public 토글 (실 API 배선) */
 import React from "react";
-import { ADMIN_USERS, ADMIN_TREE, ADMIN_GRANTS, ADMIN_PUBLIC, AdminTreeNode, Grant } from "../data";
-import { SecHead, Avatar, Switch, RoleBadge } from "../common";
-import { walkAdminTree } from "../tree";
+import { AdminApi, ApiAclEntry, ApiAclRow, ApiPublicFlag } from "../api";
+import { VaultApi } from "../../storage/VaultApi";
+import type { VaultNode, VaultTree } from "../../types";
+import { ApiError } from "../../api/http";
+import { useAdminData } from "../useAdminData";
+import { directPublicMode, effectivePublic, inheritedEntries } from "../aclView";
+import { SecHead, Empty, SkeletonTable } from "../common";
 import { Icon } from "../../components/Icon";
 
-const { useState, useMemo } = React;
+const { useState, useEffect, useMemo, useCallback } = React;
 const h = React.createElement;
 
-function PermNode({ node, depth, grants, onToggle, pub, onPub }: {
-  node: AdminTreeNode;
-  depth: number;
-  grants: Record<string, Grant>;
-  onToggle: (nodeId: string, kind: string) => void;
-  pub: Record<string, boolean>;
-  onPub: (nodeId: string) => void;
-}): React.ReactElement {
-  const [open, setOpen] = useState(true);
-  const isFolder = node.type === "folder";
-  const g = grants[node.id] || {};
-  // inheritance: walk up — simplified, parent passed via grants merge done in parent
-  const inheritedRead = g.inheritedRead;
-  const read = g.read || inheritedRead;
-  const edit = g.edit || g.inheritedEdit;
-  const overridden = g.override;
-  const isPublic = pub[node.id];
+const GRANTS: ReadonlyArray<readonly [ApiAclEntry["grantType"], string]> =
+  [["read", "읽기"], ["edit", "편집"], ["deny", "거부"]];
+const grantLabel = (g: string) => GRANTS.find(([k]) => k === g)?.[1] ?? g;
+const nodeLabel = (n: VaultNode) => (n.type === "folder" ? n.name : n.title);
 
-  return h(React.Fragment, null,
-    h("div", { className: "ptree-row", style: { paddingLeft: 8 + depth * 18 } },
-      isFolder
-        ? h("span", { className: "tw" + (open ? " open" : ""), onClick: () => setOpen(!open) }, h(Icon, { name: "chevron" }))
-        : h("span", { className: "tw" }),
-      h("span", { className: "ic" }, h(Icon, { name: isFolder ? (open ? "folderOpen" : "folder") : "fileLines" })),
-      h("span", { className: "nm" }, node.name),
-      overridden && h("span", { className: "tagm override" }, "재정의됨"),
-      (inheritedRead && !g.read) && h("span", { className: "tagm inherit" }, "상속"),
-      isPublic && h("span", { className: "tagm" }, "공개"),
-      h("span", { className: "perm-toggles" },
-        h("button", {
-          className: "ptoggle" + (read ? " on" : "") + (inheritedRead && !g.read ? " inherited" : ""),
-          onClick: () => onToggle(node.id, "read"),
-        }, "읽기"),
-        h("button", {
-          className: "ptoggle" + (edit ? " on" : "") + (g.inheritedEdit && !g.edit ? " inherited" : ""),
-          onClick: () => onToggle(node.id, "edit"),
-        }, "편집"))),
-    isFolder && open && node.children && node.children.map((c) =>
-      h(PermNode, { key: c.id, node: c, depth: depth + 1, grants, onToggle, pub, onPub })));
-}
-
-function flattenForPublic(tree: AdminTreeNode[], out?: AdminTreeNode[]): AdminTreeNode[] { // eslint-disable-line
-  out = out || [];
-  tree.forEach((n) => { out!.push(n); });
+function flatten(tree: VaultTree, out: VaultNode[] = []): VaultNode[] {
+  for (const n of tree) { out.push(n); if (n.type === "folder") flatten(n.children, out); }
   return out;
 }
 
-// resource-centric view
-function ResourceView() {
-  const [nodeId, setNodeId] = useState("n-pipe");
-  const all: AdminTreeNode[] = []; walkAdminTree(ADMIN_TREE, (n) => all.push(n));
-  const node = all.find((n) => n.id === nodeId);
-  // who can access this resource (derived from grants)
-  const accessors = ADMIN_USERS.filter((u) => {
-    const g = (ADMIN_GRANTS[u.id] || {});
-    return g[nodeId] || (nodeId === "n-approve" && g["f-arch"]) || (["n-codes"].includes(nodeId) && g["f-ops"]) || u.role === "관리자";
-  });
-  return h("div", { className: "cols-perm" },
-    h("div", { className: "panel" },
-      h("div", { className: "panel-head" }, h(Icon, { name: "folder" }), "리소스 선택"),
-      h("div", { className: "panel-body", style: { padding: 8 } },
-        h("div", { className: "ptree" },
-          all.filter((n) => n.type === "note").map((n) => h("div", {
-            key: n.id, className: "ptree-row", style: { cursor: "default", background: n.id === nodeId ? "var(--bg-active)" : "" },
-            onClick: () => setNodeId(n.id),
-          },
-            h("span", { className: "ic" }, h(Icon, { name: "fileLines" })),
-            h("span", { className: "nm" }, n.name)))))),
-    h("div", { className: "panel" },
-      h("div", { className: "panel-head" }, h(Icon, { name: "users" }),
-        h("span", null, h("b", { style: { color: "var(--ink)" } }, node ? node.name : ""), " 접근 가능 사용자")),
-      h("div", { className: "panel-body", style: { padding: 0 } },
-        h("table", { className: "atable" },
-          h("thead", null, h("tr", null, h("th", null, "사번"), h("th", null, "역할"), h("th", { className: "right" }, "권한"))),
-          h("tbody", null,
-            accessors.map((u) => h("tr", { key: u.id },
-              h("td", { className: "mono" }, u.emp),
-              h("td", null, h(RoleBadge, { role: u.role })),
-              h("td", { className: "right" }, h("span", { className: "badge role" }, u.role === "관리자" ? "전체" : ((ADMIN_GRANTS[u.id] || {})[nodeId]?.edit || (ADMIN_GRANTS[u.id] || {})["f-arch"]?.edit) ? "읽기+편집" : "읽기")))))))));
+/** replace-all draft와 서버 상태의 더티 비교 — 순서 무관. */
+const canon = (es: ApiAclEntry[]) =>
+  JSON.stringify(es.map((e) => e.principalType + "|" + e.principalId + "|" + e.grantType).sort());
+
+const principalKey = (e: ApiAclEntry) => e.principalType + ":" + e.principalId;
+
+// ---- 좌측 트리 ----
+function TreeRow({ node, depth, selId, pubIds, onSelect }: {
+  node: VaultNode;
+  depth: number;
+  selId: string | null;
+  pubIds: Set<string>;
+  onSelect: (id: string) => void;
+}): React.ReactElement {
+  const [open, setOpen] = useState(true);
+  const isFolder = node.type === "folder";
+  return h(React.Fragment, null,
+    h("div", {
+      className: "ptree-row",
+      style: { paddingLeft: 8 + depth * 18, cursor: "default", background: node.id === selId ? "var(--bg-active)" : "" },
+      onClick: () => onSelect(node.id),
+    },
+      isFolder
+        ? h("span", { className: "tw" + (open ? " open" : ""), onClick: (e: React.MouseEvent) => { e.stopPropagation(); setOpen(!open); } }, h(Icon, { name: "chevron" }))
+        : h("span", { className: "tw" }),
+      h("span", { className: "ic" }, h(Icon, { name: isFolder ? (open ? "folderOpen" : "folder") : "fileLines" })),
+      h("span", { className: "nm" }, nodeLabel(node)),
+      pubIds.has(node.id) && h("span", { className: "tagm" }, "공개")),
+    isFolder && open && node.children.map((c) =>
+      h(TreeRow, { key: c.id, node: c, depth: depth + 1, selId, pubIds, onSelect })));
 }
 
 export function Permissions({ toast }: { toast: (msg: string, icon?: string) => void }) {
-  const [view, setView] = useState("user");   // user | resource
-  const [uid, setUid] = useState("u3");
-  const [uq, setUq] = useState("");
-  const [grants, setGrants] = useState(() => JSON.parse(JSON.stringify(ADMIN_GRANTS)) as Record<string, Record<string, Grant>>);
-  const [pub, setPub] = useState(() => ({ ...ADMIN_PUBLIC }));
-  const [dirty, setDirty] = useState(0);
+  const { users, teams } = useAdminData();
+  const [tree, setTree] = useState<VaultTree | null>(null);
+  const [acl, setAcl] = useState<ApiAclRow[]>([]);
+  const [flags, setFlags] = useState<ApiPublicFlag[]>([]);
+  const [selId, setSelId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ApiAclEntry[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  const users = ADMIN_USERS.filter((u) => u.role !== "관리자");
-  const fUsers = users.filter((u) => !uq || u.emp.toLowerCase().includes(uq.toLowerCase()) || u.email.toLowerCase().includes(uq.toLowerCase()));
-  const userGrants = grants[uid] || {};
+  const load = useCallback(async (withTree: boolean) => {
+    try {
+      if (withTree) {
+        const [t, a, f] = await Promise.all([VaultApi.tree(), AdminApi.aclAll(), AdminApi.publicFlags()]);
+        setTree(t); setAcl(a); setFlags(f);
+      } else {
+        const [a, f] = await Promise.all([AdminApi.aclAll(), AdminApi.publicFlags()]);
+        setAcl(a); setFlags(f);
+      }
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "권한 데이터를 불러오지 못했습니다");
+    }
+  }, [toast]);
+  useEffect(() => { void load(true); }, [load]);
 
-  // compute inheritance for display
-  const effective = useMemo(() => {
-    const out: Record<string, Grant> = JSON.parse(JSON.stringify(userGrants));
-    const walk = (nodes: AdminTreeNode[], parent: { read?: boolean; edit?: boolean } | null) => {
-      nodes.forEach((n) => {
-        const g: Grant = out[n.id] || (out[n.id] = {});
-        if (parent) {
-          if (parent.read && !g.read) g.inheritedRead = true;
-          if (parent.edit && !g.edit) g.inheritedEdit = true;
-        }
-        if (n.children) walk(n.children, { read: g.read || g.inheritedRead, edit: g.edit || g.inheritedEdit });
-      });
-    };
-    walk(ADMIN_TREE, null);
-    return out;
-  }, [userGrants, dirty]);
-
-  const toggle = (nodeId: string, kind: string) => {
-    setGrants((gr) => {
-      const next: Record<string, Record<string, Grant>> = JSON.parse(JSON.stringify(gr));
-      const u = next[uid] || (next[uid] = {});
-      const g: Grant = u[nodeId] || (u[nodeId] = {});
-      (g as Record<string, boolean>)[kind] = !(g as Record<string, boolean>)[kind];
-      if (kind === "edit" && g.edit) g.read = true;       // edit implies read
-      if (kind === "read" && !g.read) g.edit = false;     // remove read removes edit
-      // mark override if this is a note under a granted folder
-      g.override = !!(g.read || g.edit);
-      if (!g.read && !g.edit) delete u[nodeId];
-      return next;
-    });
-    setDirty((d) => d + 1);
+  /** Users.tsx run() 패턴 — 변이 성공 시 acl/publicFlags 재로드 + toast. */
+  const run = async (fn: () => Promise<unknown>, okMsg: string, icon?: string): Promise<boolean> => {
+    if (busy) return false;
+    setBusy(true);
+    try {
+      await fn();
+      await load(false);
+      toast(okMsg, icon);
+      return true;
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "요청 실패");
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
-  const togglePub = (nodeId: string) => { setPub((p) => ({ ...p, [nodeId]: !p[nodeId] })); setDirty((d) => d + 1); };
-  const commit = () => { setDirty(0); toast("권한 변경 사항을 적용했습니다", "check"); };
 
-  const selUser = ADMIN_USERS.find((u) => u.id === uid)!;
+  const byId = useMemo(() => {
+    const m = new Map<string, VaultNode>();
+    for (const n of flatten(tree ?? [])) m.set(n.id, n);
+    return m;
+  }, [tree]);
+  const sel = selId ? byId.get(selId) ?? null : null;
+
+  const pubIds = useMemo(() => {
+    if (!tree) return new Set<string>();
+    return new Set(flatten(tree).filter((n) => effectivePublic(n.id, tree, flags)).map((n) => n.id));
+  }, [tree, flags]);
+
+  const serverEntries = useMemo(
+    () => acl.filter((r) => r.nodeId === selId).map(({ principalType, principalId, grantType }) => ({ principalType, principalId, grantType })),
+    [acl, selId]);
+  const dirty = canon(draft) !== canon(serverEntries);
+  const dupKeys = useMemo(() => {
+    const seen = new Set<string>(); const dup = new Set<string>();
+    for (const e of draft) { const k = principalKey(e); if (seen.has(k)) dup.add(k); seen.add(k); }
+    return dup;
+  }, [draft]);
+  const incomplete = draft.some((e) => !e.principalId);
+  const inherited = useMemo(
+    () => (selId && tree ? inheritedEntries(selId, tree, acl) : []),
+    [selId, tree, acl]);
+
+  const select = (id: string) => {
+    setSelId(id);
+    setDraft(acl.filter((r) => r.nodeId === id).map(({ principalType, principalId, grantType }) => ({ principalType, principalId, grantType })));
+  };
+
+  const principalLabel = (type: ApiAclEntry["principalType"], id: string): string => {
+    if (type === "all") return "전체 사용자(@all)";
+    if (type === "user") { const u = users.find((x) => x.id === id); return u ? u.emp + " (" + u.name + ")" : id; }
+    const t = teams.find((x) => x.id === id);
+    return t ? t.name : id;
+  };
+
+  // ---- draft 편집 ----
+  const patchRow = (i: number, patch: Partial<ApiAclEntry>) =>
+    setDraft((d) => d.map((e, j) => (j === i ? { ...e, ...patch } : e)));
+  const changeType = (i: number, type: ApiAclEntry["principalType"]) =>
+    patchRow(i, { principalType: type, principalId: type === "all" ? "@all" : "" });
+  const addRow = () => setDraft((d) => [...d, { principalType: "user", principalId: "", grantType: "read" }]);
+  const removeRow = (i: number) => setDraft((d) => d.filter((_, j) => j !== i));
+
+  const save = async () => {
+    if (!sel) return;
+    const entries = [...draft];
+    if (await run(() => AdminApi.setAcl(sel.id, entries), nodeLabel(sel) + " ACL을 저장했습니다", "check")) setDraft(entries);
+  };
+
+  // ---- public 토글 ----
+  const direct = sel ? directPublicMode(sel.id, flags) : null;
+  const changePublic = (mode: string) => {
+    if (!sel || mode === (direct ?? "")) return;
+    void run(
+      () => (mode === "" ? AdminApi.unsetPublic(sel.id) : AdminApi.setPublic(sel.id, mode as "public" | "exclude")),
+      "공개 설정을 변경했습니다", "eye");
+  };
+
+  const secTitle = (text: string) =>
+    h("div", { style: { fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 8 } }, text);
+  const hintLine = (text: string) =>
+    h("div", { style: { fontSize: 12, color: "var(--text-3)", lineHeight: 1.6, marginTop: 8 } }, text);
+
+  const idOptions = (e: ApiAclEntry) => {
+    if (e.principalType === "all") return [h("option", { key: "@all", value: "@all" }, "전체 사용자(@all)")];
+    const opts = e.principalType === "user"
+      ? users.map((u) => h("option", { key: u.id, value: u.id }, u.emp + " (" + u.name + ")"))
+      : teams.map((t) => h("option", { key: t.id, value: t.id }, t.name));
+    // 삭제된 주체 등 목록에 없는 id는 원문 그대로 보존
+    if (e.principalId && !(e.principalType === "user" ? users.some((u) => u.id === e.principalId) : teams.some((t) => t.id === e.principalId)))
+      opts.push(h("option", { key: e.principalId, value: e.principalId }, e.principalId));
+    return [h("option", { key: "", value: "" }, "선택…"), ...opts];
+  };
 
   return h("div", { className: "apage wide" },
     h(SecHead, {
       title: "권한 관리",
-      hint: "기본 거부 — 명시적으로 부여된 리소스만 접근 가능",
-      right: h("div", { className: "seg" },
-        h("button", { className: view === "user" ? "active" : "", onClick: () => setView("user") }, "사용자 중심"),
-        h("button", { className: view === "resource" ? "active" : "", onClick: () => setView("resource") }, "리소스 중심")),
+      hint: "유효 권한 = 역할 상한 ∩ ACL — 폴더 상속 + deny 절대 우선",
     }),
-    view === "user"
-      ? h("div", { className: "cols-perm" },
-          // user picker
-          h("div", null,
-            h("div", { className: "afield", style: { marginBottom: 10, minWidth: 0 } },
-              h(Icon, { name: "search" }), h("input", { placeholder: "사용자 검색", value: uq, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setUq(e.target.value) })),
-            h("div", { className: "upick" },
-              fUsers.map((u) => h("div", { className: "upick-item" + (u.id === uid ? " active" : ""), key: u.id, onClick: () => setUid(u.id) },
-                h(Avatar, { emp: u.emp }),
-                h("div", { className: "info" },
-                  h("div", { className: "emp mono" }, u.emp),
-                  h("div", { className: "mail" }, u.email)),
-                h("span", { className: "badge role" + (u.role === "관리자" ? " radmin" : "") }, u.role))))),
-          // tree
-          h("div", { className: "panel" },
-            h("div", { className: "panel-head" },
-              h(Avatar, { emp: selUser.emp, cls: "avatar" }),
-              h("span", null, h("span", { className: "mono", style: { color: "var(--ink)" } }, selUser.emp), " 의 리소스 권한"),
-              h("span", { style: { marginLeft: "auto", fontSize: 12, color: "var(--text-3)", fontWeight: 400 } }, "폴더 권한은 하위로 상속됩니다")),
+    h("div", { className: "cols-perm" },
+      // ---- 좌: 트리 ----
+      h("div", { className: "panel" },
+        h("div", { className: "panel-head" }, h(Icon, { name: "folder" }), "노드 선택"),
+        h("div", { className: "panel-body", style: { padding: 8 } },
+          tree === null
+            ? h(SkeletonTable, { cols: 1, rows: 6 })
+            : tree.length === 0
+              ? h(Empty, { icon: "folder", title: "노드가 없습니다" })
+              : h("div", { className: "ptree" },
+                  tree.map((n) => h(TreeRow, { key: n.id, node: n, depth: 0, selId, pubIds, onSelect: select }))))),
+      // ---- 우: 선택 노드 ACL ----
+      !sel
+        ? h("div", { className: "panel" },
             h("div", { className: "panel-body" },
-              h("div", { className: "ptree" },
-                ADMIN_TREE.map((n) => h(PermNode, { key: n.id, node: n, depth: 0, grants: effective, onToggle: toggle, pub, onPub: togglePub }))),
-              h("div", { style: { marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border-soft)" } },
-                h("div", { style: { fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 10 } }, "공개(Public) 설정 — 공개 시 방문자 포함 모두 열람"),
-                h("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
-                  flattenForPublic(ADMIN_TREE).map((n) => h("div", { key: n.id, style: { display: "flex", alignItems: "center", gap: 9, padding: "5px 8px", borderRadius: 6 } },
-                    h("span", { style: { color: "var(--text-3)", display: "grid", placeItems: "center" } }, h(Icon, { name: n.type === "folder" ? "folder" : "fileLines" })),
-                    h("span", { style: { flex: 1, fontSize: 13, color: "var(--text)" } }, n.name),
-                    h(Switch, { on: !!pub[n.id], onChange: () => togglePub(n.id) }))))),
-              dirty > 0 && h("div", { className: "changebar" },
-                h(Icon, { name: "alert" }),
-                h("span", { className: "txt" }, h("b", null, dirty + "건"), "의 변경 사항이 적용 대기 중입니다"),
-                h("span", { className: "spacer" }),
-                h("button", { className: "btn", onClick: () => { setGrants(JSON.parse(JSON.stringify(ADMIN_GRANTS))); setPub({ ...ADMIN_PUBLIC }); setDirty(0); } }, "되돌리기"),
-                h("button", { className: "btn primary", onClick: commit }, "변경 적용")))))
-      : h(ResourceView, null)
-  );
+              h(Empty, { icon: "lock", title: "노드를 선택하세요", desc: "왼쪽 트리에서 폴더·노트를 선택하면 ACL을 편집할 수 있습니다." })))
+        : h("div", { className: "panel" },
+            h("div", { className: "panel-head" },
+              h(Icon, { name: sel.type === "folder" ? "folder" : "fileLines" }),
+              h("span", null, h("b", { style: { color: "var(--ink)" } }, nodeLabel(sel)), " 의 접근 제어"),
+              pubIds.has(sel.id)
+                ? h("span", { className: "badge active", style: { marginLeft: "auto" } }, h("span", { className: "bdot" }), "전체 공개 노출됨")
+                : h("span", { className: "badge inactive", style: { marginLeft: "auto" } }, h("span", { className: "bdot" }), "전체 공개 아님")),
+            h("div", { className: "panel-body" },
+              // 1. 직접 ACL 편집
+              secTitle("직접 ACL — 이 노드에 부여된 엔트리 (저장 시 전량 교체)"),
+              draft.length === 0
+                ? h("div", { style: { fontSize: 12.5, color: "var(--text-3)", padding: "6px 0" } }, "직접 엔트리가 없습니다 — 상속·역할 상한만 적용됩니다.")
+                : h("table", { className: "atable" },
+                    h("thead", null, h("tr", null,
+                      h("th", null, "주체 유형"), h("th", null, "주체"), h("th", null, "권한"), h("th", { className: "right" }, ""))),
+                    h("tbody", null,
+                      draft.map((e, i) => h("tr", { key: i, style: dupKeys.has(principalKey(e)) ? { background: "var(--bg-sunken)" } : undefined },
+                        h("td", null, h("select", { className: "aselect", value: e.principalType,
+                          onChange: (ev: React.ChangeEvent<HTMLSelectElement>) => changeType(i, ev.target.value as ApiAclEntry["principalType"]) },
+                          h("option", { value: "user" }, "사용자"),
+                          h("option", { value: "team" }, "팀"),
+                          h("option", { value: "all" }, "전체"))),
+                        h("td", null, h("select", { className: "aselect", value: e.principalId, disabled: e.principalType === "all",
+                          onChange: (ev: React.ChangeEvent<HTMLSelectElement>) => patchRow(i, { principalId: ev.target.value }) },
+                          idOptions(e))),
+                        h("td", null, h("select", { className: "aselect", value: e.grantType,
+                          onChange: (ev: React.ChangeEvent<HTMLSelectElement>) => patchRow(i, { grantType: ev.target.value as ApiAclEntry["grantType"] }) },
+                          GRANTS.map(([k, label]) => h("option", { key: k, value: k }, label)))),
+                        h("td", { className: "right" },
+                          h("button", { className: "lact danger", onClick: () => removeRow(i) }, "삭제")))))),
+              h("div", { className: "btn-row", style: { marginTop: 10 } },
+                h("button", { className: "btn sm", disabled: busy, onClick: addRow }, h(Icon, { name: "plus" }), "행 추가"),
+                h("span", { style: { flex: 1 } }),
+                dupKeys.size > 0 && h("span", { style: { fontSize: 12, color: "var(--text-3)" } }, "같은 주체가 중복되었습니다 — 행을 정리하세요"),
+                !dupKeys.size && incomplete && h("span", { style: { fontSize: 12, color: "var(--text-3)" } }, "주체를 선택하세요"),
+                dirty && !dupKeys.size && !incomplete && h("span", { style: { fontSize: 12, color: "var(--text-2)" } }, "저장되지 않은 변경"),
+                h("button", { className: "btn sm primary", disabled: busy || !dirty || dupKeys.size > 0 || incomplete, onClick: () => void save() }, "저장")),
+              // 2. 상속 엔트리
+              h("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border-soft)" } },
+                secTitle("상속 엔트리 — 조상 폴더에서 내려옴 (읽기 전용, 가까운 조상 순)"),
+                inherited.length === 0
+                  ? h("div", { style: { fontSize: 12.5, color: "var(--text-3)", padding: "6px 0" } }, "상속되는 엔트리가 없습니다.")
+                  : h("table", { className: "atable" },
+                      h("thead", null, h("tr", null,
+                        h("th", null, "출처"), h("th", null, "주체"), h("th", { className: "right" }, "권한"))),
+                      h("tbody", null,
+                        inherited.map((e, i) => h("tr", { key: i },
+                          h("td", null, h("span", { className: "tagm", style: { fontSize: 11, color: "var(--text-3)", border: "1px solid var(--border)", borderRadius: 5, padding: "1px 6px" } },
+                            byId.get(e.fromNodeId) ? nodeLabel(byId.get(e.fromNodeId)!) : e.fromNodeId)),
+                          h("td", null, principalLabel(e.principalType, e.principalId)),
+                          h("td", { className: "right" },
+                            h("span", { className: "badge " + (e.grantType === "deny" ? "active" : "role") }, grantLabel(e.grantType))))))),
+                hintLine("같은 주체의 조상 deny는 하위 allow로 뒤집을 수 없습니다 (deny-sticky).")),
+              // 3. public 설정
+              h("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border-soft)" } },
+                secTitle("공개(Public) 설정 — read 전용, nearest flag"),
+                h("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                  h("select", { className: "aselect", value: direct ?? "", disabled: busy,
+                    onChange: (ev: React.ChangeEvent<HTMLSelectElement>) => changePublic(ev.target.value) },
+                    h("option", { value: "" }, "설정 없음(상속)"),
+                    h("option", { value: "public" }, "공개(public)"),
+                    sel.type === "note" && h("option", { value: "exclude" }, "공개 제외(exclude)")),
+                  pubIds.has(sel.id)
+                    ? h("span", { className: "badge active" }, h("span", { className: "bdot" }), "전체 공개 노출됨")
+                    : h("span", { className: "badge inactive" }, h("span", { className: "bdot" }), "전체 공개 아님")),
+                sel.type === "note"
+                  ? hintLine("exclude는 공개 폴더 안에서 이 노트만 비공개로 빼는 카브아웃입니다.")
+                  : hintLine("폴더 공개는 하위로 cascade되며, 하위 노트는 exclude로 개별 제외할 수 있습니다."))))));
 }
