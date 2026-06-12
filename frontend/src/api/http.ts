@@ -15,10 +15,13 @@ export function setOn401(handler: (() => void) | null) {
   on401 = handler;
 }
 
-export async function req<T>(path: string, init?: RequestInit): Promise<T> {
+export async function req<T>(
+  path: string,
+  init?: Omit<RequestInit, "headers"> & { headers?: Record<string, string> },
+): Promise<T> {
   const res = await fetch(BASE + path, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers as Record<string, string> | undefined) },
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!res.ok) {
     if (res.status === 401 && on401) on401();

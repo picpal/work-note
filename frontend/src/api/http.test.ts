@@ -32,9 +32,12 @@ describe("req", () => {
     await expect(req("/x")).rejects.toMatchObject({ status: 409, message: "중복" });
   });
 
-  it("에러 바디가 JSON이 아니면 HTTP n 메시지", async () => {
+  it("에러 바디가 JSON이 아니면 HTTP n 메시지 — non-401은 on401 미호출", async () => {
+    const handler = vi.fn();
+    setOn401(handler);
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(jsonRes(500));
     await expect(req("/x")).rejects.toMatchObject({ status: 500, message: "HTTP 500" });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("401이면 on401 핸들러 호출 후에도 ApiError throw", async () => {
