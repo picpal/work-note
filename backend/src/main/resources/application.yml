@@ -18,3 +18,5 @@ server:
 worknote:
   mode: ${WORKNOTE_MODE:local}                     # local=1단계(무인증), server=2단계(인증+권한)
   admin-password: ${WORKNOTE_ADMIN_PASSWORD:}      # server 모드 최초 기동 시 관리자 비밀번호 (필수)
+  purge:
+    retention-days: ${WORKNOTE_PURGE_RETENTION_DAYS:30}   # 휴지통 보존기한 (0 이하 = 자동 purge 끔)
