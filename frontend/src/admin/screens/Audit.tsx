@@ -51,7 +51,8 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
 
   const stamp = () => new Date().toISOString().slice(0, 19).replace("T", " ");
   const fileStamp = () => new Date().toISOString().slice(0, 10);
-  const fmtAt = (at: string) => at.replace("T", " ");
+  // at은 ISO_LOCAL_DATE_TIME(마이크로초 포함 가능) — 초 단위까지만 표시
+  const fmtAt = (at: string) => at.replace("T", " ").slice(0, 19);
 
   const exportCsv = () => {
     const esc = (s: unknown) => '"' + String(s).replace(/"/g, '""') + '"';

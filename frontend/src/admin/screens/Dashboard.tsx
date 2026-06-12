@@ -77,6 +77,6 @@ export function Dashboard({ go, toast }: { go: (id: string) => void; toast: (msg
                     h("span", { className: "ml-ic" }, h(Icon, { name: actIcon[actType(r.act)] || "dot" })),
                     h("span", { className: "ml-act" }, actLabel(r.act)),
                     h("span", { className: "ml-tgt mono" }, r.who + " · " + (r.target ?? "—")),
-                    h("span", { className: "ml-at" }, r.at.replace("T", " ").slice(5))))))))
+                    h("span", { className: "ml-at" }, r.at.replace("T", " ").slice(5, 19))))))))
   );
 }
