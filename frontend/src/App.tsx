@@ -10,6 +10,7 @@ import { ContextMenu } from "./components/ContextMenu";
 import { Outline } from "./components/Outline";
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { ShareModal } from "./components/ShareModal";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { useSession } from "./state/useSession";
@@ -51,6 +52,7 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string }>>([]);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const toolbarRef = useRef<ToolbarHandlers>({} as ToolbarHandlers);
@@ -141,6 +143,9 @@ export function App() {
     } else {
       items = [
         { icon: "export", label: "내보내기", submenu: exportSub(node) },
+        ...(storageMode === "http"
+          ? [{ icon: "link", label: "공유 링크", onClick: () => setShareNote({ id: node.id, name: node.title || "제목 없음" }) }]
+          : []),
         { sep: true },
         { icon: "edit", label: "이름 변경", onClick: () => setRenamingId(node.id) },
         { icon: "trash", label: "삭제", danger: true, onClick: () => removeNode(node.id) },
@@ -266,6 +271,7 @@ export function App() {
       toast,
     }),
     settingsOpen && createElement(SettingsModal, { settings, onSet: set, onClose: () => setSettingsOpen(false) }),
+    shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
     menu && createElement(ContextMenu, { x: menu.x, y: menu.y, items: menu.items, onClose: closeMenu }),
     // toasts
     createElement(
