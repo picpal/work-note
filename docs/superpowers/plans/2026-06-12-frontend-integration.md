@@ -38,7 +38,7 @@
 **Auth** (`/api/auth`):
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| POST | /login | `{emp, password}` | 201 `{id, emp, name, roleId, caps: string[]}` / 401 |
+| POST | /login | `{emp, password}` | 200 `{id, emp, name, roleId, caps: string[]}` / 401 |
 | POST | /signup | `{emp, name, email?, password}` (pw 8~128자) | 201 `{id, status:"pending"}` / 409 사번 중복 / 422 |
 | POST | /logout | — | 204 |
 | GET | /me | — | 200 MeResponse (local 모드: `{id:"local",emp:"local",name:"local",roleId:"admin",caps:[...]}`) / server 모드 무세션 401 |
