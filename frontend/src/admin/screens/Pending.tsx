@@ -1,6 +1,9 @@
-/* Admin screen 2: Pending approvals */
+/* Admin screen 2: Pending approvals — 실 API(useAdminData + AdminApi) 배선 */
 import React from "react";
-import { ADMIN_PENDING, PendingRow } from "../data";
+import { AdminApi, ApiUser } from "../api";
+import { statusLabel } from "../mappers";
+import { ApiError } from "../../api/http";
+import { useAdminData } from "../useAdminData";
 import { SecHead, Empty, Modal, StatusBadge } from "../common";
 import { Icon } from "../../components/Icon";
 
@@ -8,14 +11,27 @@ const { useState } = React;
 const h = React.createElement;
 
 export function Pending({ toast }: { toast: (msg: string, icon?: string) => void }) {
-  const [rows, setRows] = useState(ADMIN_PENDING.map((p) => ({ ...p })));
-  const [confirm, setConfirm] = useState<{ row: PendingRow; type: string } | null>(null);
-  const act = (row: PendingRow, type: string) => setConfirm({ row, type });
-  const apply = () => {
+  const { users, reload } = useAdminData();
+  const rows = users.filter((u) => u.status === "pending");
+  const [confirm, setConfirm] = useState<{ row: ApiUser; type: string } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const act = (row: ApiUser, type: string) => setConfirm({ row, type });
+  const apply = async () => {
     const { row, type } = confirm!;
-    setRows((rs) => rs.filter((r) => r.id !== row.id));
-    toast(type === "approve" ? row.emp + " 승인됨 (방문자로 활성화)" : row.emp + " 반려됨", type === "approve" ? "userCheck" : "ban");
     setConfirm(null);
+    setBusyId(row.id);
+    try {
+      if (type === "approve") await AdminApi.approveUser(row.id);
+      else await AdminApi.updateUser(row.id, { status: "disabled" });
+      await reload();
+      toast(
+        type === "approve" ? row.emp + " 계정을 승인했습니다" : row.emp + " 가입을 반려했습니다",
+        type === "approve" ? "userCheck" : "ban");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "요청 실패");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return h("div", { className: "apage" },
@@ -31,27 +47,27 @@ export function Pending({ toast }: { toast: (msg: string, icon?: string) => void
       : h("div", { className: "table-wrap" },
           h("table", { className: "atable" },
             h("thead", null, h("tr", null,
-              h("th", null, "사번"), h("th", null, "이메일"), h("th", null, "신청 일시"),
+              h("th", null, "사번"), h("th", null, "이름"), h("th", null, "이메일"),
               h("th", null, "상태"), h("th", { className: "right" }, "처리"))),
             h("tbody", null,
               rows.map((r) => h("tr", { key: r.id },
                 h("td", { className: "mono" }, r.emp),
-                h("td", null, r.email),
-                h("td", { className: "muted" }, r.at),
-                h("td", null, h(StatusBadge, { status: r.status })),
+                h("td", null, r.name),
+                h("td", null, r.email ?? "—"),
+                h("td", null, h(StatusBadge, { status: statusLabel(r.status) })),
                 h("td", { className: "right" },
                   h("div", { className: "actions" },
-                    h("button", { className: "btn sm primary", onClick: () => act(r, "approve") }, "승인"),
-                    h("button", { className: "btn sm danger", onClick: () => act(r, "reject") }, "반려")))))))),
+                    h("button", { className: "btn sm primary", disabled: busyId === r.id, onClick: () => act(r, "approve") }, "승인"),
+                    h("button", { className: "btn sm danger", disabled: busyId === r.id, onClick: () => act(r, "reject") }, "반려")))))))),
     confirm && h(Modal, {
       icon: confirm.type === "approve" ? "userCheck" : "ban",
       iconWarn: confirm.type === "reject",
       title: confirm.type === "approve" ? "가입 승인" : "가입 반려",
       confirmLabel: confirm.type === "approve" ? "승인" : "반려",
       confirmDanger: confirm.type === "reject",
-      onConfirm: apply, onClose: () => setConfirm(null),
+      onConfirm: () => { void apply(); }, onClose: () => setConfirm(null),
     }, confirm.type === "approve"
       ? h("span", null, h("b", { className: "mono", style: { color: "var(--ink)" } }, confirm.row.emp), " 계정을 ", h("b", { style: { color: "var(--ink)" } }, "방문자"), " 역할로 활성화합니다. 계속할까요?")
-      : h("span", null, h("b", { className: "mono", style: { color: "var(--ink)" } }, confirm.row.emp), " 가입 신청을 반려합니다. 신청자는 다시 가입을 요청해야 합니다."))
+      : h("span", null, h("b", { className: "mono", style: { color: "var(--ink)" } }, confirm.row.emp), " 가입 신청을 반려합니다. 계정은 비활성 상태로 전환됩니다."))
   );
 }
