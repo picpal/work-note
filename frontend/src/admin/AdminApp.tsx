@@ -1,7 +1,10 @@
 /* AdminApp — shell: left nav, topbar, screen routing. */
 import React from "react";
 import { Icon } from "../components/Icon";
-import { ADMIN_PENDING } from "./data";
+import { ApiError } from "../api/http";
+import { AuthApi, type Me } from "../api/auth";
+import { AdminApi, type ApiRole, type ApiTeam, type ApiUser } from "./api";
+import { AdminDataContext } from "./useAdminData";
 import { useToast } from "./common";
 import { Dashboard } from "./screens/Dashboard";
 import { Pending } from "./screens/Pending";
@@ -11,15 +14,16 @@ import { Roles } from "./screens/Roles";
 import { Audit } from "./screens/Audit";
 import { Security } from "./screens/Security";
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useCallback, useMemo } = React;
 const h = React.createElement;
 
 const NAV = [
   { id: "dashboard", label: "대시보드", icon: "gauge" },
-  { id: "pending", label: "가입 승인 대기", icon: "userCheck", badge: () => ADMIN_PENDING.length },
+  { id: "pending", label: "가입 승인 대기", icon: "userCheck" },
   { id: "users", label: "사용자 관리", icon: "users" },
   { id: "permissions", label: "권한 관리", icon: "key" },
   { id: "roles", label: "역할 관리", icon: "roles" },
+  { id: "teams", label: "팀·스페이스", icon: "users" },
   { id: "audit", label: "감사 로그", icon: "history" },
   { id: "security", label: "보안 설정", icon: "settings" },
 ];
@@ -29,6 +33,7 @@ const TITLES: Record<string, [string, string]> = {
   users: ["사용자 관리", "계정·역할·상태 관리"],
   permissions: ["권한 관리", "리소스 단위 접근 권한 부여"],
   roles: ["역할 관리", "역할별 기본 정책"],
+  teams: ["팀·스페이스", "팀 구성·팀 스페이스 관리"],
   audit: ["감사 로그", "보안 감사 추적"],
   security: ["보안 설정", "인증·세션 정책"],
 };
@@ -36,6 +41,36 @@ const TITLES: Record<string, [string, string]> = {
 export function AdminApp() {
   const [route, setRoute] = useState(() => (location.hash || "#dashboard").slice(1));
   const [toastPush, toastNode] = useToast();
+  const [me, setMe] = useState<Me | null>(null);
+  const [data, setData] = useState<{ users: ApiUser[]; roles: ApiRole[]; teams: ApiTeam[] } | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const [users, roles, teams] = await Promise.all([AdminApi.users(), AdminApi.roles(), AdminApi.teams()]);
+      setData({ users, roles, teams });
+    } catch (e) {
+      toastPush(e instanceof ApiError ? e.message : "데이터를 불러오지 못했습니다");
+    }
+  }, [toastPush]);
+
+  // 인증 가드 — me 조회 후 admin 권한 확인. 401은 전역 on401(login.html)이 처리.
+  useEffect(() => {
+    let alive = true;
+    AuthApi.me()
+      .then((m) => {
+        if (!alive) return;
+        if (!m.caps.includes("admin.users")) { location.href = "index.html"; return; }
+        setMe(m);
+        void reload();
+      })
+      .catch((e) => {
+        if (!alive) return;
+        if (e instanceof ApiError && e.status === 401) return; // on401이 리다이렉트
+        toastPush("서버에 연결할 수 없습니다");
+      });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onHash = () => setRoute((location.hash || "#dashboard").slice(1));
@@ -57,6 +92,17 @@ export function AdminApp() {
 
   const [title, sub] = TITLES[route] || TITLES.dashboard;
 
+  const pendingCount = data ? data.users.filter((u) => u.status === "pending").length : 0;
+  const adminData = useMemo(() => ({
+    me,
+    users: data?.users ?? [],
+    roles: data?.roles ?? [],
+    teams: data?.teams ?? [],
+    reload,
+    toast: toastPush,
+  }), [me, data, reload, toastPush]);
+  const loading = !me || !data;
+
   return h("div", { className: "admin" },
     // left nav
     h("aside", { className: "anav" },
@@ -71,7 +117,7 @@ export function AdminApp() {
         },
           h("span", { className: "ic" }, h(Icon, { name: n.icon })),
           h("span", null, n.label),
-          n.badge && n.badge() > 0 && h("span", { className: "count" }, n.badge())))),
+          n.id === "pending" && pendingCount > 0 && h("span", { className: "count" }, pendingCount)))),
       h("div", { className: "anav-foot" },
         h("a", { className: "anav-back", href: "index.html" },
           h(Icon, { name: "arrowLeft" }), "노트로 돌아가기"))),
@@ -87,8 +133,14 @@ export function AdminApp() {
             document.documentElement.setAttribute("data-theme", cur);
             try { localStorage.setItem("wn.theme", cur); } catch (e) {}
             setRoute((r) => r); // re-render
-          } }, h(Icon, { name: document.documentElement.getAttribute("data-theme") === "dark" ? "sun" : "moon" })))),
+          } }, h(Icon, { name: document.documentElement.getAttribute("data-theme") === "dark" ? "sun" : "moon" })),
+          me && h("button", { className: "icon-btn", title: "로그아웃", onClick: () => {
+            AuthApi.logout().finally(() => { location.href = "login.html"; });
+          } }, h(Icon, { name: "logout" })))),
       h("div", { className: "ascroll" },
-        h(Screen, { go, toast: toastPush }))),
+        loading
+          ? h("div", { className: "aload", style: { padding: "40px 0", textAlign: "center", color: "var(--text-3)", fontSize: 13 } }, "불러오는 중…")
+          : h(AdminDataContext.Provider, { value: adminData },
+              h(Screen, { go, toast: toastPush })))),
     toastNode);
 }
