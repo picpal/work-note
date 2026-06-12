@@ -87,6 +87,14 @@
     ORDER BY c.deleted_at DESC
   </select>
 
+  <select id="findExpiredTrashRoots" resultType="com.worknote.vault.NodeRow">
+    SELECT c.* FROM node c
+    LEFT JOIN node p ON c.parent_id = p.id
+    WHERE c.deleted_at IS NOT NULL AND c.deleted_at &lt; #{cutoff}
+      AND (p.id IS NULL OR p.deleted_at IS NULL)
+    ORDER BY c.deleted_at
+  </select>
+
   <select id="findAllTags" resultType="com.worknote.vault.TagRow">
     SELECT node_id, tag FROM tag ORDER BY node_id, tag
   </select>

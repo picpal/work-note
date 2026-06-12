@@ -18,6 +18,7 @@ public interface NodeMapper {
     void restoreSubtree(@Param("id") String id);
     void purgeSubtree(@Param("id") String id);
     List<NodeRow> findTrashRoots();                               // 삭제됐지만 부모는 비삭제(또는 무부모)인 루트만
+    List<NodeRow> findExpiredTrashRoots(@Param("cutoff") String cutoff);   // 보존기한 경과 휴지통 루트 (ISO 문자열 사전순 비교)
     List<TagRow> findAllTags();                                   // 트리 조립 시 태그 N+1 방지
     List<String> findTags(@Param("nodeId") String nodeId);
     void deleteTags(@Param("nodeId") String nodeId);
