@@ -1,27 +1,9 @@
 /* VaultApi — 백엔드 REST 클라이언트. 쓰기 계열은 204 No Content, 오류는 {"error": string}. */
 import type { VaultTree } from "../types";
+import { req, ApiError } from "../api/http";
 
-const BASE = "/api";
-
-/** HTTP 상태코드를 보존하는 API 오류 — 호출부에서 status 기반 판별(예: 부트스트랩 409 허용)에 사용. */
-export class ApiError extends Error {
-  constructor(msg: string, public status: number) {
-    super(msg);
-    this.name = "ApiError";
-  }
-}
-
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers as Record<string, string> | undefined) },
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status);
-  }
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
-}
+// 기존 import 경로 호환(useVaultSync 등) — ApiError 재수출.
+export { ApiError };
 
 export const VaultApi = {
   tree: () => req<VaultTree>("/tree"),
