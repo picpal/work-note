@@ -1,7 +1,9 @@
 /* LoginPage.tsx — monotone auth screen (login + signup → admin approval) */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
 import { Icon } from "../components/Icon";
+import { AuthApi } from "../api/auth";
+import { validateSignup, submitLogin, submitSignup } from "./loginLogic";
 
 const h = React.createElement;
 
@@ -25,19 +27,32 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const doLogin = (e: React.FormEvent | null) => {
+  // 이미 로그인된 세션(또는 백엔드 local 모드)이면 로그인 화면을 건너뛴다.
+  useEffect(() => {
+    AuthApi.me().then(() => { location.href = "index.html"; }).catch(() => {});
+  }, []);
+
+  const doLogin = async (e: React.FormEvent | null) => {
     e && e.preventDefault();
+    if (busy) return;
     if (!emp.trim() || !pw) { setErr("사번과 비밀번호를 입력하세요."); return; }
-    // prototype: no real auth — go to the notes app
-    try { sessionStorage.setItem("wn.session", emp.trim()); } catch (e) {}
-    location.href = "index.html";
+    setErr(""); setBusy(true);
+    const error = await submitLogin(AuthApi, emp, pw, () => { location.href = "index.html"; });
+    setBusy(false);
+    if (error) setErr(error);
   };
-  const doSignup = (e: React.FormEvent | null) => {
+  const doSignup = async (e: React.FormEvent | null) => {
     e && e.preventDefault();
-    if (!emp.trim() || !name.trim() || !email.trim() || !pw || !pw2) { setErr("모든 항목을 입력하세요."); return; }
-    if (pw !== pw2) { setErr("비밀번호가 일치하지 않습니다."); return; }
-    setErr(""); setMode("done");
+    if (busy) return;
+    const invalid = validateSignup({ emp, name, email, password: pw, password2: pw2 });
+    if (invalid) { setErr(invalid); return; }
+    setErr(""); setBusy(true);
+    const out = await submitSignup(AuthApi, { emp, name, email, password: pw });
+    setBusy(false);
+    if (out.done) setMode("done");
+    else setErr(out.error ?? "");
   };
 
   if (mode === "done") {
@@ -83,7 +98,7 @@ export function LoginPage() {
           h("input", { className: "auth-input", type: "password", value: pw2, placeholder: "••••••••",
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setPw2(e.target.value); setErr(""); } })),
         err && h("div", { className: "auth-err" }, err),
-        h("button", { className: "auth-btn", type: "submit" }, isSignup ? "가입 신청" : "로그인")),
+        h("button", { className: "auth-btn", type: "submit", disabled: busy }, isSignup ? "가입 신청" : "로그인")),
       isSignup
         ? h("div", { className: "auth-foot" }, "이미 계정이 있나요? ",
             h("button", { className: "auth-link", onClick: () => { setMode("login"); setErr(""); } }, "로그인"))
