@@ -15,8 +15,9 @@
     </where>
   </sql>
 
+  <!-- 명시 컬럼 — record 위치 기반 매핑의 컬럼 순서 의존 제거 (Oracle 전환 대비) -->
   <select id="find" resultType="com.worknote.audit.AuditRow">
-    SELECT * FROM audit_log
+    SELECT id, at, who, act, target, ip FROM audit_log
     <include refid="auditFilter"/>
     ORDER BY at DESC, id DESC
     LIMIT #{limit} OFFSET #{offset}

@@ -35,10 +35,19 @@ public class AdminAuditController {
                                     @RequestParam(defaultValue = "0") int offset,
                                     HttpServletRequest req) {
         guard.requireAdmin((UserRow) req.getAttribute(AuthFilter.CURRENT_USER));
+        String w = norm(who);
+        String a = norm(act);
+        String f = norm(from);
+        String t = norm(to);
         int cappedLimit = Math.max(1, Math.min(limit, MAX_LIMIT));
         int safeOffset = Math.max(0, offset);
         return Map.of(
-            "total", audit.count(who, act, from, to),
-            "rows", audit.find(who, act, from, to, cappedLimit, safeOffset));
+            "total", audit.count(w, a, f, t),
+            "rows", audit.find(w, a, f, t, cappedLimit, safeOffset));
+    }
+
+    /** ?who=&act= 같은 빈 파라미터를 미지정과 동일 취급 — 빈 문자열 정확 일치로 조용히 0건 되는 지뢰 방지. */
+    private static String norm(String v) {
+        return (v == null || v.isBlank()) ? null : v;
     }
 }
