@@ -1,0 +1,31 @@
+import { describe, it, expect } from "vitest";
+import { statusLabel, capLabel, actLabel, actType, roleName } from "./mappers";
+
+describe("mappers", () => {
+  it("statusLabel", () => {
+    expect(statusLabel("active")).toBe("활성");
+    expect(statusLabel("disabled")).toBe("비활성");
+    expect(statusLabel("pending")).toBe("대기");
+  });
+  it("capLabel은 미지 cap이면 원문", () => {
+    expect(capLabel("admin.users")).toBe("사용자 관리");
+    expect(capLabel("res.export")).toBe("내보내기");
+    expect(capLabel("x.y")).toBe("x.y");
+  });
+  it("actLabel은 dot 명명을 한국어로, 미지 act는 원문", () => {
+    expect(actLabel("login.success")).toBe("로그인");
+    expect(actLabel("user.approve")).toBe("계정 승인");
+    expect(actLabel("unknown.act")).toBe("unknown.act");
+  });
+  it("actType은 배지 분류", () => {
+    expect(actType("login.fail")).toBe("loginfail");
+    expect(actType("user.approve")).toBe("approve");
+    expect(actType("acl.set")).toBe("grant");
+    expect(actType("user.reset")).toBe("reset");
+    expect(actType("login.success")).toBe("login");
+  });
+  it("roleName은 roles에서 찾고 없으면 id", () => {
+    expect(roleName("admin", [{ id: "admin", name: "관리자", system: true, caps: [], userCount: 1 }])).toBe("관리자");
+    expect(roleName("ghost", [])).toBe("ghost");
+  });
+});
