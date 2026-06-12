@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import hljs from "highlight.js/lib/common";
 import mermaid from "mermaid";
+import DOMPurify from "dompurify";
 
 // ---- marked config ----
 marked.setOptions({ gfm: true, breaks: true });
@@ -122,7 +123,9 @@ export function renderMarkdown(src: string): string {
     li.appendChild(body);
   });
 
-  return tpl.innerHTML;
+  // 타인 작성 노트(팀 공유·공유 링크)도 같은 경로로 렌더 — stored XSS 차단은 이 단일 지점에서.
+  // 기본 정책이 data-*(mermaid-wrap data-src)·hljs 클래스·tick SVG를 보존하고 핸들러·javascript: URI만 제거한다.
+  return DOMPurify.sanitize(tpl.innerHTML);
 }
 
 export function enhanceMermaid(root: Element | Document): void {
