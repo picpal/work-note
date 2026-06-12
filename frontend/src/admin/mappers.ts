@@ -29,10 +29,11 @@ const ACTS: Record<string, string> = {
   "space.set": "스페이스 지정", "space.unset": "스페이스 해제",
   "node.create": "노드 생성", "node.move": "노드 이동", "node.trash": "휴지통 이동",
   "node.restore": "복구", "node.purge": "영구 삭제",
+  "share.create": "공유 링크 생성", "share.view": "공유 링크 열람", "share.revoke": "공유 링크 취소",
 };
 export function actLabel(act: string): string { return ACTS[act] ?? act; }
 
-/** 백엔드가 기록하는 act 27종 — canonical 순서(인증 → user → role → team → acl/public/space → node). ACTS 라벨 맵과 정합은 테스트로 가드. */
+/** 백엔드가 기록하는 act 30종 — canonical 순서(인증 → user → role → team → acl/public/space → node → share). ACTS 라벨 맵과 정합은 테스트로 가드. */
 export const KNOWN_ACTS: string[] = [
   "login.success", "login.fail", "logout", "signup", "signup.fail",
   "user.create", "user.update", "user.approve", "user.reset",
@@ -40,6 +41,7 @@ export const KNOWN_ACTS: string[] = [
   "team.create", "team.update", "team.delete", "team.member.add", "team.member.remove",
   "acl.set", "public.set", "public.unset", "space.set", "space.unset",
   "node.create", "node.move", "node.trash", "node.restore", "node.purge",
+  "share.create", "share.view", "share.revoke",
 ];
 
 /** Audit 화면 배지 색 분류 — 기존 mock 클래스(login/grant/approve/reset/revoke/loginfail) + 폴백 "etc"(Audit.tsx는 loginfail만 색 특수처리라 미지 클래스 무해). */
@@ -48,8 +50,8 @@ export function actType(act: string): string {
   if (act === "login.success") return "login";
   if (act === "user.approve") return "approve";
   if (act === "user.reset") return "reset";
-  if (act === "acl.set" || act.startsWith("public.") || act.startsWith("space.")) return "grant";
-  if (act === "role.delete" || act === "team.member.remove") return "revoke";
+  if (act === "acl.set" || act.startsWith("public.") || act.startsWith("space.") || act === "share.create") return "grant";
+  if (act === "role.delete" || act === "team.member.remove" || act === "share.revoke") return "revoke";
   return "etc";
 }
 

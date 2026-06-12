@@ -9,6 +9,19 @@ export interface ApiAclEntry { principalType: "user" | "team" | "all"; principal
 export interface ApiAclRow extends ApiAclEntry { nodeId: string; }
 export interface ApiPublicFlag { nodeId: string; mode: "public" | "exclude"; }
 export interface ApiAudit { id: number; at: string; who: string; act: string; target: string | null; ip: string; }
+export interface ApiShare {
+  id: string;
+  token: string;
+  nodeId: string;
+  nodeName: string;
+  suspended: boolean;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  maxViews: number | null;
+  viewCount: number;
+  pinEmps: string[] | null;
+}
 export interface AuditQuery { who?: string; act?: string; from?: string; to?: string; limit?: number; offset?: number; }
 
 /** 빈 문자열/undefined 필터는 쿼리에서 생략 — 백엔드가 빈 값을 필터로 오해하지 않게. */
@@ -60,6 +73,9 @@ export const AdminApi = {
   setPublic: (nodeId: string, mode: "public" | "exclude") =>
     req<void>(`/admin/nodes/${nodeId}/public`, { method: "PUT", body: JSON.stringify({ mode }) }),
   unsetPublic: (nodeId: string) => req<void>(`/admin/nodes/${nodeId}/public`, { method: "DELETE" }),
+
+  shares: () => req<ApiShare[]>("/admin/shares"),
+  revokeShare: (id: string) => req<void>(`/shares/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   audit: (q: AuditQuery) => req<{ total: number; rows: ApiAudit[] }>("/admin/audit" + qs(q as Record<string, string | number | undefined>)),
 };

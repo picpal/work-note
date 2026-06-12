@@ -200,6 +200,21 @@ describe("AdminApi", () => {
     expect(fetch).toHaveBeenCalledWith("/api/admin/nodes/n1/public", expect.objectContaining({ method: "DELETE" }));
   });
 
+  // ── shares ──
+  it("shares는 GET /api/admin/shares", async () => {
+    mockJson([{ id: "s1", token: "tok1", nodeId: "n1", nodeName: "노트", suspended: false, createdBy: "S1", createdAt: "c", expiresAt: "e", maxViews: null, viewCount: 3, pinEmps: null }]);
+    const out = await AdminApi.shares();
+    expect(out[0].nodeName).toBe("노트");
+    expect(out[0].suspended).toBe(false);
+    expect(fetch).toHaveBeenCalledWith("/api/admin/shares", expect.anything());
+  });
+
+  it("revokeShare는 DELETE /api/shares/{id} (204)", async () => {
+    mock204();
+    await expect(AdminApi.revokeShare("s1")).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith("/api/shares/s1", expect.objectContaining({ method: "DELETE" }));
+  });
+
   // ── audit ──
   it("audit은 빈 필터를 쿼리에서 생략한다", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ total: 0, rows: [] }) });

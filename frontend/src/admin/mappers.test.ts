@@ -16,9 +16,14 @@ describe("mappers", () => {
     expect(KNOWN_CAPS).toHaveLength(11);
     for (const c of KNOWN_CAPS) expect(capLabel(c), c + " 라벨 누락").not.toBe(c);
   });
-  it("KNOWN_ACTS는 27종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
-    expect(KNOWN_ACTS).toHaveLength(27);
+  it("KNOWN_ACTS는 30종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
+    expect(KNOWN_ACTS).toHaveLength(30);
     for (const a of KNOWN_ACTS) expect(actLabel(a), a + " 라벨 누락").not.toBe(a);
+  });
+  it("공유 링크 감사 라벨 3종", () => {
+    expect(actLabel("share.create")).toBe("공유 링크 생성");
+    expect(actLabel("share.view")).toBe("공유 링크 열람");
+    expect(actLabel("share.revoke")).toBe("공유 링크 취소");
   });
   it("actLabel은 dot 명명을 한국어로, 미지 act는 원문", () => {
     expect(actLabel("login.success")).toBe("로그인");
@@ -32,6 +37,9 @@ describe("mappers", () => {
     expect(actType("user.reset")).toBe("reset");
     expect(actType("login.success")).toBe("login");
     expect(actType("role.delete")).toBe("revoke");
+    expect(actType("share.create")).toBe("grant");
+    expect(actType("share.revoke")).toBe("revoke");
+    expect(actType("share.view")).toBe("etc");
     expect(actType("logout")).toBe("etc");
     expect(actType("user.update")).toBe("etc");
     expect(actType("team.create")).toBe("etc");
