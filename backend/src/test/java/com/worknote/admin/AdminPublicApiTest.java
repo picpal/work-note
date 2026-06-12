@@ -64,6 +64,12 @@ class AdminPublicApiTest {
         mvc.perform(get("/api/tree").session(visitor)).andExpect(jsonPath("$.length()").value(1));
         mvc.perform(delete("/api/admin/nodes/f1/public").session(admin)).andExpect(status().isNoContent());
         mvc.perform(get("/api/tree").session(visitor)).andExpect(jsonPath("$.length()").value(0));
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'public.set' AND target = 'f1 public'",
+            Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE act = 'public.unset' AND target = 'f1'",
+            Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -107,6 +113,25 @@ class AdminPublicApiTest {
                 .content("{\"id\":\"f2\",\"parentId\":\"f1\",\"type\":\"folder\",\"name\":\"하위폴더\"}"))
             .andExpect(status().isCreated());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM public_flag WHERE node_id = 'f2'", Integer.class))
+            .isZero();
+    }
+
+    @Test
+    void createNoteUnderExcludedSubfolder_noAutoExclude() throws Exception {
+        // nearest-flag 의미 고정: public f1 > exclude f2 체인에선 f2가 더 가까워 노출이 없으니
+        // 새 노트에 exclude를 박을 이유도 없다 (스펙 §7 — 자동 exclude는 노출되는 경우에만)
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        mvc.perform(put("/api/admin/nodes/f1/public").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"mode\":\"public\"}")).andExpect(status().isNoContent());
+        mvc.perform(post("/api/nodes").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"id\":\"f2\",\"parentId\":\"f1\",\"type\":\"folder\",\"name\":\"비공개하위\"}"))
+            .andExpect(status().isCreated());
+        mvc.perform(put("/api/admin/nodes/f2/public").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"mode\":\"exclude\"}")).andExpect(status().isNoContent());
+        mvc.perform(post("/api/nodes").session(admin).contentType(APPLICATION_JSON)
+                .content("{\"id\":\"n4\",\"parentId\":\"f2\",\"type\":\"note\",\"name\":\"숨은노트\"}"))
+            .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM public_flag WHERE node_id = 'n4'", Integer.class))
             .isZero();
     }
 

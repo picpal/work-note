@@ -60,6 +60,8 @@ public final class AclResolver {
      * 체인에서 가장 가까운 public_flag가 'public'이면 true ('exclude'가 더 가까우면 false).
      * 호출 순서 계약: combine 결과가 DENY가 아닐 때만 조회할 것 —
      * deny > public 우선순위(§5.1)는 호출자(PermissionService) 책임이다.
+     * 단, 이 계약은 사용자 접근 판정 경로에 한한다 — flag 상태 자체를 묻는 주체 무관 질의
+     * (VaultService의 새 노트 자동 exclude 판정)는 combine 선행 없이 단독 호출해도 된다.
      */
     public static boolean publicRead(List<String> chain, Map<String, String> flagsByNode) {
         for (String nodeId : chain) {

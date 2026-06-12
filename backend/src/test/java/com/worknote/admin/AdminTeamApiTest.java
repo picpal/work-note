@@ -36,6 +36,7 @@ class AdminTeamApiTest {
     void clean() {
         jdbc.update("DELETE FROM audit_log");
         jdbc.update("DELETE FROM acl");
+        jdbc.update("DELETE FROM public_flag");
         jdbc.update("DELETE FROM space");
         jdbc.update("DELETE FROM team_member");
         jdbc.update("DELETE FROM team");
