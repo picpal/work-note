@@ -82,6 +82,20 @@ public class VaultGuard {
         throw VaultException.forbidden("영구 삭제는 관리자만 가능합니다");
     }
 
+    /** share(N) = roleHas(res.share) ∧ read(N) — 스펙 §5.2. 생성·노드별 목록 가드. */
+    public void requireShare(UserRow user, String id) {
+        if (bypass(user)) return;
+        requireUser(user);
+        if (!perm.roleHas(user, "res.share") || !perm.canRead(user, id)) {
+            throw VaultException.forbidden("공유 권한이 없습니다: " + id);
+        }
+    }
+
+    /** 관리자/local 특권 여부 — 공유 링크 취소·전체 목록 분기용. */
+    public boolean privileged(UserRow user) {
+        return bypass(user);
+    }
+
     /** GET /tree 필터 — null = 무필터(local/관리자). */
     public Set<String> readableIds(UserRow user) {
         if (bypass(user)) return null;
