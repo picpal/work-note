@@ -12,6 +12,12 @@ const CAPS: Record<string, string> = {
 };
 export function capLabel(cap: string): string { return CAPS[cap] ?? cap; }
 
+/** 백엔드가 인정하는 cap 11종 — canonical 순서(admin.* 5종 → res.* 6종). CAPS 라벨 맵과 정합은 테스트로 가드. */
+export const KNOWN_CAPS: string[] = [
+  "admin.users", "admin.permissions", "admin.roles", "admin.security", "admin.audit",
+  "res.read", "res.edit", "res.create", "res.delete", "res.export", "res.share",
+];
+
 const ACTS: Record<string, string> = {
   "login.success": "로그인", "login.fail": "로그인 실패", logout: "로그아웃",
   signup: "가입 신청", "signup.fail": "가입 실패",

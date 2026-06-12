@@ -1,7 +1,7 @@
 /* Admin screen 5: Roles — 실 API(useAdminData + AdminApi) 배선 */
 import React from "react";
 import { AdminApi, ApiRole } from "../api";
-import { capLabel } from "../mappers";
+import { capLabel, KNOWN_CAPS } from "../mappers";
 import { ApiError } from "../../api/http";
 import { useAdminData } from "../useAdminData";
 import { SecHead, Modal } from "../common";
@@ -10,10 +10,9 @@ import { Icon } from "../../components/Icon";
 const { useState } = React;
 const h = React.createElement;
 
-/* mappers.ts CAPS 키 11종 — admin.* / res.* 섹션 구분 표시용. */
-const ADMIN_CAPS = ["admin.users", "admin.permissions", "admin.roles", "admin.security", "admin.audit"];
-const RES_CAPS = ["res.read", "res.edit", "res.create", "res.delete", "res.export", "res.share"];
-const ALL_CAPS = [...ADMIN_CAPS, ...RES_CAPS];
+/* cap 11종 단일 출처 = mappers.KNOWN_CAPS — admin.* / res.* 섹션은 prefix로 구분. */
+const ADMIN_CAPS = KNOWN_CAPS.filter((c) => c.startsWith("admin."));
+const RES_CAPS = KNOWN_CAPS.filter((c) => c.startsWith("res."));
 
 const ID_RE = /^[a-z][a-z0-9-]*$/;
 const SYSTEM_TIP = "시스템 역할은 변경할 수 없습니다";
@@ -61,7 +60,7 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
   const openCreate = () => { setForm({ id: "", name: "", caps: [] }); setModal({ kind: "create" }); };
   const openEdit = (r: ApiRole) => { setForm({ id: r.id, name: r.name, caps: [...r.caps] }); setModal({ kind: "edit", role: r }); };
 
-  const orderedCaps = () => ALL_CAPS.filter((c) => form.caps.includes(c));
+  const orderedCaps = () => KNOWN_CAPS.filter((c) => form.caps.includes(c));
 
   const applyCreate = async () => {
     const id = form.id.trim(), name = form.name.trim();
@@ -87,7 +86,7 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
       h("label", { className: "flabel" }, label),
       h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px 14px" } },
         keys.map((c) => h("label", { key: c, style: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text)", cursor: "pointer" } },
-          h("input", { type: "checkbox", checked: form.caps.includes(c), onChange: () => toggleCap(c) }),
+          h("input", { type: "checkbox", style: { accentColor: "var(--ink)" }, checked: form.caps.includes(c), onChange: () => toggleCap(c) }),
           h("span", null, capLabel(c)),
           h("span", { className: "mono", style: { fontSize: 11, color: "var(--text-3)" } }, c)))));
 
