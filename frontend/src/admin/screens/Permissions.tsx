@@ -122,6 +122,8 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
     [selId, tree, acl]);
 
   const select = (id: string) => {
+    if (busy || id === selId) return;  // 저장 in-flight 중 선택 변경 금지 — draft 오염 경로 차단
+    if (dirty && !window.confirm("저장되지 않은 변경이 있습니다. 버리고 이동할까요?")) return;
     setSelId(id);
     setDraft(acl.filter((r) => r.nodeId === id).map(({ principalType, principalId, grantType }) => ({ principalType, principalId, grantType })));
   };
@@ -143,8 +145,9 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
 
   const save = async () => {
     if (!sel) return;
-    const entries = [...draft];
-    if (await run(() => AdminApi.setAcl(sel.id, entries), nodeLabel(sel) + " ACL을 저장했습니다", "check")) setDraft(entries);
+    // setDraft 불필요 — 성공 시 재로드된 acl에서 serverEntries가 다시 derive되어 dirty가 풀린다.
+    // (draft를 여기서 덮어쓰면 in-flight 중 노드가 바뀌었을 때 이전 노드 entries로 오염될 수 있음)
+    await run(() => AdminApi.setAcl(sel.id, [...draft]), nodeLabel(sel) + " ACL을 저장했습니다", "check");
   };
 
   // ---- public 토글 ----
@@ -239,12 +242,18 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
                       h("thead", null, h("tr", null,
                         h("th", null, "출처"), h("th", null, "주체"), h("th", { className: "right" }, "권한"))),
                       h("tbody", null,
-                        inherited.map((e, i) => h("tr", { key: i },
-                          h("td", null, h("span", { className: "tagm", style: { fontSize: 11, color: "var(--text-3)", border: "1px solid var(--border)", borderRadius: 5, padding: "1px 6px" } },
-                            byId.get(e.fromNodeId) ? nodeLabel(byId.get(e.fromNodeId)!) : e.fromNodeId)),
-                          h("td", null, principalLabel(e.principalType, e.principalId)),
-                          h("td", { className: "right" },
-                            h("span", { className: "badge " + (e.grantType === "deny" ? "active" : "role") }, grantLabel(e.grantType))))))),
+                        inherited.map((e, i) => {
+                          // deny-sticky 오독 방지: 같은 주체의 allow가 위(더 가까운 조상)에 있어도 이 deny가 이긴다
+                          const winsOverAbove = e.grantType === "deny" &&
+                            inherited.slice(0, i).some((o) => principalKey(o) === principalKey(e) && o.grantType !== "deny");
+                          return h("tr", { key: i },
+                            h("td", null, h("span", { className: "tagm", style: { fontSize: 11, color: "var(--text-3)", border: "1px solid var(--border)", borderRadius: 5, padding: "1px 6px" } },
+                              byId.get(e.fromNodeId) ? nodeLabel(byId.get(e.fromNodeId)!) : e.fromNodeId)),
+                            h("td", null, principalLabel(e.principalType, e.principalId)),
+                            h("td", { className: "right" },
+                              winsOverAbove && h("span", { style: { fontSize: 11, color: "var(--text-2)", marginRight: 6 } }, "(우선 적용)"),
+                              h("span", { className: "badge " + (e.grantType === "deny" ? "active" : "role") }, grantLabel(e.grantType))));
+                        }))),
                 hintLine("같은 주체의 조상 deny는 하위 allow로 뒤집을 수 없습니다 (deny-sticky).")),
               // 3. public 설정
               h("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border-soft)" } },
