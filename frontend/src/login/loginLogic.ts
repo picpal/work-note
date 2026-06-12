@@ -29,8 +29,15 @@ export async function submitLogin(
 export async function submitSignup(
   api: typeof AuthApiType, form: SignupForm,
 ): Promise<{ done: boolean; error: string | null }> {
+  // 빈/공백 이메일은 필드 생략(JSON 직렬화에서 undefined 제외) → 백엔드에 null 도착, DB에 '' 잔존 방지
+  const payload = {
+    emp: form.emp.trim(),
+    name: form.name.trim(),
+    email: form.email.trim() || undefined,
+    password: form.password,
+  };
   try {
-    await api.signup({ ...form, emp: form.emp.trim(), name: form.name.trim() });
+    await api.signup(payload as SignupForm);
     return { done: true, error: null };
   } catch (e) {
     return { done: false, error: e instanceof ApiError ? e.message : "서버에 연결할 수 없습니다" };

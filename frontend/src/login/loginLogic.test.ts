@@ -34,6 +34,13 @@ describe("submitLogin", () => {
     const err = await submitLogin(api as never, "S1", "bad", vi.fn());
     expect(err).toContain("올바르지");
   });
+  it("ApiError가 아닌 에러(네트워크)면 일반 메시지 반환", async () => {
+    const api = { login: vi.fn().mockRejectedValue(new TypeError("fetch failed")) };
+    const onSuccess = vi.fn();
+    const err = await submitLogin(api as never, "S1", "pw", onSuccess);
+    expect(err).toBe("서버에 연결할 수 없습니다");
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
 });
 
 describe("submitSignup", () => {

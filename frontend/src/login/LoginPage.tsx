@@ -37,11 +37,10 @@ export function LoginPage() {
   const doLogin = async (e: React.FormEvent | null) => {
     e && e.preventDefault();
     if (busy) return;
-    if (!emp.trim() || !pw) { setErr("사번과 비밀번호를 입력하세요."); return; }
+    if (!emp.trim() || !pw) { setErr("사번과 비밀번호를 입력하세요"); return; }
     setErr(""); setBusy(true);
     const error = await submitLogin(AuthApi, emp, pw, () => { location.href = "index.html"; });
-    setBusy(false);
-    if (error) setErr(error);
+    if (error) { setBusy(false); setErr(error); } // 성공이면 busy 유지한 채 네비게이션 대기(중복 POST 방지)
   };
   const doSignup = async (e: React.FormEvent | null) => {
     e && e.preventDefault();
@@ -50,6 +49,7 @@ export function LoginPage() {
     if (invalid) { setErr(invalid); return; }
     setErr(""); setBusy(true);
     const out = await submitSignup(AuthApi, { emp, name, email, password: pw });
+    // 성공도 네비게이션이 아닌 mode 전환이므로 busy 해제("돌아가기" 후 재제출 가능해야 함)
     setBusy(false);
     if (out.done) setMode("done");
     else setErr(out.error ?? "");
@@ -101,10 +101,10 @@ export function LoginPage() {
         h("button", { className: "auth-btn", type: "submit", disabled: busy }, isSignup ? "가입 신청" : "로그인")),
       isSignup
         ? h("div", { className: "auth-foot" }, "이미 계정이 있나요? ",
-            h("button", { className: "auth-link", onClick: () => { setMode("login"); setErr(""); } }, "로그인"))
+            h("button", { className: "auth-link", onClick: () => { setMode("login"); setErr(""); setPw(""); setPw2(""); } }, "로그인"))
         : h(React.Fragment, null,
             h("div", { className: "auth-foot" }, "계정이 없나요? ",
-              h("button", { className: "auth-link", onClick: () => { setMode("signup"); setErr(""); } }, "가입 신청")),
+              h("button", { className: "auth-link", onClick: () => { setMode("signup"); setErr(""); setPw(""); setPw2(""); } }, "가입 신청")),
             h("div", { className: "auth-note" },
               h(Icon, { name: "shield" }),
               h("span", null, "폐쇄망 보안 정책에 따라 가입은 ", h("b", { style: { color: "var(--ink)" } }, "관리자 승인 후"), " 활성화됩니다.")))));
