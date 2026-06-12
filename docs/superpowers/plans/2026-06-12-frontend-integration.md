@@ -107,7 +107,7 @@ backend/src/main/java/com/worknote/acl/AclMapper.java(+XML)       수정 — fin
 - Create: `frontend/src/api/http.ts`, `frontend/src/api/http.test.ts`
 - Modify: `frontend/src/storage/VaultApi.ts`
 
-- [ ] **Step 1: 실패하는 테스트 작성** — `frontend/src/api/http.test.ts`
+- [x] **Step 1: 실패하는 테스트 작성** — `frontend/src/api/http.test.ts`
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -164,9 +164,9 @@ describe("req", () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `cd frontend && pnpm test` → http.test.ts FAIL (모듈 없음)
+- [x] **Step 2: 실패 확인** — `cd frontend && pnpm test` → http.test.ts FAIL (모듈 없음)
 
-- [ ] **Step 3: 구현** — `frontend/src/api/http.ts`
+- [x] **Step 3: 구현** — `frontend/src/api/http.ts`
 
 ```typescript
 /* 공유 fetch 코어 — VaultApi/AuthApi/AdminApi가 공용. 세션 쿠키는 same-origin 자동 전송. */
@@ -198,18 +198,18 @@ export async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 ```
 
-- [ ] **Step 4: VaultApi 리팩터** — `frontend/src/storage/VaultApi.ts`의 자체 `req`/`ApiError` 정의를 삭제하고 `import { req, ApiError } from "../api/http"` 사용. 기존 import 호환을 위해 `export { ApiError };` 유지. VaultApi 객체의 메서드 본문은 그대로.
+- [x] **Step 4: VaultApi 리팩터** — `frontend/src/storage/VaultApi.ts`의 자체 `req`/`ApiError` 정의를 삭제하고 `import { req, ApiError } from "../api/http"` 사용. 기존 import 호환을 위해 `export { ApiError };` 유지. VaultApi 객체의 메서드 본문은 그대로.
 
-- [ ] **Step 5: 전체 테스트 green 확인** — `pnpm test` → http.test.ts + 기존 useVaultSync.test 등 전부 PASS
+- [x] **Step 5: 전체 테스트 green 확인** — `pnpm test` → http.test.ts + 기존 useVaultSync.test 등 전부 PASS
 
-- [ ] **Step 6: 커밋** — `git add -A && git commit -m "refactor(frontend): 공유 HTTP 코어 추출 — req/ApiError/setOn401"`
+- [x] **Step 6: 커밋** — `git add -A && git commit -m "refactor(frontend): 공유 HTTP 코어 추출 — req/ApiError/setOn401"`
 
 ### Task 2: AuthApi (`src/api/auth.ts`)
 
 **Files:**
 - Create: `frontend/src/api/auth.ts`, `frontend/src/api/auth.test.ts`
 
-- [ ] **Step 1: 실패하는 테스트 작성** — `frontend/src/api/auth.test.ts`
+- [x] **Step 1: 실패하는 테스트 작성** — `frontend/src/api/auth.test.ts`
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -256,9 +256,9 @@ describe("AuthApi", () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `pnpm test` → FAIL
+- [x] **Step 2: 실패 확인** — `pnpm test` → FAIL
 
-- [ ] **Step 3: 구현** — `frontend/src/api/auth.ts`
+- [x] **Step 3: 구현** — `frontend/src/api/auth.ts`
 
 ```typescript
 import { req } from "./http";
@@ -289,7 +289,7 @@ export const AuthApi = {
 };
 ```
 
-- [ ] **Step 4: green 확인 + 커밋** — `pnpm test` PASS 후 `git commit -m "feat(frontend): AuthApi — login/signup/logout/me"`
+- [x] **Step 4: green 확인 + 커밋** — `pnpm test` PASS 후 `git commit -m "feat(frontend): AuthApi — login/signup/logout/me"`
 
 ### Task 3: 로그인 페이지 배선
 
@@ -297,7 +297,7 @@ export const AuthApi = {
 - Create: `frontend/src/login/loginLogic.ts`, `frontend/src/login/loginLogic.test.ts`
 - Modify: `frontend/src/login/LoginPage.tsx`
 
-- [ ] **Step 1: 실패하는 테스트 작성** — `frontend/src/login/loginLogic.test.ts`
+- [x] **Step 1: 실패하는 테스트 작성** — `frontend/src/login/loginLogic.test.ts`
 
 ```typescript
 import { describe, it, expect, vi } from "vitest";
@@ -352,9 +352,9 @@ describe("submitSignup", () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `pnpm test` → FAIL
+- [x] **Step 2: 실패 확인** — `pnpm test` → FAIL
 
-- [ ] **Step 3: 구현** — `frontend/src/login/loginLogic.ts`
+- [x] **Step 3: 구현** — `frontend/src/login/loginLogic.ts`
 
 ```typescript
 import { ApiError } from "../api/http";
@@ -396,14 +396,14 @@ export async function submitSignup(
 }
 ```
 
-- [ ] **Step 4: LoginPage 배선** — `LoginPage.tsx` 수정:
+- [x] **Step 4: LoginPage 배선** — `LoginPage.tsx` 수정:
   - `doLogin`: sessionStorage 저장 제거 → `submitLogin(AuthApi, emp, pw, () => { location.href = "index.html"; })` 호출, 반환 메시지를 `setErr`. 제출 중 버튼 disabled(`busy` state).
   - `doSignup`: `validateSignup` 선검증 → 실패 메시지 setErr → 통과 시 `submitSignup` → `done`이면 `setMode("done")`, 아니면 setErr.
   - mount 시 이미 로그인 상태면 통과: `useEffect(() => { AuthApi.me().then(() => { location.href = "index.html"; }).catch(() => {}); }, [])` (결정 #15). `setOn401`은 설치하지 않는다.
 
-- [ ] **Step 5: green 확인 + 수동 점검** — `pnpm test` PASS. (수동 검증은 Task 14 스모크에서 일괄)
+- [x] **Step 5: green 확인 + 수동 점검** — `pnpm test` PASS. (수동 검증은 Task 14 스모크에서 일괄)
 
-- [ ] **Step 6: 커밋** — `git commit -m "feat(frontend): 로그인·가입 실 API 배선"`
+- [x] **Step 6: 커밋** — `git commit -m "feat(frontend): 로그인·가입 실 API 배선"`
 
 ### Task 4: 노트 앱 세션 부트스트랩
 
@@ -411,7 +411,7 @@ export async function submitSignup(
 - Create: `frontend/src/state/useSession.ts`
 - Modify: `frontend/src/App.tsx` (admin 링크·프로필 영역 — 구현자는 현 구조 확인 후 해당 컴포넌트에 배선. admin 진입점이 ProfileModal/Sidebar 어디든 me 가드 적용)
 
-- [ ] **Step 1: 구현** — `frontend/src/state/useSession.ts` (순수 로직이 얇아 훅 자체 테스트는 생략 — http 모드 분기는 기존 useVaultSync와 동일 패턴)
+- [x] **Step 1: 구현** — `frontend/src/state/useSession.ts` (순수 로직이 얇아 훅 자체 테스트는 생략 — http 모드 분기는 기존 useVaultSync와 동일 패턴)
 
 ```typescript
 import React from "react";
@@ -440,14 +440,14 @@ export function useSession(): { me: Me | null; isAdmin: boolean; logout: () => v
 }
 ```
 
-- [ ] **Step 2: App 배선** — App.tsx(또는 admin 링크가 있는 컴포넌트)에서 `useSession()` 사용:
+- [x] **Step 2: App 배선** — App.tsx(또는 admin 링크가 있는 컴포넌트)에서 `useSession()` 사용:
   - admin 진입 버튼/링크(`location.href = "admin.html"`)는 `local 스토리지 모드이거나 isAdmin`일 때만 렌더.
   - me가 있으면 프로필 영역에 `me.name (me.emp)` 표시, http 모드에서 로그아웃 버튼 추가(클릭 → `logout()`).
   - local 스토리지 모드 동작 무변화 확인(me=null 경로).
 
-- [ ] **Step 3: 전체 테스트 + 타입 체크** — `pnpm test && pnpm build` PASS
+- [x] **Step 3: 전체 테스트 + 타입 체크** — `pnpm test && pnpm build` PASS
 
-- [ ] **Step 4: 커밋** — `git commit -m "feat(frontend): 노트 앱 세션 부트스트랩 — me·401 리다이렉트·로그아웃·admin 링크 가드"`
+- [x] **Step 4: 커밋** — `git commit -m "feat(frontend): 노트 앱 세션 부트스트랩 — me·401 리다이렉트·로그아웃·admin 링크 가드"`
 
 ### Task 5: (백엔드) GET /api/admin/public
 
@@ -455,7 +455,7 @@ export function useSession(): { me: Me | null; isAdmin: boolean; logout: () => v
 - Modify: `backend/src/main/java/com/worknote/admin/AdminAclController.java`, `backend/src/main/java/com/worknote/admin/AclAdminService.java`, `backend/src/main/java/com/worknote/acl/AclMapper.java`, `backend/src/main/resources/mapper/AclMapper.xml`
 - Test: `backend/src/test/java/com/worknote/admin/AdminPublicApiTest.java`
 
-- [ ] **Step 1: 실패하는 테스트 작성** — AdminPublicApiTest에 추가 (기존 클래스 패턴·인메모리 DB 관례 준수: @BeforeEach public_flag 정리 유의)
+- [x] **Step 1: 실패하는 테스트 작성** — AdminPublicApiTest에 추가 (기존 클래스 패턴·인메모리 DB 관례 준수: @BeforeEach public_flag 정리 유의)
 
 ```java
 @Test
@@ -480,9 +480,9 @@ void 비관리자는_public_조회_403() throws Exception {
 
 (헬퍼 메서드명은 기존 AdminPublicApiTest의 실제 헬퍼에 맞출 것 — 테스트 클래스에 이미 setPublic/노드 생성 패턴 존재)
 
-- [ ] **Step 2: 실패 확인** — `./gradlew test --tests AdminPublicApiTest` → 404로 FAIL
+- [x] **Step 2: 실패 확인** — `./gradlew test --tests AdminPublicApiTest` → 404로 FAIL
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
   - `AclMapper.java`: `List<PublicFlagRow> findAllPublicFlags();`
   - `AclMapper.xml`: `<select id="findAllPublicFlags" resultType="com.worknote.acl.PublicFlagRow">SELECT node_id AS nodeId, mode FROM public_flag ORDER BY node_id</select>`
   - `AclAdminService.java`: `public List<PublicFlagRow> listPublicFlags() { return acl.findAllPublicFlags(); }`
@@ -498,16 +498,16 @@ public List<PublicFlagRow> listPublic(HttpServletRequest req) {
 
   조회이므로 감사 기록 없음(3단계 결정 #13과 동일).
 
-- [ ] **Step 4: green 확인** — `./gradlew test` 전체 PASS (195+)
+- [x] **Step 4: green 확인** — `./gradlew test` 전체 PASS (195+)
 
-- [ ] **Step 5: 커밋** — `git commit -m "feat(backend): GET /api/admin/public — public 플래그 전체 조회 (프런트 표시용)"`
+- [x] **Step 5: 커밋** — `git commit -m "feat(backend): GET /api/admin/public — public 플래그 전체 조회 (프런트 표시용)"`
 
 ### Task 6: AdminApi + mappers
 
 **Files:**
 - Create: `frontend/src/admin/api.ts`, `frontend/src/admin/api.test.ts`, `frontend/src/admin/mappers.ts`, `frontend/src/admin/mappers.test.ts`
 
-- [ ] **Step 1: 실패하는 테스트 작성** — `api.test.ts`는 fetch stub으로 대표 경로 검증(전 엔드포인트 URL/메서드/바디 — users/roles/teams/spaces/acl/public/audit 각 1개 이상, audit은 쿼리스트링 조립 검증), `mappers.test.ts`는 라벨 함수 검증:
+- [x] **Step 1: 실패하는 테스트 작성** — `api.test.ts`는 fetch stub으로 대표 경로 검증(전 엔드포인트 URL/메서드/바디 — users/roles/teams/spaces/acl/public/audit 각 1개 이상, audit은 쿼리스트링 조립 검증), `mappers.test.ts`는 라벨 함수 검증:
 
 ```typescript
 // mappers.test.ts 핵심 케이스
@@ -560,9 +560,9 @@ it("setAcl은 PUT replace-all", async () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `pnpm test` → FAIL
+- [x] **Step 2: 실패 확인** — `pnpm test` → FAIL
 
-- [ ] **Step 3: 구현** — `frontend/src/admin/api.ts` (타입은 위 "백엔드 API 계약" 표와 1:1):
+- [x] **Step 3: 구현** — `frontend/src/admin/api.ts` (타입은 위 "백엔드 API 계약" 표와 1:1):
 
 ```typescript
 import { req } from "../api/http";
@@ -675,7 +675,7 @@ export function roleName(roleId: string, roles: ApiRole[]): string {
 }
 ```
 
-- [ ] **Step 4: green 확인 + 커밋** — `pnpm test` PASS 후 `git commit -m "feat(frontend): AdminApi 전체 엔드포인트 + 한국어 라벨 매퍼"`
+- [x] **Step 4: green 확인 + 커밋** — `pnpm test` PASS 후 `git commit -m "feat(frontend): AdminApi 전체 엔드포인트 + 한국어 라벨 매퍼"`
 
 ### Task 7: AdminApp 가드 + 공통 데이터 컨텍스트
 
@@ -683,52 +683,52 @@ export function roleName(roleId: string, roles: ApiRole[]): string {
 - Modify: `frontend/src/admin/AdminApp.tsx`
 - Create: `frontend/src/admin/useAdminData.ts` (컨텍스트 + 훅)
 
-- [ ] **Step 1: 구현** — `useAdminData.ts`: `AdminDataContext` = `{ me: Me | null, users: ApiUser[], roles: ApiRole[], teams: ApiTeam[], reload: () => Promise<void>, toast: (msg: string, icon?: string) => void }`. AdminApp이 provider:
+- [x] **Step 1: 구현** — `useAdminData.ts`: `AdminDataContext` = `{ me: Me | null, users: ApiUser[], roles: ApiRole[], teams: ApiTeam[], reload: () => Promise<void>, toast: (msg: string, icon?: string) => void }`. AdminApp이 provider:
   - mount 시 `setOn401(() => { location.href = "login.html"; })` 설치, unmount 시 해제.
   - `AuthApi.me()` → `caps.includes("admin.users")` 아니면 `location.href = "index.html"` (결정 #6).
   - 가드 통과 후 `Promise.all([AdminApi.users(), AdminApi.roles(), AdminApi.teams()])` 로드. 로드 전 로딩 표시(간단 텍스트), 실패 시 토스트.
   - `reload()`는 같은 3종 재로드 — 변이 후 스크린들이 호출.
-- [ ] **Step 2: NAV 변경** — pending 배지 = `users.filter(u => u.status === "pending").length` (mock import 제거). NAV에 `{ id: "teams", label: "팀·스페이스", icon: "users" }`를 "역할 관리" 다음에 추가, TITLES에 `teams: ["팀·스페이스", "팀 구성·팀 스페이스 관리"]`. screenMap에 Teams 등록(Task 12 전까지는 placeholder 컴포넌트 — `h("div", null, "준비 중")` 인라인이 아닌, Task 12에서 실제 파일 생성 시점에 등록해도 됨. **이 태스크에서는 NAV/TITLES만 추가하고 screenMap 등록은 Task 12로 미룬다** — 미등록 route는 Dashboard 폴백이라 안전).
-- [ ] **Step 3: 로그아웃** — atopbar 우측에 로그아웃 버튼: `AuthApi.logout().finally(() => { location.href = "login.html"; })`.
-- [ ] **Step 4: 빌드·테스트 확인** — `pnpm test && pnpm build` PASS (스크린들은 아직 mock — 다음 태스크에서 치환. data.ts mock은 이 시점 삭제 금지)
-- [ ] **Step 5: 커밋** — `git commit -m "feat(frontend): AdminApp 가드·공통 데이터 컨텍스트·로그아웃·팀 NAV"`
+- [x] **Step 2: NAV 변경** — pending 배지 = `users.filter(u => u.status === "pending").length` (mock import 제거). NAV에 `{ id: "teams", label: "팀·스페이스", icon: "users" }`를 "역할 관리" 다음에 추가, TITLES에 `teams: ["팀·스페이스", "팀 구성·팀 스페이스 관리"]`. screenMap에 Teams 등록(Task 12 전까지는 placeholder 컴포넌트 — `h("div", null, "준비 중")` 인라인이 아닌, Task 12에서 실제 파일 생성 시점에 등록해도 됨. **이 태스크에서는 NAV/TITLES만 추가하고 screenMap 등록은 Task 12로 미룬다** — 미등록 route는 Dashboard 폴백이라 안전).
+- [x] **Step 3: 로그아웃** — atopbar 우측에 로그아웃 버튼: `AuthApi.logout().finally(() => { location.href = "login.html"; })`.
+- [x] **Step 4: 빌드·테스트 확인** — `pnpm test && pnpm build` PASS (스크린들은 아직 mock — 다음 태스크에서 치환. data.ts mock은 이 시점 삭제 금지)
+- [x] **Step 5: 커밋** — `git commit -m "feat(frontend): AdminApp 가드·공통 데이터 컨텍스트·로그아웃·팀 NAV"`
 
 ### Task 8: Pending + Users 스크린 배선
 
 **Files:**
 - Modify: `frontend/src/admin/screens/Pending.tsx`, `frontend/src/admin/screens/Users.tsx`
 
-- [ ] **Step 1: Pending 배선** — `ADMIN_PENDING` 제거 → `useAdminData()`의 `users.filter(u => u.status === "pending")`. 승인 = `AdminApi.approveUser(id)` → `reload()` + 토스트 "계정을 승인했습니다". 거절 = `AdminApi.updateUser(id, { status: "disabled" })` → reload + 토스트 (결정 #7). 에러는 `e instanceof ApiError ? e.message : "요청 실패"` 토스트. 신청 일시 컬럼은 백엔드에 가입 시각 필드가 없으므로 컬럼 제거 또는 "—" 표시(구현자 판단 — 데이터 없는 컬럼 유지 금지).
-- [ ] **Step 2: Users 배선** — `ADMIN_USERS`/`ADMIN_ROLES` 제거 → 컨텍스트 users/roles. 표기: `statusLabel(u.status)`, `roleName(u.roleId, roles)`, last = `u.lastLogin ?? "—"`.
+- [x] **Step 1: Pending 배선** — `ADMIN_PENDING` 제거 → `useAdminData()`의 `users.filter(u => u.status === "pending")`. 승인 = `AdminApi.approveUser(id)` → `reload()` + 토스트 "계정을 승인했습니다". 거절 = `AdminApi.updateUser(id, { status: "disabled" })` → reload + 토스트 (결정 #7). 에러는 `e instanceof ApiError ? e.message : "요청 실패"` 토스트. 신청 일시 컬럼은 백엔드에 가입 시각 필드가 없으므로 컬럼 제거 또는 "—" 표시(구현자 판단 — 데이터 없는 컬럼 유지 금지).
+- [x] **Step 2: Users 배선** — `ADMIN_USERS`/`ADMIN_ROLES` 제거 → 컨텍스트 users/roles. 표기: `statusLabel(u.status)`, `roleName(u.roleId, roles)`, last = `u.lastLogin ?? "—"`.
   - 역할 변경: `AdminApi.updateUser(id, { roleId })`, 상태 토글: `{ status: "active" | "disabled" }` — 422(self/마지막 admin) 메시지는 서버 메시지 그대로 토스트.
   - 비밀번호 초기화: 새 비밀번호 입력 모달(8자 미만 클라이언트 차단) → `AdminApi.resetPassword`.
   - 사용자 생성 모달(기존 mock에 있으면 재사용, 없으면 추가): emp/name/email/roleId/password → `AdminApi.createUser` → 409 토스트.
   - 모든 변이 성공 후 `reload()`.
-- [ ] **Step 3: 테스트·빌드** — `pnpm test && pnpm build` PASS
-- [ ] **Step 4: 커밋** — `git commit -m "feat(frontend): 가입 승인·사용자 관리 스크린 실 API 배선"`
+- [x] **Step 3: 테스트·빌드** — `pnpm test && pnpm build` PASS
+- [x] **Step 4: 커밋** — `git commit -m "feat(frontend): 가입 승인·사용자 관리 스크린 실 API 배선"`
 
 ### Task 9: Roles 스크린 배선
 
 **Files:**
 - Modify: `frontend/src/admin/screens/Roles.tsx`
 
-- [ ] **Step 1: 배선** — `ADMIN_ROLES` 제거 → 컨텍스트 roles. 표시: `count` → `userCount`, `policy` 리스트 → `role.caps.map(capLabel)`, desc는 mock 전용 필드였으므로 제거(caps 라벨이 정책 설명을 대체).
+- [x] **Step 1: 배선** — `ADMIN_ROLES` 제거 → 컨텍스트 roles. 표시: `count` → `userCount`, `policy` 리스트 → `role.caps.map(capLabel)`, desc는 mock 전용 필드였으므로 제거(caps 라벨이 정책 설명을 대체).
   - 생성: id(`[a-z][a-z0-9-]*` 클라이언트 패턴 검증)/name/caps 체크박스(KNOWN 11종 — mappers의 CAPS 키 사용) → `AdminApi.createRole`.
   - 수정: system 역할은 편집/삭제 버튼 비활성(서버도 422). name/caps → `AdminApi.updateRole`.
   - 삭제: 사용 중 409 → 서버 메시지 토스트.
   - 변이 후 `reload()`.
-- [ ] **Step 2: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 역할 관리 스크린 실 API 배선"`
+- [x] **Step 2: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 역할 관리 스크린 실 API 배선"`
 
 ### Task 10: Audit 스크린 배선
 
 **Files:**
 - Modify: `frontend/src/admin/screens/Audit.tsx`
 
-- [ ] **Step 1: 배선** — `ADMIN_AUDIT` 제거. 스크린 자체 state로 `AdminApi.audit({ who, act, from, to, limit: 50, offset })` 호출(mount + 필터 변경 + 페이지 이동 시).
+- [x] **Step 1: 배선** — `ADMIN_AUDIT` 제거. 스크린 자체 state로 `AdminApi.audit({ who, act, from, to, limit: 50, offset })` 호출(mount + 필터 변경 + 페이지 이동 시).
   - 필터 UI: who 텍스트 입력, act는 mappers ACTS 키 셀렉트(전체 옵션 포함), from/to 날짜 입력(값은 `YYYY-MM-DD` → from은 그대로, to는 `T23:59:59` 접미 — ISO 사전순 비교 계약).
   - 표시: `actLabel(row.act)` + 배지 클래스 `actType(row.act)`, target/ip 그대로.
   - 페이징: total 기반 이전/다음 버튼(offset ±50).
-- [ ] **Step 2: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 감사 로그 스크린 실 API 배선 — 필터·페이징"`
+- [x] **Step 2: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 감사 로그 스크린 실 API 배선 — 필터·페이징"`
 
 ### Task 11: Permissions 스크린 배선 (노드 중심 재구성)
 
@@ -736,7 +736,7 @@ export function roleName(roleId: string, roles: ApiRole[]): string {
 - Create: `frontend/src/admin/aclView.ts`, `frontend/src/admin/aclView.test.ts`
 - Modify: `frontend/src/admin/screens/Permissions.tsx`
 
-- [ ] **Step 1: 실패하는 테스트 작성** — `aclView.test.ts`
+- [x] **Step 1: 실패하는 테스트 작성** — `aclView.test.ts`
 
 ```typescript
 import { describe, it, expect } from "vitest";
@@ -779,9 +779,9 @@ describe("aclView", () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `pnpm test` FAIL
+- [x] **Step 2: 실패 확인** — `pnpm test` FAIL
 
-- [ ] **Step 3: 구현** — `aclView.ts`
+- [x] **Step 3: 구현** — `aclView.ts`
 
 ```typescript
 import type { ApiAclRow, ApiPublicFlag } from "./api";
@@ -840,11 +840,11 @@ export function effectivePublic(nodeId: string, tree: TreeNode[], flags: ApiPubl
 }
 ```
 
-- [ ] **Step 4: Permissions.tsx 재구성** — mock(ADMIN_TREE/ADMIN_GRANTS/ADMIN_PUBLIC) 제거. 데이터: `VaultApi.tree()` + `AdminApi.aclAll()` + `AdminApi.publicFlags()` mount 로드, users/teams는 컨텍스트.
+- [x] **Step 4: Permissions.tsx 재구성** — mock(ADMIN_TREE/ADMIN_GRANTS/ADMIN_PUBLIC) 제거. 데이터: `VaultApi.tree()` + `AdminApi.aclAll()` + `AdminApi.publicFlags()` mount 로드, users/teams는 컨텍스트.
   - 좌: 트리(기존 트리 렌더 재사용, /api/tree의 VaultNode 형태에 맞춤 — note는 `title`, folder는 `name`).
   - 우(노드 선택 시): ① 직접 ACL 엔트리 테이블 — 주체 타입 셀렉트(user/team/all), 주체 셀렉트(users는 emp+name, teams는 name, all은 고정 `@all`), grant 셀렉트(read/edit/deny), 행 추가/삭제 → "저장" 버튼이 `AdminApi.setAcl(nodeId, entries)` (replace-all — 중복 주체는 클라이언트에서도 차단). ② 상속 엔트리 read-only 목록(`inheritedEntries` — 출처 노드명 표기). ③ public 토글: 현재 `directPublicMode` 표시, 변경 시 `setPublic`/`unsetPublic` (폴더는 public, 노트는 public/exclude 선택 가능), `effectivePublic` 상태 뱃지.
   - 변이 성공 후 aclAll/publicFlags 재로드 + 토스트, 에러는 서버 메시지 토스트.
-- [ ] **Step 5: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 권한 관리 스크린 — 노드 중심 ACL 편집·상속 표시·public 토글"`
+- [x] **Step 5: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 권한 관리 스크린 — 노드 중심 ACL 편집·상속 표시·public 토글"`
 
 ### Task 12: 팀·스페이스 신규 스크린
 
@@ -852,12 +852,12 @@ export function effectivePublic(nodeId: string, tree: TreeNode[], flags: ApiPubl
 - Create: `frontend/src/admin/screens/Teams.tsx`
 - Modify: `frontend/src/admin/AdminApp.tsx` (screenMap에 teams 등록)
 
-- [ ] **Step 1: 구현** — 기존 admin 스크린의 CSS 클래스·테이블 패턴 재사용(예: Users.tsx 구조 참고). 데이터: 컨텍스트 teams/users + `AdminApi.spaces()` + `VaultApi.tree()`(최상위 폴더 목록·노드명).
+- [x] **Step 1: 구현** — 기존 admin 스크린의 CSS 클래스·테이블 패턴 재사용(예: Users.tsx 구조 참고). 데이터: 컨텍스트 teams/users + `AdminApi.spaces()` + `VaultApi.tree()`(최상위 폴더 목록·노드명).
   - 팀 섹션: 팀 목록(이름, 멤버 수) — 생성(이름 입력), 이름 변경, 삭제(스페이스 소유 팀 409 → 서버 메시지 토스트). 팀 선택 시 멤버 목록(emp/name) + 멤버 추가 셀렉트(미소속 active 사용자) + 제외 버튼.
   - 스페이스 섹션: `spaces` 목록(노드명 = tree에서 lookup, 소유 팀명 또는 "공용") — 지정: 최상위 폴더 셀렉트 + 팀 셀렉트(공용 옵션 포함) → `setSpace`, 해제 → `unsetSpace`. 422(최상위 활성 폴더 아님)는 서버 메시지 토스트.
   - 변이 후 컨텍스트 `reload()` + spaces 재로드.
-- [ ] **Step 2: screenMap 등록 확인** — `#teams` 라우트 동작.
-- [ ] **Step 3: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 팀·스페이스 관리 스크린 신규"`
+- [x] **Step 2: screenMap 등록 확인** — `#teams` 라우트 동작.
+- [x] **Step 3: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 팀·스페이스 관리 스크린 신규"`
 
 ### Task 13: Dashboard 실데이터 + Security read-only
 
@@ -865,21 +865,21 @@ export function effectivePublic(nodeId: string, tree: TreeNode[], flags: ApiPubl
 - Modify: `frontend/src/admin/screens/Dashboard.tsx`, `frontend/src/admin/screens/Security.tsx`
 - Modify: `frontend/src/admin/data.ts` (잔존 mock 상수 제거 — 타입 중 스크린이 여전히 쓰는 것은 유지/이동)
 
-- [ ] **Step 1: Dashboard** — 통계 카드: 전체 사용자(users.length), 활성(active count), 가입 대기(pending count, 클릭 → `go("pending")`), 팀 수(teams.length). 최근 활동: `AdminApi.audit({ limit: 8 })` rows를 `actLabel`/`actType`으로 표시.
-- [ ] **Step 2: Security** — 편집 컨트롤 제거, read-only 정책 표(서버 고정값): 비밀번호 최소 8자, 세션 타임아웃 30분, 가입 승인 필수, 해시 PBKDF2-SHA256 120k iter, 로그인 실패 감사 기록. 상단 배너 "보안 정책은 서버에 고정되어 있습니다. 변경은 서버 설정으로." (결정 #12).
-- [ ] **Step 3: data.ts 정리** — `ADMIN_PENDING/ADMIN_USERS/ADMIN_ROLES/ADMIN_AUDIT/ADMIN_TREE/ADMIN_GRANTS/ADMIN_PUBLIC/ADMIN_SECURITY/ADMIN_ME` 상수 전부 제거. 어떤 스크린도 mock을 import하지 않는지 `grep -rn "from \"./data\"\|from \"../data\"" src/admin` 으로 확인 — 잔존 참조는 타입뿐이어야 함(타입은 data.ts에 남기거나 사용처로 이동).
-- [ ] **Step 4: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 대시보드 실데이터·보안 설정 read-only 전환, mock 데이터 제거"`
+- [x] **Step 1: Dashboard** — 통계 카드: 전체 사용자(users.length), 활성(active count), 가입 대기(pending count, 클릭 → `go("pending")`), 팀 수(teams.length). 최근 활동: `AdminApi.audit({ limit: 8 })` rows를 `actLabel`/`actType`으로 표시.
+- [x] **Step 2: Security** — 편집 컨트롤 제거, read-only 정책 표(서버 고정값): 비밀번호 최소 8자, 세션 타임아웃 30분, 가입 승인 필수, 해시 PBKDF2-SHA256 120k iter, 로그인 실패 감사 기록. 상단 배너 "보안 정책은 서버에 고정되어 있습니다. 변경은 서버 설정으로." (결정 #12).
+- [x] **Step 3: data.ts 정리** — `ADMIN_PENDING/ADMIN_USERS/ADMIN_ROLES/ADMIN_AUDIT/ADMIN_TREE/ADMIN_GRANTS/ADMIN_PUBLIC/ADMIN_SECURITY/ADMIN_ME` 상수 전부 제거. 어떤 스크린도 mock을 import하지 않는지 `grep -rn "from \"./data\"\|from \"../data\"" src/admin` 으로 확인 — 잔존 참조는 타입뿐이어야 함(타입은 data.ts에 남기거나 사용처로 이동).
+- [x] **Step 4: 테스트·빌드 + 커밋** — PASS 후 `git commit -m "feat(frontend): 대시보드 실데이터·보안 설정 read-only 전환, mock 데이터 제거"`
 
 ### Task 14: 통합 검증 + 문서
 
 **Files:**
 - Modify: `backend/README.md`, `CLAUDE.md`, 이 플랜(체크박스), `frontend/README.md`(있으면)
 
-- [ ] **Step 1: 전체 테스트** — `cd frontend && pnpm test` 전부 green, `cd backend && ./gradlew test` 전부 green (×2회, `--rerun-tasks`로 순서 무관성).
-- [ ] **Step 2: 빌드 체인** — `cd frontend && pnpm build` → `cd backend && ./gradlew bootJar`.
-- [ ] **Step 3: server 모드 jar 스모크** — `WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... WORKNOTE_DB=/tmp/smoke4.db java -jar build/libs/worknote-0.1.0.jar` 기동 후 curl로: ① `/login.html` 200 ② `/api/auth/me` 401 ③ 로그인 → 세션 쿠키로 `/api/admin/users` 200 ④ `/api/admin/public` 200 ⑤ 가입 → 승인 → 신규 계정 로그인 ⑥ 로그아웃 후 me 401. local 모드 jar로 ⑦ `/api/auth/me`가 local admin 반환 확인.
-- [ ] **Step 4: 문서 갱신** — backend/README.md: GET /api/admin/public 행 추가, 이월 목록에서 "프런트 연동" 제거. CLAUDE.md: frontend 줄에 "백엔드 연동 완료(로그인·admin 8스크린)", dev 명령에 admin/login은 백엔드 필요 명시. 이 플랜 체크박스 전부 [x].
-- [ ] **Step 5: 커밋** — `git commit -m "docs: 프런트 연동(4단계) 완료 반영 — README·CLAUDE.md·플랜"`
+- [x] **Step 1: 전체 테스트** — `cd frontend && pnpm test` 전부 green, `cd backend && ./gradlew test` 전부 green (×2회, `--rerun-tasks`로 순서 무관성).
+- [x] **Step 2: 빌드 체인** — `cd frontend && pnpm build` → `cd backend && ./gradlew bootJar`.
+- [x] **Step 3: server 모드 jar 스모크** — `WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... WORKNOTE_DB=/tmp/smoke4.db java -jar build/libs/worknote-0.1.0.jar` 기동 후 curl로: ① `/login.html` 200 ② `/api/auth/me` 401 ③ 로그인 → 세션 쿠키로 `/api/admin/users` 200 ④ `/api/admin/public` 200 ⑤ 가입 → 승인 → 신규 계정 로그인 ⑥ 로그아웃 후 me 401. local 모드 jar로 ⑦ `/api/auth/me`가 local admin 반환 확인.
+- [x] **Step 4: 문서 갱신** — backend/README.md: GET /api/admin/public 행 추가, 이월 목록에서 "프런트 연동" 제거. CLAUDE.md: frontend 줄에 "백엔드 연동 완료(로그인·admin 8스크린)", dev 명령에 admin/login은 백엔드 필요 명시. 이 플랜 체크박스 전부 [x].
+- [x] **Step 5: 커밋** — `git commit -m "docs: 프런트 연동(4단계) 완료 반영 — README·CLAUDE.md·플랜"`
 
 ---
 

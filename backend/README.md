@@ -1,6 +1,6 @@
 # backend
 
-work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) 구현 완료** — 194 tests green, local/server 모드 jar 스모크 검증 완료.
+work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) 구현 완료** — 196 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선) 완료.
 
 ## 스택 (확정)
 
@@ -115,6 +115,7 @@ cd backend
 |--------|------|------|------|
 | GET | `/api/admin/acl` | 전체 ACL 목록 | 200 |
 | GET | `/api/admin/nodes/{id}/acl` | 노드 ACL 조회 | 200 |
+| GET | `/api/admin/public` | 전체 public 플래그 목록 (`[{nodeId, mode}]`) — 조회라 감사 기록 없음 | 200 |
 | PUT | `/api/admin/nodes/{id}/acl` | **replace-all** (`{entries: [{principalType, principalId, grantType}]}`) — 주체 존재 검증, 스페이스 소유 팀 grant 부재 시 감사 부기 | 204 |
 | PUT | `/api/admin/nodes/{id}/public` | public_flag upsert (`{mode: "public"\|"exclude"}`) | 204 |
 | DELETE | `/api/admin/nodes/{id}/public` | public_flag 제거 | 204 |
@@ -172,8 +173,10 @@ cd backend
 ## 다음 계획 이월 항목
 
 - 공유 링크 (스펙 §6 — read 전용·만료·취소·로깅, `share_link` 테이블 V3 마이그레이션)
-- 프런트 연동 — 로그인 페이지, admin 페이지, 403 처리, me 기반 UI 가드
 - 30일 자동 purge 스케줄러
+- 401 리다이렉트 시 디바운스 pending patch 유실 — 복구 스냅샷 (4단계 리뷰에서 식별)
+- http 모드 백엔드 다운 시 시드 fallback "가짜 정상" — 차단 배너 (4단계 리뷰에서 식별)
+- ProfileModal http 모드 저장·비밀번호 변경이 localStorage mock에만 동작 — 본인 비밀번호 변경 API 필요 (4단계 리뷰에서 식별)
 - 이동 시 노출 변경 경고 (스펙 §7 — 비공개 노트의 public 폴더 이동 시 무경고 공개 포함)
 - `/tree` findActive 2회 조회 최적화
 - fire-and-forget 동기화 충돌 처리 (1단계 이월)
@@ -223,4 +226,4 @@ WORKNOTE_DB=/var/lib/worknote/worknote.db java -jar worknote-0.1.0.jar
   - `node`/`tag` 스키마(1·2단계 공통) + 권한 테이블(2단계)
   - 해석기: nearest-explicit + deny-우선 합집합 (재귀 CTE)
 
-> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce — 공유 링크(V3)·프런트 연동·purge 스케줄러는 다음 계획.
+> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce, 프런트 연동(4단계)까지 완료 — 공유 링크(V3)·purge 스케줄러는 다음 계획.

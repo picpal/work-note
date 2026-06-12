@@ -7,11 +7,12 @@
 ```
 work-note/
   frontend/                    Vite 6 + TypeScript + React 18 (구현 완료)
+                               백엔드 연동 완료(로그인·가입 + admin 8스크린 실 API, mock 제거)
   backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite
                                1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) 구현 완료
                                worknote.mode로 스위치(기본 local=무인증)
                                server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar ...
-                               남은 것: 공유 링크(V3), 프런트 연동, 30일 purge 스케줄러
+                               남은 것: 공유 링크(V3), 30일 purge 스케줄러
   docs/
     superpowers/
       specs/                   권한·디렉토리 설계 스펙 문서
@@ -35,7 +36,7 @@ work-note/
 # frontend
 cd frontend
 pnpm install
-pnpm dev       # 개발 서버 (localStorage 모드. HTTP 모드: VITE_STORAGE=http pnpm dev — 백엔드 기동 필요)
+pnpm dev       # 개발 서버 (localStorage 모드. HTTP 모드: VITE_STORAGE=http pnpm dev — 백엔드 기동 필요. admin/login 페이지는 백엔드 기동 필요 — 항상 HTTP)
 pnpm build     # dist/ 정적 빌드 (CDN 의존 0, .env.production → 항상 HTTP 모드)
 pnpm test      # Vitest
 pnpm preview
