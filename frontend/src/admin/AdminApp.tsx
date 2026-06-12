@@ -11,6 +11,7 @@ import { Pending } from "./screens/Pending";
 import { Users } from "./screens/Users";
 import { Permissions } from "./screens/Permissions";
 import { Roles } from "./screens/Roles";
+import { Teams } from "./screens/Teams";
 import { Audit } from "./screens/Audit";
 import { Security } from "./screens/Security";
 
@@ -85,6 +86,7 @@ export function AdminApp() {
     users: Users,
     permissions: Permissions,
     roles: Roles,
+    teams: Teams,
     audit: Audit,
     security: Security,
   };
