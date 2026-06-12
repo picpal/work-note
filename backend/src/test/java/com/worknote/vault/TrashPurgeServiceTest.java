@@ -27,7 +27,8 @@ class TrashPurgeServiceTest {
         jdbc.update("DELETE FROM acl");
         jdbc.update("DELETE FROM public_flag");
         jdbc.update("DELETE FROM space");
-        jdbc.update("DELETE FROM node WHERE id LIKE 'pg-%'");
+        // node 전체 정리 — 형제 클래스가 과거 deleted_at을 남기면 purged 카운트 단언이 순서 의존 플레이크가 됨
+        jdbc.update("DELETE FROM node");
         jdbc.update("DELETE FROM audit_log WHERE who = 'system'");
     }
 

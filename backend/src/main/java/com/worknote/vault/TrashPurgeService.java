@@ -40,13 +40,19 @@ public class TrashPurgeService {
         for (NodeRow root : nodes.findExpiredTrashRoots(cutoff)) {
             try {
                 vault.purge(root.id());
-                // 자동/수동 구분은 who — act는 node.purge 재사용 (확정 결정 P4)
-                audit.logRaw("system", "node.purge",
-                    root.id() + " (보존기한 " + retentionDays + "일 경과)", null);
-                purged++;
             } catch (Exception e) {
                 // 한 루트 실패가 나머지를 막지 않음 (확정 결정 P5)
                 log.warn("자동 purge 실패: {}", root.id(), e);
+                continue;
+            }
+            purged++;
+            try {
+                // 자동/수동 구분은 who — act는 node.purge 재사용 (확정 결정 P4)
+                audit.logRaw("system", "node.purge",
+                    root.id() + " (보존기한 " + retentionDays + "일 경과)", null);
+            } catch (Exception e) {
+                // purge는 이미 완료 — 감사 단독 실패는 AuditService의 문서화된 트레이드오프와 동일
+                log.warn("자동 purge 감사 기록 실패: {}", root.id(), e);
             }
         }
         return purged;
