@@ -4,4 +4,26 @@
   <insert id="insert">
     INSERT INTO audit_log (at, who, act, target, ip) VALUES (#{at}, #{who}, #{act}, #{target}, #{ip})
   </insert>
+
+  <!-- at은 ISO_LOCAL_DATE_TIME TEXT — 사전순 비교 = 시간순 비교 (확정 결정 #10) -->
+  <sql id="auditFilter">
+    <where>
+      <if test="who != null">AND who = #{who}</if>
+      <if test="act != null">AND act = #{act}</if>
+      <if test="from != null">AND at &gt;= #{from}</if>
+      <if test="to != null">AND at &lt;= #{to}</if>
+    </where>
+  </sql>
+
+  <select id="find" resultType="com.worknote.audit.AuditRow">
+    SELECT * FROM audit_log
+    <include refid="auditFilter"/>
+    ORDER BY at DESC, id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="count" resultType="int">
+    SELECT COUNT(*) FROM audit_log
+    <include refid="auditFilter"/>
+  </select>
 </mapper>
