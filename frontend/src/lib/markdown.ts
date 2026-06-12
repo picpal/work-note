@@ -13,7 +13,9 @@ function initMermaid(isDark: boolean): void {
     : { bg: "#fbfbfa", line: "#bdbdb5", text: "#2a2a27", node: "#ffffff", border: "#dcdcd6", alt: "#f1f1ee" };
   mermaid.initialize({
     startOnLoad: false,
-    securityLevel: "loose",
+    // strict: mermaid가 라벨 HTML을 자체 sanitize — loose면 data-src 경유 원문이 renderMarkdown의
+    // DOMPurify를 우회해 enhanceMermaid의 innerHTML 주입으로 XSS 가능 (타인 노트 열람 위협 모델)
+    securityLevel: "strict",
     fontFamily: '"Pretendard", system-ui, sans-serif',
     fontSize: 15,
     flowchart: { htmlLabels: true, padding: 14, diagramPadding: 10, nodeSpacing: 52, rankSpacing: 50, useMaxWidth: true },
@@ -123,7 +125,8 @@ export function renderMarkdown(src: string): string {
     li.appendChild(body);
   });
 
-  // 타인 작성 노트(팀 공유·공유 링크)도 같은 경로로 렌더 — stored XSS 차단은 이 단일 지점에서.
+  // 타인 작성 노트(팀 공유·공유 링크)도 같은 경로로 렌더 — 마크다운 HTML의 stored XSS 차단은 여기서,
+  // mermaid 경로(data-src 원문 → enhanceMermaid 렌더)는 securityLevel:"strict"가 담당한다.
   // 기본 정책이 data-*(mermaid-wrap data-src)·hljs 클래스·tick SVG를 보존하고 핸들러·javascript: URI만 제거한다.
   return DOMPurify.sanitize(tpl.innerHTML);
 }

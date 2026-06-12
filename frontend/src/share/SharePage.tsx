@@ -90,7 +90,7 @@ export function SharePage() {
         view.updatedAt && h("div", { className: "share-sub" }, "마지막 수정 " + fmtStamp(view.updatedAt))),
       h("div", {
         className: "md share-body", ref: bodyRef,
-        dangerouslySetInnerHTML: { __html: renderMarkdown(view.content) },
+        dangerouslySetInnerHTML: { __html: renderMarkdown(view.content || "") },
       }));
   }
 

@@ -14,7 +14,7 @@ export interface ShareLink {
 
 export interface ShareView {
   name: string;
-  content: string;
+  content: string | null;   // 백엔드가 node.content를 그대로 반환 — 빈 노트는 null 가능
   updatedAt: string | null;
 }
 
