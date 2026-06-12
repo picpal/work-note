@@ -1,6 +1,6 @@
 # backend
 
-work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) 구현 완료** — 196 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선) 완료.
+work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) + 5단계(30일 purge 스케줄러 + 공유 링크 §6) 구현 완료** — 230 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선 + 공유 모달·share.html·admin 공유 링크 화면) 완료.
 
 ## 스택 (확정)
 
@@ -42,6 +42,20 @@ cd backend
 | POST | `/api/trash/{id}/restore` | 휴지통 복구 | 204 |
 | DELETE | `/api/trash/{id}` | 영구 삭제 (purge) | 204 |
 | GET | `/api/health` | 헬스 체크 | 200 |
+
+휴지통은 30일 보존 후 자동 purge — 기동 60초 후 1회 + 24시간 간격, `WORKNOTE_PURGE_RETENTION_DAYS`(기본 30, 0 이하 = 끔). 자동 purge 감사는 `who="system"`.
+
+### 공유 링크 API (스펙 §6 — deny를 넘는 유일한 read 예외, 만료·취소·로깅)
+
+| 메서드 | 경로 | 권한 | 성공 코드 |
+|--------|------|------|-----------|
+| POST | `/api/nodes/{id}/share` | `res.share ∧ read(N)`, 노트만 | 201 `{id, token, expiresAt}` — body `{days?=7, maxViews?, pinEmps?}` |
+| GET | `/api/nodes/{id}/shares` | 동일 | 200 활성 링크 목록(관리자=전체, 그 외 본인 생성분) |
+| GET | `/api/share/{token}` | 인증만 (read 권한 불요) | 200 `{name, content, updatedAt}` — 무효 사유는 전부 404 단일 |
+| DELETE | `/api/shares/{id}` | 생성자 본인 ∨ 관리자 | 204 (재취소 409) |
+| GET | `/api/admin/shares` | 관리자 | 200 활성 링크 전체(+nodeName·suspended) |
+
+감사 act 3종 `share.create/view/revoke` — target은 `{linkId} -> {nodeId}`, **token 원문 비기록**. 휴지통 노드의 링크는 suspend(접근 시 판정), restore로 부활, purge 시 영구 삭제.
 
 오류 응답: 404/409/422 → `{"error": "메시지"}`, 요청 검증 실패 → 400. server 모드 추가: 미인증 401, 권한 부족 403.
 
@@ -172,12 +186,13 @@ cd backend
 
 ## 다음 계획 이월 항목
 
-- 공유 링크 (스펙 §6 — read 전용·만료·취소·로깅, `share_link` 테이블 V3 마이그레이션)
-- 30일 자동 purge 스케줄러
 - 401 리다이렉트 시 디바운스 pending patch 유실 — 복구 스냅샷 (4단계 리뷰에서 식별)
 - http 모드 백엔드 다운 시 시드 fallback "가짜 정상" — 차단 배너 (4단계 리뷰에서 식별)
 - ProfileModal http 모드 저장·비밀번호 변경이 localStorage mock에만 동작 — 본인 비밀번호 변경 API 필요 (4단계 리뷰에서 식별)
 - 이동 시 노출 변경 경고 (스펙 §7 — 비공개 노트의 public 폴더 이동 시 무경고 공개 포함)
+- pin 사번 존재 검증 (현재 미검증 — 오타 시 아무도 못 여는 링크, fail-closed라 무해. 5단계 리뷰에서 식별)
+- 만료·취소 공유 링크 행 정리 배치 (현재 영구 보존 — 감사 재구성 우선. 5단계 리뷰에서 식별)
+- 실패한 공유 열람 시도(404) 감사 기록 — 프로빙 탐지용 (5단계 리뷰에서 식별, 스펙 §6은 성공 열람만 명시)
 - `/tree` findActive 2회 조회 최적화
 - fire-and-forget 동기화 충돌 처리 (1단계 이월)
 - useVault 언로드 플러시 `sendBeacon` 일반화 (1단계 이월)
@@ -226,4 +241,4 @@ WORKNOTE_DB=/var/lib/worknote/worknote.db java -jar worknote-0.1.0.jar
   - `node`/`tag` 스키마(1·2단계 공통) + 권한 테이블(2단계)
   - 해석기: nearest-explicit + deny-우선 합집합 (재귀 CTE)
 
-> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce, 프런트 연동(4단계)까지 완료 — 공유 링크(V3)·purge 스케줄러는 다음 계획.
+> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce, 프런트 연동(4단계)·공유 링크+purge 스케줄러(5단계)까지 완료.

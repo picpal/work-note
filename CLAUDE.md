@@ -7,12 +7,13 @@
 ```
 work-note/
   frontend/                    Vite 6 + TypeScript + React 18 (구현 완료)
-                               백엔드 연동 완료(로그인·가입 + admin 8스크린 실 API, mock 제거)
+                               백엔드 연동 완료(로그인·가입 + admin 9스크린 실 API, mock 제거)
+                               엔트리 4개: index / login / admin / share(공유 노트 read-only 열람)
   backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite
-                               1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) 구현 완료
+                               1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API + 5단계(30일 purge 스케줄러·공유 링크 §6) 구현 완료
                                worknote.mode로 스위치(기본 local=무인증)
                                server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar ...
-                               남은 것: 공유 링크(V3), 30일 purge 스케줄러
+                               공유 링크 = deny를 넘는 유일 read 예외(만료·취소·pin·감사), 휴지통 30일 자동 purge(WORKNOTE_PURGE_RETENTION_DAYS)
   docs/
     superpowers/
       specs/                   권한·디렉토리 설계 스펙 문서
