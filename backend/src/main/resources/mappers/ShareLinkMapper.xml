@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.share.ShareLinkMapper">
+
+  <insert id="insert">
+    INSERT INTO share_link (id, token, node_id, created_by, created_at, expires_at,
+                            max_views, view_count, pin_emps, revoked_at)
+    VALUES (#{id}, #{token}, #{nodeId}, #{createdBy}, #{createdAt}, #{expiresAt},
+            #{maxViews}, #{viewCount}, #{pinEmps}, #{revokedAt})
+  </insert>
+
+  <select id="findById" resultType="com.worknote.share.ShareLinkRow">
+    SELECT * FROM share_link WHERE id = #{id}
+  </select>
+
+  <select id="findByToken" resultType="com.worknote.share.ShareLinkRow">
+    SELECT * FROM share_link WHERE token = #{token}
+  </select>
+
+  <!-- 활성 = 미취소 ∧ 미만료 ∧ (max_views NULL ∨ view_count &lt; max_views) -->
+  <select id="findActiveByNode" resultType="com.worknote.share.ShareLinkRow">
+    SELECT * FROM share_link
+    WHERE node_id = #{nodeId}
+      AND revoked_at IS NULL AND expires_at &gt; #{now}
+      AND (max_views IS NULL OR view_count &lt; max_views)
+    ORDER BY created_at DESC, id
+  </select>
+
+  <!-- 관리자 목록: node JOIN — 휴지통 노드(deleted_at != NULL) 링크 포함, suspend 표시용 (결정 S14) -->
+  <select id="findAllActive" resultType="com.worknote.share.ActiveShareRow">
+    SELECT s.id, s.token, s.node_id, n.name AS node_name, n.deleted_at AS node_deleted_at,
+           s.created_by, s.created_at, s.expires_at, s.max_views, s.view_count, s.pin_emps
+    FROM share_link s JOIN node n ON s.node_id = n.id
+    WHERE s.revoked_at IS NULL AND s.expires_at &gt; #{now}
+      AND (s.max_views IS NULL OR s.view_count &lt; s.max_views)
+    ORDER BY s.created_at DESC, s.id
+  </select>
+
+  <update id="incrementViewCount">
+    UPDATE share_link SET view_count = view_count + 1 WHERE id = #{id}
+  </update>
+
+  <update id="revoke">
+    UPDATE share_link SET revoked_at = #{revokedAt} WHERE id = #{id}
+  </update>
+
+  <!-- purge 종속행 삭제 (결정 S4) -->
+  <delete id="deleteIn">
+    DELETE FROM share_link WHERE node_id IN
+    <foreach item="i" collection="nodeIds" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
+</mapper>

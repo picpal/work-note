@@ -26,6 +26,16 @@ class SchemaMigrationTest {
     }
 
     @Test
+    void shareLinkTableExists() {
+        var tables = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='table'", String.class);
+        assertThat(tables).contains("share_link");
+        var indexes = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='share_link'", String.class);
+        assertThat(indexes).contains("idx_share_link_node");
+    }
+
+    @Test
     void systemRolesSeeded() {
         var roles = jdbc.queryForList("SELECT id FROM role WHERE system = 1 ORDER BY id", String.class);
         assertThat(roles).containsExactly("admin", "operator", "visitor");
