@@ -1,103 +1,144 @@
-/* Admin screen 5: Roles */
+/* Admin screen 5: Roles — 실 API(useAdminData + AdminApi) 배선 */
 import React from "react";
-import { ADMIN_ROLES, Role } from "../data";
-import { SecHead } from "../common";
+import { AdminApi, ApiRole } from "../api";
+import { capLabel } from "../mappers";
+import { ApiError } from "../../api/http";
+import { useAdminData } from "../useAdminData";
+import { SecHead, Modal } from "../common";
 import { Icon } from "../../components/Icon";
 
 const { useState } = React;
 const h = React.createElement;
 
-function RoleEditor({ initial, isNew, existingNames, onSave, onClose }: {
-  initial: Partial<Role> & { __new?: boolean };
-  isNew: boolean;
-  existingNames: string[];
-  onSave: (role: Partial<Role> & { __new?: boolean }) => void;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState(initial.name || "");
-  const [desc, setDesc] = useState(initial.desc || "");
-  const [policy, setPolicy] = useState(initial.policy ? [...initial.policy] : []);
-  const [draft, setDraft] = useState("");
-  const [err, setErr] = useState("");
-  const locked = initial.system; // system role name can't be renamed
+/* mappers.ts CAPS 키 11종 — admin.* / res.* 섹션 구분 표시용. */
+const ADMIN_CAPS = ["admin.users", "admin.permissions", "admin.roles", "admin.security", "admin.audit"];
+const RES_CAPS = ["res.read", "res.edit", "res.create", "res.delete", "res.export", "res.share"];
+const ALL_CAPS = [...ADMIN_CAPS, ...RES_CAPS];
 
-  const addChip = () => {
-    const v = draft.trim();
-    if (!v) return;
-    if (!policy.includes(v)) setPolicy((p) => [...p, v]);
-    setDraft("");
-  };
-  const save = () => {
-    const nm = name.trim();
-    if (!nm) { setErr("역할 이름을 입력하세요."); return; }
-    if (existingNames.filter((x) => x !== initial.name).includes(nm)) { setErr("이미 존재하는 역할 이름입니다."); return; }
-    onSave({ ...initial, name: nm, desc: desc.trim(), policy });
-  };
+const ID_RE = /^[a-z][a-z0-9-]*$/;
+const SYSTEM_TIP = "시스템 역할은 변경할 수 없습니다";
 
-  return h("div", { className: "modal-ov", onMouseDown: onClose },
-    h("div", { className: "modal", style: { width: "min(540px, 94vw)" }, onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
-      h("div", { className: "modal-head" },
-        h("div", { className: "micon" }, h(Icon, { name: "roles" })),
-        h("h3", null, isNew ? "역할 추가" : "역할 편집")),
-      h("div", { className: "modal-body", style: { paddingLeft: 20, paddingRight: 20 } },
-        h("div", { className: "field" },
-          h("label", { className: "flabel" }, "역할 이름", locked ? " (시스템 역할 — 변경 불가)" : ""),
-          h("input", { className: "tinput", value: name, disabled: locked, placeholder: "예: 검토자",
-            onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setName(e.target.value); setErr(""); } })),
-        h("div", { className: "field" },
-          h("label", { className: "flabel" }, "설명"),
-          h("textarea", { className: "tarea", value: desc, placeholder: "이 역할의 기본 정책을 설명하세요",
-            onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setDesc(e.target.value) })),
-        h("div", { className: "field" },
-          h("label", { className: "flabel" }, "정책 (권한 항목)"),
-          h("div", { className: "chip-wrap" },
-            policy.map((p, i) => h("span", { className: "chip chip-edit", key: i }, p,
-              h("button", { title: "삭제", onClick: () => setPolicy((arr) => arr.filter((_, j) => j !== i)) }, "×"))),
-            h("input", { className: "chip-add", value: draft, placeholder: "+ 항목 추가",
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value),
-              onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addChip(); } },
-              onBlur: addChip }))),
-        err && h("div", { style: { color: "#b3261e", fontSize: 12.5, marginTop: 12 } }, err)),
-      h("div", { className: "modal-foot" },
-        h("button", { className: "btn", onClick: onClose }, "취소"),
-        h("button", { className: "btn primary", onClick: save }, isNew ? "추가" : "저장"))));
+type ModalState =
+  | { kind: "create" }
+  | { kind: "edit"; role: ApiRole }
+  | { kind: "delete"; role: ApiRole }
+  | null;
+
+/** desc 자리 대체 — caps 라벨 요약 한 줄. */
+function capSummary(r: ApiRole): string {
+  if (r.caps.length === 0) return "부여된 권한이 없습니다 — 편집에서 권한을 추가하세요.";
+  const a = r.caps.filter((c) => c.startsWith("admin.")).length;
+  const s = r.caps.length - a;
+  const parts = [];
+  if (a > 0) parts.push("관리 권한 " + a + "개");
+  if (s > 0) parts.push("리소스 권한 " + s + "개");
+  return parts.join(" · ") + " 보유 — 유효 권한은 ACL 범위와의 교집합으로 결정됩니다.";
 }
 
 export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }) {
-  const [roles, setRoles] = useState(() => ADMIN_ROLES.map((r) => ({ ...r, policy: [...r.policy] })));
-  const [editing, setEditing] = useState<(Partial<Role> & { __new?: boolean }) | null>(null); // role obj | {__new:true} | null
+  const { roles, reload } = useAdminData();
+  const [modal, setModal] = useState<ModalState>(null);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ id: "", name: "", caps: [] as string[] });
 
-  const onSave = (role: Partial<Role> & { __new?: boolean }) => {
-    if (role.__new) {
-      const id = "role-" + Date.now().toString(36);
-      setRoles((rs) => [...rs, { id, name: role.name!, desc: role.desc!, policy: role.policy!, system: false, count: 0 }]);
-      toast("역할 \"" + role.name + "\" 을(를) 추가했습니다", "check");
-    } else {
-      setRoles((rs) => rs.map((r) => r.id === role.id ? { ...r, name: role.name!, desc: role.desc!, policy: role.policy! } : r));
-      toast("역할 \"" + role.name + "\" 을(를) 저장했습니다", "check");
+  /** 공통 변이 실행 — 성공 시 reload+toast 후 true, 실패 시 서버 메시지 토스트 후 false(모달 유지 판단용). */
+  const run = async (fn: () => Promise<unknown>, okMsg: string, icon?: string): Promise<boolean> => {
+    if (busy) return false;
+    setBusy(true);
+    try {
+      await fn();
+      await reload();
+      toast(okMsg, icon);
+      return true;
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "요청 실패");
+      return false;
+    } finally {
+      setBusy(false);
     }
-    setEditing(null);
   };
+
+  const openCreate = () => { setForm({ id: "", name: "", caps: [] }); setModal({ kind: "create" }); };
+  const openEdit = (r: ApiRole) => { setForm({ id: r.id, name: r.name, caps: [...r.caps] }); setModal({ kind: "edit", role: r }); };
+
+  const orderedCaps = () => ALL_CAPS.filter((c) => form.caps.includes(c));
+
+  const applyCreate = async () => {
+    const id = form.id.trim(), name = form.name.trim();
+    if (!ID_RE.test(id)) { toast("역할 ID는 소문자로 시작하고 소문자·숫자·하이픈만 사용할 수 있습니다"); return; }
+    if (!name) { toast("역할 이름을 입력하세요"); return; }
+    if (await run(() => AdminApi.createRole({ id, name, caps: orderedCaps() }), "역할 \"" + name + "\" 을(를) 추가했습니다", "roles")) setModal(null);
+  };
+  const applyEdit = async (r: ApiRole) => {
+    const name = form.name.trim();
+    if (!name) { toast("역할 이름을 입력하세요"); return; }
+    if (await run(() => AdminApi.updateRole(r.id, { name, caps: orderedCaps() }), "역할 \"" + name + "\" 을(를) 저장했습니다", "check")) setModal(null);
+  };
+  const applyDelete = async (r: ApiRole) => {
+    setModal(null);
+    await run(() => AdminApi.deleteRole(r.id), "역할 \"" + r.name + "\" 을(를) 삭제했습니다", "check");
+  };
+
+  const toggleCap = (c: string) =>
+    setForm((f) => ({ ...f, caps: f.caps.includes(c) ? f.caps.filter((x) => x !== c) : [...f.caps, c] }));
+
+  const capSection = (label: string, keys: string[]) =>
+    h("div", { className: "field" },
+      h("label", { className: "flabel" }, label),
+      h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px 14px" } },
+        keys.map((c) => h("label", { key: c, style: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text)", cursor: "pointer" } },
+          h("input", { type: "checkbox", checked: form.caps.includes(c), onChange: () => toggleCap(c) }),
+          h("span", null, capLabel(c)),
+          h("span", { className: "mono", style: { fontSize: 11, color: "var(--text-3)" } }, c)))));
+
+  const nameField = h("div", { className: "field" },
+    h("label", { className: "flabel" }, "역할 이름"),
+    h("input", { className: "tinput", value: form.name, placeholder: "예: 검토자",
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value })) }));
 
   return h("div", { className: "apage" },
     h(SecHead, { title: "역할 관리", hint: "역할별 기본 정책",
-      right: h("button", { className: "btn primary", onClick: () => setEditing({ __new: true, policy: [] }) },
+      right: h("button", { className: "btn primary", disabled: busy, onClick: openCreate },
         h(Icon, { name: "plus" }), "역할 추가") }),
     h("div", { className: "role-list" },
       roles.map((r) => h("div", { className: "role-card", key: r.id },
         h("div", { className: "rc-head" },
           h("span", { className: "rc-name" }, r.name),
           r.system && h("span", { className: "badge role" }, "시스템"),
-          h("span", { className: "badge role" }, r.count + "명"),
-          h("span", { style: { marginLeft: "auto" } },
-            h("button", { className: "btn sm", onClick: () => setEditing(r) }, h(Icon, { name: "edit" }), "편집"))),
-        h("div", { className: "rc-desc" }, r.desc),
-        h("div", { className: "rc-policy" }, r.policy.map((p, i) => h("span", { className: "chip", key: i }, p)))))),
-    editing && h(RoleEditor, {
-      initial: editing.__new ? { __new: true, name: "", desc: "", policy: [], system: false } : editing,
-      isNew: !!editing.__new,
-      existingNames: roles.map((r) => r.name),
-      onSave, onClose: () => setEditing(null),
-    })
+          h("span", { className: "badge role" }, r.userCount + "명"),
+          h("span", { style: { marginLeft: "auto", display: "flex", gap: 8 } },
+            h("button", { className: "btn sm", disabled: busy || r.system, title: r.system ? SYSTEM_TIP : undefined,
+              onClick: () => openEdit(r) }, h(Icon, { name: "edit" }), "편집"),
+            h("button", { className: "btn sm danger", disabled: busy || r.system, title: r.system ? SYSTEM_TIP : undefined,
+              onClick: () => setModal({ kind: "delete", role: r }) }, "삭제"))),
+        h("div", { className: "rc-desc" }, capSummary(r)),
+        h("div", { className: "rc-policy" }, r.caps.map((c) => h("span", { className: "chip", key: c }, capLabel(c))))))),
+    modal?.kind === "create" && h(Modal, {
+      icon: "roles", title: "역할 추가", confirmLabel: "추가",
+      onConfirm: () => void applyCreate(), onClose: () => setModal(null),
+    },
+      h("div", { className: "field" },
+        h("label", { className: "flabel" }, "역할 ID"),
+        h("input", { className: "tinput mono", value: form.id, autoFocus: true, placeholder: "예: reviewer",
+          onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, id: e.target.value })) }),
+        h("div", { style: { fontSize: 12, color: "var(--text-3)", marginTop: 5 } },
+          "소문자로 시작, 소문자·숫자·하이픈(-)만 사용. 생성 후 변경할 수 없습니다.")),
+      nameField,
+      capSection("관리 권한 (admin.*)", ADMIN_CAPS),
+      capSection("리소스 권한 (res.*)", RES_CAPS)),
+    modal?.kind === "edit" && h(Modal, {
+      icon: "roles", title: "역할 편집", confirmLabel: "저장",
+      onConfirm: () => void applyEdit(modal.role), onClose: () => setModal(null),
+    },
+      h("div", { className: "field" },
+        h("label", { className: "flabel" }, "역할 ID"),
+        h("input", { className: "tinput mono", value: form.id, disabled: true })),
+      nameField,
+      capSection("관리 권한 (admin.*)", ADMIN_CAPS),
+      capSection("리소스 권한 (res.*)", RES_CAPS)),
+    modal?.kind === "delete" && h(Modal, {
+      icon: "roles", iconWarn: true, title: "역할 삭제", confirmLabel: "삭제", confirmDanger: true,
+      onConfirm: () => void applyDelete(modal.role), onClose: () => setModal(null),
+    }, h("span", null, h("b", { style: { color: "var(--ink)" } }, modal.role.name), " 역할을 삭제합니다. 사용 중인 역할은 삭제할 수 없습니다. 계속할까요?"))
   );
 }
