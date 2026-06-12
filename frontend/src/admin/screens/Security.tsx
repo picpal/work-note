@@ -1,43 +1,35 @@
-/* Admin screen 7: Security settings */
+/* Admin screen 7: Security policy — read-only. 정책은 백엔드 코드/설정에 고정되어 변경 API가 없다. */
 import React from "react";
-import { ADMIN_SECURITY, Security as SecurityType } from "../data";
-import { SecHead, Switch } from "../common";
+import { SecHead } from "../common";
 import { Icon } from "../../components/Icon";
 
-const { useState } = React;
 const h = React.createElement;
 
-export function Security({ toast }: { toast: (msg: string, icon?: string) => void }) {
-  const [s, setS] = useState(() => ({ ...ADMIN_SECURITY }));
-  const [dirty, setDirty] = useState(false);
-  const set = (k: keyof SecurityType, v: number | boolean) => { setS((p) => ({ ...p, [k]: v })); setDirty(true); };
-  const save = () => { setDirty(false); toast("보안 설정을 저장했습니다", "check"); };
+const valueStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--ink)", textAlign: "right" };
 
-  const numRow = (title: string, desc: string, key: keyof SecurityType, unit: string, min: number, max: number) => h("div", { className: "frow" },
+function row(title: string, desc: string, value: string) {
+  return h("div", { className: "frow" },
     h("div", { className: "fmeta" }, h("div", { className: "ft" }, title), h("div", { className: "fd" }, desc)),
-    h("div", { className: "fctl" },
-      h("input", { className: "num-input", type: "number", value: s[key] as number, min, max, onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(key, Number(e.target.value)) }),
-      unit && h("span", { className: "unit" }, unit)));
-  const toggleRow = (title: string, desc: string, key: keyof SecurityType) => h("div", { className: "frow" },
-    h("div", { className: "fmeta" }, h("div", { className: "ft" }, title), h("div", { className: "fd" }, desc)),
-    h("div", { className: "fctl" }, h(Switch, { on: s[key] as boolean, onChange: (v: boolean) => set(key, v) })));
+    h("div", { className: "fctl" }, h("span", { style: valueStyle }, value)));
+}
 
+export function Security(_props: { toast: (msg: string, icon?: string) => void }) {
   return h("div", { className: "apage" },
-    h(SecHead, { title: "보안 설정", hint: "ISMS 정책 항목" }),
+    h(SecHead, { title: "보안 정책", hint: "서버 고정 정책 (읽기 전용)" }),
+    h("div", { className: "changebar", style: { position: "static", marginTop: 0, marginBottom: 16 } },
+      h(Icon, { name: "info" }),
+      h("span", { className: "txt" }, "보안 정책은 서버에 고정되어 있습니다. 변경이 필요하면 서버 설정·코드 수준에서 다룹니다.")),
     h("div", { className: "panel" },
       h("div", { className: "panel-head" }, h(Icon, { name: "lock" }), "비밀번호 정책"),
       h("div", { className: "panel-body" },
-        numRow("최소 길이", "비밀번호 최소 문자 수", "pwMinLen", "자", 6, 32),
-        toggleRow("복잡도 요구", "영문 대/소문자·숫자·특수문자 조합 필수", "pwComplexity"),
-        numRow("변경 주기", "비밀번호 강제 변경 주기 (0이면 미사용)", "pwRotateDays", "일", 0, 365))),
+        row("최소 길이", "비밀번호 최소 문자 수", "8자 (최대 128자)"),
+        row("해시 저장", "비밀번호 저장 방식", "PBKDF2-SHA256 · 120,000 iterations · 사용자별 salt"),
+        row("비밀번호 초기화", "관리자가 비밀번호를 리셋하면 해당 사용자의 기존 세션이 즉시 무효화됩니다", "기존 세션 즉시 무효화"))),
     h("div", { className: "panel", style: { marginTop: 16 } },
       h("div", { className: "panel-head" }, h(Icon, { name: "shield" }), "접근 · 세션"),
       h("div", { className: "panel-body" },
-        numRow("로그인 실패 잠금", "연속 실패 시 계정 잠금 횟수", "lockAttempts", "회", 1, 10),
-        numRow("세션 타임아웃", "유휴 상태 자동 로그아웃 시간", "sessionTimeout", "분", 5, 240),
-        toggleRow("신규 가입 관리자 승인 필수", "가입 신청을 관리자가 승인해야 계정이 활성화됩니다", "requireApproval"))),
-    h("div", { className: "btn-row", style: { marginTop: 18, justifyContent: "flex-end" } },
-      h("button", { className: "btn", disabled: !dirty, onClick: () => { setS({ ...ADMIN_SECURITY }); setDirty(false); } }, "되돌리기"),
-      h("button", { className: "btn primary", disabled: !dirty, onClick: save }, "변경 사항 저장"))
+        row("세션 타임아웃", "유휴 상태 자동 로그아웃 시간", "30분"),
+        row("신규 가입", "가입 신청은 관리자 승인 후 활성화됩니다 (pending → approve)", "관리자 승인 필수"),
+        row("감사 기록", "로그인 실패와 모든 변이 작업이 감사 로그에 기록됩니다", "로그인 실패 · 전체 변이 기록")))
   );
 }
