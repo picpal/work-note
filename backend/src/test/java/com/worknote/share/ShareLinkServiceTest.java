@@ -127,12 +127,28 @@ class ShareLinkServiceTest {
         service.resolve(once.token(), "emp1");
         assertThrows(() -> service.resolve(once.token(), "emp1"),
             VaultException.Status.NOT_FOUND, msg);
+        // 실패한 시도는 카운트를 소모하지 않음 — 404 폭탄으로 정당 열람수를 못 태움
+        assertThat(mapper.findById(once.id()).viewCount()).isEqualTo(1);
 
         // pin 불일치 — 일치자는 성공
         ShareLinkRow pinned = service.create("ss-n1", "emp1", null, null, List.of("emp2"));
         assertThrows(() -> service.resolve(pinned.token(), "emp3"),
             VaultException.Status.NOT_FOUND, msg);
+        assertThat(mapper.findById(pinned.id()).viewCount()).isZero();   // 불일치 시도 미소모
         assertThat(service.resolve(pinned.token(), "emp2").nodeId()).isEqualTo("ss-n1");
+    }
+
+    // pin 정리 — trim·빈 항목 제거·비면 NULL (결정 S11)
+    @Test
+    void pin은_trim되고_빈_항목이_제거되며_비면_NULL이다() {
+        note("ss-n1");
+        ShareLinkRow trimmed = service.create("ss-n1", "emp1", null, null,
+            List.of(" emp2 ", "", "  "));
+        assertThat(trimmed.pinEmps()).isEqualTo("[\"emp2\"]");
+        assertThat(service.resolve(trimmed.token(), "emp2").nodeId()).isEqualTo("ss-n1");
+
+        ShareLinkRow empty = service.create("ss-n1", "emp1", null, null, List.of("", " "));
+        assertThat(empty.pinEmps()).isNull();   // 전부 빈 항목 → 전 직원
     }
 
     // 6. 휴지통 = suspend (결정 S3)
