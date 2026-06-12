@@ -208,7 +208,7 @@ describe("AdminApi", () => {
   });
 
   it("audit은 필터 전부 비면 쿼리스트링 없이 호출한다", async () => {
-    mockJson({ total: 1, rows: [{ id: 1, at: "2026-06-12 09:00:00", who: "S1", act: "login.success", target: "—", ip: "10.0.0.1" }] });
+    mockJson({ total: 1, rows: [{ id: 1, at: "2026-06-12 09:00:00", who: "S1", act: "login.success", target: null, ip: "10.0.0.1" }] });
     const out = await AdminApi.audit({});
     expect(out.total).toBe(1);
     expect(fetch).toHaveBeenCalledWith("/api/admin/audit", expect.anything());

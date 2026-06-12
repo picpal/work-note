@@ -8,7 +8,7 @@ export interface ApiSpace { nodeId: string; teamId: string | null; }
 export interface ApiAclEntry { principalType: "user" | "team" | "all"; principalId: string; grantType: "read" | "edit" | "deny"; }
 export interface ApiAclRow extends ApiAclEntry { nodeId: string; }
 export interface ApiPublicFlag { nodeId: string; mode: "public" | "exclude"; }
-export interface ApiAudit { id: number; at: string; who: string; act: string; target: string; ip: string; }
+export interface ApiAudit { id: number; at: string; who: string; act: string; target: string | null; ip: string; }
 export interface AuditQuery { who?: string; act?: string; from?: string; to?: string; limit?: number; offset?: number; }
 
 /** 빈 문자열/undefined 필터는 쿼리에서 생략 — 백엔드가 빈 값을 필터로 오해하지 않게. */

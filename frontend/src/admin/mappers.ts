@@ -26,14 +26,15 @@ const ACTS: Record<string, string> = {
 };
 export function actLabel(act: string): string { return ACTS[act] ?? act; }
 
-/** Audit 화면 배지 색 분류 — 기존 mock actType 클래스(login/grant/approve/reset/revoke/deactivate/loginfail) 재사용. */
+/** Audit 화면 배지 색 분류 — 기존 mock 클래스(login/grant/approve/reset/revoke/loginfail) + 폴백 "etc"(Audit.tsx는 loginfail만 색 특수처리라 미지 클래스 무해). */
 export function actType(act: string): string {
   if (act.endsWith(".fail")) return "loginfail";
+  if (act === "login.success") return "login";
   if (act === "user.approve") return "approve";
   if (act === "user.reset") return "reset";
   if (act === "acl.set" || act.startsWith("public.") || act.startsWith("space.")) return "grant";
-  if (act === "user.update" || act === "role.delete" || act === "team.member.remove") return "revoke";
-  return "login";
+  if (act === "role.delete" || act === "team.member.remove") return "revoke";
+  return "etc";
 }
 
 export function roleName(roleId: string, roles: ApiRole[]): string {

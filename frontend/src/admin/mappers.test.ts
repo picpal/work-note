@@ -23,6 +23,10 @@ describe("mappers", () => {
     expect(actType("acl.set")).toBe("grant");
     expect(actType("user.reset")).toBe("reset");
     expect(actType("login.success")).toBe("login");
+    expect(actType("role.delete")).toBe("revoke");
+    expect(actType("logout")).toBe("etc");
+    expect(actType("user.update")).toBe("etc");
+    expect(actType("team.create")).toBe("etc");
   });
   it("roleName은 roles에서 찾고 없으면 id", () => {
     expect(roleName("admin", [{ id: "admin", name: "관리자", system: true, caps: [], userCount: 1 }])).toBe("관리자");
