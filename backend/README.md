@@ -1,6 +1,6 @@
 # backend
 
-work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) 구현 완료** — 127 tests green, local/server 모드 jar 스모크 검증 완료.
+work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) 구현 완료** — 194 tests green, local/server 모드 jar 스모크 검증 완료.
 
 ## 스택 (확정)
 
@@ -50,6 +50,7 @@ cd backend
 | 메서드 | 경로 | 설명 | 응답 |
 |--------|------|------|------|
 | POST | `/api/auth/login` | `{"emp", "password"}` 로그인 | 200 me / 401(자격 불일치 — 동일 메시지) / 403(disabled·pending) |
+| POST | `/api/auth/signup` | `{"emp", "name", "password"[, "email"]}` 가입 신청 — pending visitor 생성(무세션, allowlist) | 201 `{id, status}` / 409(사번 중복) / 400(비밀번호 8자 미만) |
 | POST | `/api/auth/logout` | 세션 종료 | 204 |
 | GET | `/api/auth/me` | 현재 주체 조회 | 200 `{id, emp, name, roleId, caps}` — local 모드는 합성 `local` admin |
 
@@ -65,6 +66,64 @@ cd backend
 | GET `/api/trash` | 본인 삭제분만 (관리자는 전체) |
 | POST `/api/trash/{id}/restore` | 삭제자 본인 또는 관리자 (휴지통 루트만 — 고아 방지) |
 | DELETE `/api/trash/{id}` | 관리자 전용 |
+
+### 관리자 API (server 모드, 관리자 전용 — local 모드는 무가드 통과)
+
+모든 엔드포인트 첫 줄 `AdminGuard.requireAdmin` — local(user=null) bypass, server 미인증 401·비관리자 403. 변이는 성공 후 감사 기록(`user.create`/`acl.set` 등 dot 명명), 조회는 기록 안 함.
+
+**사용자** (`/api/admin/users`)
+
+| 메서드 | 경로 | 설명 | 성공 |
+|--------|------|------|------|
+| GET | `/api/admin/users` | 전체 목록 (emp 정렬) | 200 |
+| POST | `/api/admin/users` | 관리자 직접 생성 (active) | 201 |
+| PATCH | `/api/admin/users/{id}` | name/email/roleId/status 부분 수정 — self 역할·상태 변경 422, 마지막 활성 admin 강등·비활성 422 | 200 |
+| POST | `/api/admin/users/{id}/approve` | pending→active (비pending 409) | 200 |
+| POST | `/api/admin/users/{id}/reset-password` | 새 salt+hash — 기존 세션 즉시 무효화 | 204 |
+
+**역할** (`/api/admin/roles`)
+
+| 메서드 | 경로 | 설명 | 성공 |
+|--------|------|------|------|
+| GET | `/api/admin/roles` | 목록 (`{id, name, system, caps, userCount}`) | 200 |
+| POST | `/api/admin/roles` | 생성 — caps는 KNOWN_CAPS 화이트리스트(미지 cap 422) | 201 |
+| PATCH | `/api/admin/roles/{id}` | name/caps 수정 — 시스템 역할 422, admin 역할 caps 락아웃 가드 | 200 |
+| DELETE | `/api/admin/roles/{id}` | 삭제 — 시스템 역할 422, 사용 중 409 | 204 |
+
+**팀** (`/api/admin/teams`)
+
+| 메서드 | 경로 | 설명 | 성공 |
+|--------|------|------|------|
+| GET | `/api/admin/teams` | 목록 (멤버 포함) | 200 |
+| POST | `/api/admin/teams` | 생성 | 201 |
+| PATCH | `/api/admin/teams/{id}` | 이름 변경 | 204 |
+| DELETE | `/api/admin/teams/{id}` | 삭제 — 소유 스페이스 있으면 409, 멤버십+해당 팀 ACL 정리 후 삭제 | 204 |
+| POST | `/api/admin/teams/{id}/members` | 멤버 추가 (`{userId}`) | 204 |
+| DELETE | `/api/admin/teams/{id}/members/{userId}` | 멤버 제거 | 204 |
+
+**스페이스** (`/api/admin/spaces`)
+
+| 메서드 | 경로 | 설명 | 성공 |
+|--------|------|------|------|
+| GET | `/api/admin/spaces` | 목록 | 200 |
+| PUT | `/api/admin/spaces/{nodeId}` | 지정/교체 (`{teamId?}`) — 최상위 활성 폴더만, 소유 팀 edit 자동 grant, 교체 시 구 팀 grant 잔존을 감사 target에 부기 | 204 |
+| DELETE | `/api/admin/spaces/{nodeId}` | 해제 | 204 |
+
+**ACL / public** (`/api/admin`)
+
+| 메서드 | 경로 | 설명 | 성공 |
+|--------|------|------|------|
+| GET | `/api/admin/acl` | 전체 ACL 목록 | 200 |
+| GET | `/api/admin/nodes/{id}/acl` | 노드 ACL 조회 | 200 |
+| PUT | `/api/admin/nodes/{id}/acl` | **replace-all** (`{entries: [{principalType, principalId, grantType}]}`) — 주체 존재 검증, 스페이스 소유 팀 grant 부재 시 감사 부기 | 204 |
+| PUT | `/api/admin/nodes/{id}/public` | public_flag upsert (`{mode: "public"\|"exclude"}`) | 204 |
+| DELETE | `/api/admin/nodes/{id}/public` | public_flag 제거 | 204 |
+
+**감사** (`/api/admin/audit`)
+
+| 메서드 | 경로 | 설명 | 성공 |
+|--------|------|------|------|
+| GET | `/api/admin/audit` | `?who=&act=&from=&to=&limit=&offset=` — who/act 정확 일치, from/to는 ISO 사전순, limit 기본 50·최대 200. 응답 `{total, rows}` | 200 |
 
 ## 아키텍처
 
@@ -92,6 +151,17 @@ cd backend
 10. **트리/휴지통 정책** — read 필터 트리에 경로 연결용 폴더 스텁(이름만, folder 타입 한정), move는 휴지통 격리(복구가 유일한 출구), restore는 휴지통 루트만(고아 방지), purge는 관리자 전용.
 11. **감사 = 사후 기록** — 컨트롤러에서 본 작업 성공 후 기록(작업 실패 시 감사 없음 — 의식적 트레이드오프). PATCH(디바운스 다발)는 제외, local 모드는 vault 감사 생략.
 
+### 3단계: 관리자 API
+
+1. **락아웃 방지 2중 규칙** — ① 자기 자신의 role/status 변경 금지(422) ② 마지막 활성 관리자 강등·비활성 금지(422). 여기에 역할 축 가드 추가: admin caps를 가진 역할에서 admin caps를 제거하는 수정은 그 역할 밖의 활성 관리자가 있어야 허용 — 시스템 역할 보호를 우회하는 커스텀 admin 역할 강등 경로 차단. 폐쇄망은 관리자 0명이 되면 복구 수단이 없다.
+2. **비밀번호 리셋 = salt 교체** — AuthFilter가 매 요청 세션의 salt와 DB salt를 비교하므로 리셋 즉시 기존 세션이 전부 무효화된다(분실·탈취 대응).
+3. **caps 화이트리스트 (fail-closed)** — RoleCaps는 DB JSON을 신뢰하므로 쓰기 시점에 KNOWN_CAPS 검증(미지 cap 422). 오타 caps가 들어가면 fail-open/lock 둘 다 가능했던 지뢰 제거.
+4. **ACL 쓰기 = 노드 단위 replace-all** — 관리 UI의 "노드 선택→편집→저장" 모델과 1:1. 동시 편집은 마지막 저장 승리 — `acl.set` 감사로 이전 상태 재구성 가능.
+5. **팀 삭제 시 멤버십+해당 팀 ACL 정리** — ACL 잔여 행은 팀 id 재사용 시 권한 부활(purge에서 확립한 원칙과 동일). 소유 스페이스가 있으면 409로 차단.
+6. **스페이스/ACL 변경 시 잔존·부재를 감사 target에 부기** — 스페이스 교체 시 구 팀 grant 잔존, ACL replace 시 스페이스 소유 팀 grant 부재를 자동 회수/보충하지 않고 감사에 가시화만 한다(자동 회수는 의도된 권한을 깨뜨릴 수 있음 — 보수적 동작).
+7. **public 폴더 하위 새 노트 자동 exclude** (스펙 §7) — VaultService.create에서 nearest public flag가 public이면 명시 exclude 엔트리 삽입 — 새 노트가 의도치 않게 공개되는 것 방지.
+8. **UNIQUE race는 DuplicateKeyException→409** — 사전 존재 검사와 INSERT 사이 race를 DB 제약이 받치고, 핸들러가 409로 변환.
+
 ## Oracle 전환 체크리스트
 
 1. `db/migration/oracle/` 디렉토리 추가 — V1 스키마의 TEXT → VARCHAR2/CLOB 매핑
@@ -102,12 +172,10 @@ cd backend
 ## 다음 계획 이월 항목
 
 - 공유 링크 (스펙 §6 — read 전용·만료·취소·로깅, `share_link` 테이블 V3 마이그레이션)
-- 관리자 API — 사용자/역할/팀/스페이스/ACL/public_flag CRUD (public_flag는 upsert 필요), 가입 승인 플로우, audit 조회
 - 프런트 연동 — 로그인 페이지, admin 페이지, 403 처리, me 기반 UI 가드
 - 30일 자동 purge 스케줄러
-- 이동 시 노출 변경 경고 (스펙 §7)
+- 이동 시 노출 변경 경고 (스펙 §7 — 비공개 노트의 public 폴더 이동 시 무경고 공개 포함)
 - `/tree` findActive 2회 조회 최적화
-- RoleCaps 캐시 (역할 수정 API와 함께 도입)
 - fire-and-forget 동기화 충돌 처리 (1단계 이월)
 - useVault 언로드 플러시 `sendBeacon` 일반화 (1단계 이월)
 
@@ -155,4 +223,4 @@ WORKNOTE_DB=/var/lib/worknote/worknote.db java -jar worknote-0.1.0.jar
   - `node`/`tag` 스키마(1·2단계 공통) + 권한 테이블(2단계)
   - 해석기: nearest-explicit + deny-우선 합집합 (재귀 CTE)
 
-> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)는 server 모드에서 enforce — 공유 링크·관리자 API·프런트 연동은 다음 계획.
+> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce — 공유 링크(V3)·프런트 연동·purge 스케줄러는 다음 계획.
