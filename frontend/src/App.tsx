@@ -12,7 +12,13 @@ import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareModal } from "./components/ShareModal";
 import { MoveModal } from "./components/MoveModal";
+import { MoveWarnDialog } from "./components/MoveWarnDialog";
 import { ConnectionLost } from "./components/ConnectionLost";
+import { canDropOn } from "./lib/dnd";
+import { VaultApi } from "./storage/VaultApi";
+import type { MovePreview } from "./storage/VaultApi";
+import { shouldWarn } from "./components/moveWarning";
+import { ApiError } from "./api/http";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { loadPending, clearAllPending } from "./state/pendingStore";
@@ -57,6 +63,10 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
+  const ROOT_DROP = "__ROOT__";
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [pendingWarn, setPendingWarn] = useState<{ id: string; parentId: string | null; preview: MovePreview } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string }>>([]);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const toolbarRef = useRef<ToolbarHandlers>({} as ToolbarHandlers);
@@ -180,6 +190,45 @@ export function App() {
     openMenu(x, y, items);
   };
 
+  // ---- 트리 노드 드래그앤드롭 이동 ----
+  const nodeName = (id: string) => {
+    const { node } = findNode(tree, id);
+    if (!node) return "";
+    return node.type === "folder" ? node.name : (node.title || "제목 없음");
+  };
+  const attemptDnDMove = async (id: string, parentId: string | null) => {
+    if (storageMode !== "http") { actions.move(id, parentId); toast("이동했습니다", "check"); return; }
+    try {
+      const p = await VaultApi.movePreview(id, parentId);
+      if (!shouldWarn(p).warn) { actions.move(id, parentId); toast("이동했습니다", "check"); return; }
+      setPendingWarn({ id, parentId, preview: p });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "이동할 수 없습니다");
+    }
+  };
+  const onNodeDragStart = (id: string, e: React.DragEvent) => {
+    setDraggingId(id);
+    try { e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move"; } catch (err) {}
+  };
+  const onNodeDragEnd = () => { setDraggingId(null); setDragOverId(null); };
+  const onNodeDragOver = (targetId: string | null, e: React.DragEvent) => {
+    if (!draggingId || !canDropOn(tree, draggingId, targetId)) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = "move"; } catch (err) {}
+    setDragOverId(targetId ?? ROOT_DROP);
+  };
+  const onNodeDragLeave = (targetId: string | null) => {
+    const token = targetId ?? ROOT_DROP;
+    setDragOverId((cur) => (cur === token ? null : cur));
+  };
+  const onNodeDrop = (targetId: string | null, e: React.DragEvent) => {
+    e.preventDefault();
+    const id = draggingId;
+    setDraggingId(null); setDragOverId(null);
+    if (!id || !canDropOn(tree, id, targetId)) return;
+    void attemptDnDMove(id, targetId);
+  };
+
   // ---- global shortcuts ----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -219,6 +268,8 @@ export function App() {
       showAdmin: storageMode === "local" || isAdmin,    // local 모드는 기존 동작 보존, http 모드는 관리자만
       showLogout: storageMode === "http" && me != null, // 세션이 있을 때만
       onLogout: logout,
+      draggingId, dragOverId,
+      onNodeDragStart, onNodeDragOver, onNodeDragLeave, onNodeDrop, onNodeDragEnd,
     }),
     createElement(
       "div", { className: "main" },
@@ -301,6 +352,12 @@ export function App() {
     settingsOpen && createElement(SettingsModal, { settings, onSet: set, onClose: () => setSettingsOpen(false) }),
     shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
     moveTarget && createElement(MoveModal, { node: moveTarget, tree, onMove: actions.move, onClose: () => setMoveTarget(null), toast }),
+    pendingWarn && createElement(MoveWarnDialog, {
+      name: nodeName(pendingWarn.id),
+      preview: pendingWarn.preview,
+      onConfirm: () => { actions.move(pendingWarn.id, pendingWarn.parentId); toast("이동했습니다", "check"); setPendingWarn(null); },
+      onCancel: () => setPendingWarn(null),
+    }),
     menu && createElement(ContextMenu, { x: menu.x, y: menu.y, items: menu.items, onClose: closeMenu }),
     // toasts
     createElement(

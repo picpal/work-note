@@ -17,10 +17,18 @@ interface RowProps {
   onContext: (x: number, y: number, node: VaultNode | null) => void;
   onRename: (id: string) => void;
   onRenameCommit: (id: string, value: string | null) => void;
+  draggingId: string | null;
+  dragOverId: string | null;            // 폴더 id 또는 "__ROOT__"
+  onNodeDragStart: (id: string, e: React.DragEvent) => void;
+  onNodeDragOver: (id: string | null, e: React.DragEvent) => void;
+  onNodeDragLeave: (id: string | null) => void;
+  onNodeDrop: (id: string | null, e: React.DragEvent) => void;
+  onNodeDragEnd: () => void;
 }
 
 function Row(props: RowProps): React.ReactElement {
-  const { node, depth, activeId, renamingId, onToggle, onOpen, onContext, onRename, onRenameCommit } = props;
+  const { node, depth, activeId, renamingId, onToggle, onOpen, onContext, onRename, onRenameCommit,
+    draggingId, dragOverId, onNodeDragStart, onNodeDragOver, onNodeDragLeave, onNodeDrop, onNodeDragEnd } = props;
   const isFolder = node.type === "folder";
   const isActive = node.id === activeId;
   const renaming = node.id === renamingId;
@@ -32,13 +40,28 @@ function Row(props: RowProps): React.ReactElement {
 
   const pad = 6 + depth * INDENT;
 
+  // 드롭 타깃은 폴더만 — 폴더일 때만 over/leave/drop 핸들러를 객체로 합친다.
+  const dropProps = isFolder
+    ? {
+        onDragOver: (e: React.DragEvent) => onNodeDragOver(node.id, e),
+        onDragLeave: () => onNodeDragLeave(node.id),
+        onDrop: (e: React.DragEvent) => { e.stopPropagation(); onNodeDrop(node.id, e); },
+      }
+    : {};
+
   const rowEl = React.createElement(
     "div",
     {
-      className: "row" + (isActive ? " active" : ""),
+      className: "row" + (isActive ? " active" : "")
+        + (isFolder && dragOverId === node.id ? " drop-target" : "")
+        + (draggingId === node.id ? " dragging" : ""),
       style: { paddingLeft: pad },
+      draggable: !renaming,
       onClick: () => { if (renaming) return; isFolder ? onToggle(node.id) : onOpen(node as NoteNode); },
       onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onContext(e.clientX, e.clientY, node); },
+      onDragStart: (e: React.DragEvent) => { e.stopPropagation(); onNodeDragStart(node.id, e); },
+      onDragEnd: () => onNodeDragEnd(),
+      ...dropProps,
     },
     isFolder
       ? React.createElement("span", { className: "twirl" + ((node as { open?: boolean }).open ? " open" : "") }, React.createElement(Icon, { name: "chevron" }))
@@ -96,6 +119,13 @@ interface SidebarProps {
   showLogout?: boolean;  // 로그아웃 버튼 노출 (http 모드 + 세션 존재)
   onLogout?: () => void;
   onSettings?: () => void;
+  draggingId: string | null;
+  dragOverId: string | null;            // 폴더 id 또는 "__ROOT__"
+  onNodeDragStart: (id: string, e: React.DragEvent) => void;
+  onNodeDragOver: (id: string | null, e: React.DragEvent) => void;
+  onNodeDragLeave: (id: string | null) => void;
+  onNodeDrop: (id: string | null, e: React.DragEvent) => void;
+  onNodeDragEnd: () => void;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -126,8 +156,11 @@ export function Sidebar(props: SidebarProps) {
     ),
     React.createElement(
       "div", {
-        className: "tree",
+        className: "tree" + (props.dragOverId === "__ROOT__" ? " root-drop" : ""),
         onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); props.onContext(e.clientX, e.clientY, null); },
+        onDragOver: (e: React.DragEvent) => props.onNodeDragOver(null, e),
+        onDragLeave: () => props.onNodeDragLeave(null),
+        onDrop: (e: React.DragEvent) => props.onNodeDrop(null, e),
       },
       tree.map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0 }))
     ),
