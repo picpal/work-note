@@ -144,11 +144,14 @@ class MovePreviewApiTest {
     // 7. 변경 없는 이동(같은 상속 형제 폴더) 후 audit target은 접미사 없음
     @Test
     void moveWithNoExposureChangeAuditsBareTarget() throws Exception {
-        // root 폴더에 팀 grant + public → 자식 형제 폴더 s1, s2 동일 상속 → delta 없음
+        // root 폴더에 팀 grant + public → 자식 형제 폴더 s1, s2 동일 상속 → delta 상쇄(접미사 없음)
         nodes.insert(new NodeRow("root", null, "folder", "ROOT", 4, null, null, null, null));
         nodes.insert(new NodeRow("s1", "root", "folder", "S1", 1, null, null, null, null));
         nodes.insert(new NodeRow("s2", "root", "folder", "S2", 2, null, null, null, null));
         nodes.insert(new NodeRow("nn", "s1", "note", "NN", 1, "x", "2026-06-11T09:00:00", null, null));
+        // 상속이 root에서 내려오므로 s1·s2 양쪽에서 동일 — 이동해도 노출 불변
+        acl.insertAcl(new AclRow("team", "t-ops", "root", "read"));
+        acl.upsertPublicFlag("root", "public");
         MockHttpSession admin = login("admin", "boot-pass-1");
         mvc.perform(post("/api/nodes/nn/move").session(admin).contentType(APPLICATION_JSON)
                 .content("{\"parentId\":\"s2\"}"))
