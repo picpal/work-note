@@ -8,6 +8,7 @@ import { storageMode } from "../storage";
 import { ApiError } from "../api/http";
 import { validatePasswordChange } from "./passwordValidation";
 import { validateProfile } from "./profileValidation";
+import { MIN_PASSWORD_LENGTH } from "../lib/passwordPolicy";
 
 const h = React.createElement;
 
@@ -112,7 +113,7 @@ export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail
               onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setCurPw(e.target.value); setPwMsg(null); } })),
           h("div", { className: "pf-field" },
             h("label", null, "새 비밀번호"),
-            h("input", { className: "pf-input", type: "password", value: newPw, placeholder: "10자 이상",
+            h("input", { className: "pf-input", type: "password", value: newPw, placeholder: MIN_PASSWORD_LENGTH + "자 이상",
               onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setNewPw(e.target.value); setPwMsg(null); } })),
           h("div", { className: "pf-field" },
             h("label", null, "새 비밀번호 확인"),

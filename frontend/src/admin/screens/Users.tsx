@@ -6,6 +6,7 @@ import { ApiError } from "../../api/http";
 import { useAdminData } from "../useAdminData";
 import { SecHead, Empty, Modal, StatusBadge, RoleBadge } from "../common";
 import { Icon } from "../../components/Icon";
+import { MIN_PASSWORD_LENGTH } from "../../lib/passwordPolicy";
 
 const { useState, useMemo } = React;
 const h = React.createElement;
@@ -69,12 +70,12 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
     if (await run(() => AdminApi.updateUser(u.id, { roleId: pickRole }), u.emp + " 역할을 변경했습니다", "roles")) setModal(null);
   };
   const applyResetPw = async (u: ApiUser) => {
-    if (pw.length < 8) { toast("비밀번호는 8자 이상이어야 합니다"); return; }
+    if (pw.length < MIN_PASSWORD_LENGTH) { toast("비밀번호는 " + MIN_PASSWORD_LENGTH + "자 이상이어야 합니다"); return; }
     if (await run(() => AdminApi.resetPassword(u.id, pw), "비밀번호를 초기화했습니다 — 해당 사용자의 기존 세션은 무효화됩니다", "refresh")) setModal(null);
   };
   const applyCreate = async () => {
     if (!form.emp.trim() || !form.name.trim()) { toast("사번과 이름을 입력하세요"); return; }
-    if (form.password.length < 8) { toast("비밀번호는 8자 이상이어야 합니다"); return; }
+    if (form.password.length < MIN_PASSWORD_LENGTH) { toast("비밀번호는 " + MIN_PASSWORD_LENGTH + "자 이상이어야 합니다"); return; }
     const body = { emp: form.emp.trim(), name: form.name.trim(), roleId: form.roleId, password: form.password,
       ...(form.email.trim() ? { email: form.email.trim() } : {}) };
     if (await run(() => AdminApi.createUser(body), form.emp.trim() + " 계정을 생성했습니다", "userCheck")) setModal(null);
@@ -159,7 +160,7 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
       h("div", { style: { marginBottom: 10 } },
         h("b", { className: "mono", style: { color: "var(--ink)" } }, modal.user.emp), " 계정의 비밀번호를 새로 설정합니다. 초기화 시 해당 사용자의 기존 세션은 모두 무효화됩니다.",
         modal.user.id === me?.id ? " 본인 계정이므로 초기화 직후 다시 로그인해야 합니다." : null),
-      fld("새 비밀번호 (8자 이상)", h("input", { className: "tinput", type: "password", value: pw, autoFocus: true,
+      fld("새 비밀번호 (10자 이상)", h("input", { className: "tinput", type: "password", value: pw, autoFocus: true,
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPw(e.target.value) }))),
     modal?.kind === "create" && h(Modal, {
       icon: "userCheck", title: "사용자 추가", confirmLabel: "생성",
@@ -174,7 +175,7 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
       fld("역할", h("select", { className: "aselect", style: { width: "100%" }, value: form.roleId,
         onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, roleId: e.target.value })) },
         roles.map((r) => h("option", { key: r.id, value: r.id }, r.name)))),
-      fld("비밀번호 (8자 이상)", h("input", { className: "tinput", type: "password", value: form.password,
+      fld("비밀번호 (10자 이상)", h("input", { className: "tinput", type: "password", value: form.password,
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, password: e.target.value })) })))
   );
 }

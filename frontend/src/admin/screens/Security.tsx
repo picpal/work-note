@@ -22,7 +22,7 @@ export function Security(_props: { toast: (msg: string, icon?: string) => void }
     h("div", { className: "panel" },
       h("div", { className: "panel-head" }, h(Icon, { name: "lock" }), "비밀번호 정책"),
       h("div", { className: "panel-body" },
-        row("최소 길이", "비밀번호 최소 문자 수", "8자 (최대 128자)"),
+        row("최소 길이", "비밀번호 최소 문자 수", "10자 (최대 128자)"),
         row("해시 저장", "비밀번호 저장 방식", "PBKDF2-SHA256 · 120,000 iterations · 사용자별 salt"),
         row("비밀번호 초기화", "관리자가 비밀번호를 리셋하면 해당 사용자의 기존 세션이 즉시 무효화됩니다", "기존 세션 즉시 무효화"))),
     h("div", { className: "panel", style: { marginTop: 16 } },

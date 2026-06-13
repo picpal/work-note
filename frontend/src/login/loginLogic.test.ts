@@ -7,16 +7,20 @@ describe("validateSignup", () => {
     expect(validateSignup({ emp: "", name: "n", email: "", password: "12345678", password2: "12345678" }))
       .toContain("사번");
   });
-  it("비밀번호 8자 미만이면 메시지", () => {
-    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "1234567", password2: "1234567" }))
-      .toContain("8자");
+  it("비밀번호 9자 이하이면 메시지", () => {
+    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "123456789", password2: "123456789" }))
+      .toContain("10자");
+  });
+  it("비밀번호 10자이면 길이 통과", () => {
+    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "1234567890", password2: "1234567890" }))
+      .toBeNull();
   });
   it("비밀번호 불일치면 메시지", () => {
-    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "12345678", password2: "12345679" }))
+    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "1234567890", password2: "1234567891" }))
       .toContain("일치");
   });
   it("정상이면 null", () => {
-    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "12345678", password2: "12345678" }))
+    expect(validateSignup({ emp: "S1", name: "n", email: "", password: "1234567890", password2: "1234567890" }))
       .toBeNull();
   });
 });
