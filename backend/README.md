@@ -1,6 +1,6 @@
 # backend
 
-work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) + 5단계(30일 purge 스케줄러 + 공유 링크 §6) 구현 완료** — 230 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선 + 공유 모달·share.html·admin 공유 링크 화면) 완료.
+work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) + 5단계(30일 purge 스케줄러 + 공유 링크 §6) + 6단계(이동 노출 변경 경고 §7) 구현 완료** — 248 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선 + 공유 모달·share.html·admin 공유 링크 화면 + 이동 폴더 피커·노출 경고 모달) 완료.
 
 ## 스택 (확정)
 
@@ -36,7 +36,8 @@ cd backend
 | GET | `/api/tree` | 전체 트리 조회 | 200 |
 | POST | `/api/nodes` | 노드 생성 | 201 |
 | PATCH | `/api/nodes/{id}` | 노드 수정 (title/content/tags 등) | 204 |
-| POST | `/api/nodes/{id}/move` | 노드 이동 | 204 |
+| POST | `/api/nodes/{id}/move` | 노드 이동 (노출 변경 시 감사 target에 접미사) | 204 |
+| GET | `/api/nodes/{id}/move-preview?parentId=` | 이동 시 노출(접근 집합) 변경 미리보기 | 200 |
 | DELETE | `/api/nodes/{id}` | 휴지통으로 이동 (soft-delete) | 204 |
 | GET | `/api/trash` | 휴지통 목록 | 200 |
 | POST | `/api/trash/{id}/restore` | 휴지통 복구 | 204 |
@@ -189,7 +190,7 @@ cd backend
 - 401 리다이렉트 시 디바운스 pending patch 유실 — 복구 스냅샷 (4단계 리뷰에서 식별)
 - http 모드 백엔드 다운 시 시드 fallback "가짜 정상" — 차단 배너 (4단계 리뷰에서 식별)
 - ProfileModal http 모드 저장·비밀번호 변경이 localStorage mock에만 동작 — 본인 비밀번호 변경 API 필요 (4단계 리뷰에서 식별)
-- 이동 시 노출 변경 경고 (스펙 §7 — 비공개 노트의 public 폴더 이동 시 무경고 공개 포함)
+- 폴더 이동 시 서브트리 노드별 개별 override 열거 (현재 폴더 레벨 노출 신호만 — 6단계 §7 구현 범위 결정 M7)
 - pin 사번 존재 검증 (현재 미검증 — 오타 시 아무도 못 여는 링크, fail-closed라 무해. 5단계 리뷰에서 식별)
 - 만료·취소 공유 링크 행 정리 배치 (현재 영구 보존 — 감사 재구성 우선. 5단계 리뷰에서 식별)
 - 실패한 공유 열람 시도(404) 감사 기록 — 프로빙 탐지용 (5단계 리뷰에서 식별, 스펙 §6은 성공 열람만 명시)
@@ -241,4 +242,4 @@ WORKNOTE_DB=/var/lib/worknote/worknote.db java -jar worknote-0.1.0.jar
   - `node`/`tag` 스키마(1·2단계 공통) + 권한 테이블(2단계)
   - 해석기: nearest-explicit + deny-우선 합집합 (재귀 CTE)
 
-> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce, 프런트 연동(4단계)·공유 링크+purge 스케줄러(5단계)까지 완료.
+> 1단계(개인 PC·단일 사용자)는 local 모드로 권한 엔진 없이 SQLite 영속화만. 2단계 코어(인증+권한+감사)와 3단계 관리자 API는 server 모드에서 enforce, 프런트 연동(4단계)·공유 링크+purge 스케줄러(5단계)·이동 노출 변경 경고(6단계 §7)까지 완료.

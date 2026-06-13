@@ -66,7 +66,7 @@ MovePreview = {
   6. 라벨(M11): TeamMapper.findAll()→id→name 맵, `all:@all`→"전 직원", `user:{id}`→ UserMapper로 emp 조회(소수라 findById 허용. 적절한 배치 메서드 있으면 사용).
 - 의존성: `AclMapper acl, SpaceMapper space, TeamMapper teams, UserMapper users`. 순수 계산은 AclResolver 재사용.
 
-- [ ] **Step 1: 실패 테스트 작성** — 기존 백엔드 테스트 컨벤션(@SpringBootTest + `properties="spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared"`, @BeforeEach 정리, JdbcTemplate 또는 매퍼로 시드). `mv-` 접두 노드. 케이스:
+- [x] **Step 1: 실패 테스트 작성** — 기존 백엔드 테스트 컨벤션(@SpringBootTest + `properties="spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared"`, @BeforeEach 정리, JdbcTemplate 또는 매퍼로 시드). `mv-` 접두 노드. 케이스:
   1. **공개 노출 시작**: 비공개 노트(public flag 없음)를 public 폴더 아래로 이동 → `publicBefore=false, publicAfter=true`.
   2. **공개 노출 종료**: public 폴더 안 노트를 비공개 폴더로 → `publicBefore=true, publicAfter=false`.
   3. **ACL 상속 추가**: 대상 폴더에 팀T edit grant가 있으면 이동 후 `added`에 팀T 라벨 포함.
@@ -74,10 +74,10 @@ MovePreview = {
   5. **cross-space**: 서로 다른 최상위(소유 팀 A→B) 간 이동 → `crossSpace=true, fromSpace="A팀", toSpace="B팀"`. 같은 최상위 내 이동 → `crossSpace=false`.
   6. **변경 없음**: 같은 부모 형제 폴더(동일 grant·public)로 이동 → added/removed 비고 publicBefore==publicAfter.
   7. **루트로 이동**: newParentId=null → chainAfter=[node]만, public/space 자기 자신 기준.
-- [ ] **Step 2: red 확인** — `cd backend && ./gradlew test --tests ExposureServiceTest`
-- [ ] **Step 3: 구현** (위 설계)
-- [ ] **Step 4: green + 전체 회귀** — `./gradlew test` (현재 230 + 신규)
-- [ ] **Step 5: 커밋** — `git add backend/src && git commit -m "feat: 이동 노출 델타 계산 ExposureService (스펙 §7)"`
+- [x] **Step 2: red 확인** — `cd backend && ./gradlew test --tests ExposureServiceTest`
+- [x] **Step 3: 구현** (위 설계)
+- [x] **Step 4: green + 전체 회귀** — `./gradlew test` (현재 230 + 신규)
+- [x] **Step 5: 커밋** — `git add backend/src && git commit -m "feat: 이동 노출 델타 계산 ExposureService (스펙 §7)"`
 
 ## Task 2: move-preview 엔드포인트 + 이동 감사 보강 (백엔드)
 
@@ -106,7 +106,7 @@ MovePreview = {
   4. 폴더를 자기 자손으로 preview → 422.
   5. 실제 move 후 audit_log target에 `[공개노출 시작]` 접미사 기록(비공개→public 케이스).
   6. 변경 없는 이동 → 접미사 없는 `id -> pid` 그대로.
-- [ ] Step 1 red 테스트 → Step 2 red 확인(`--tests MovePreviewApiTest`) → Step 3 구현 → Step 4 `./gradlew test` ×1 → Step 5 커밋 `feat: move-preview 엔드포인트 + 이동 노출 감사 보강 (스펙 §7)`
+- [x] Step 1 red 테스트 → Step 2 red 확인(`--tests MovePreviewApiTest`) → Step 3 구현 → Step 4 `./gradlew test` ×1 → Step 5 커밋 `feat: move-preview 엔드포인트 + 이동 노출 감사 보강 (스펙 §7)`
 
 ## Task 3: 프런트 이동 배관 (tree/reducer/useVault/useVaultSync)
 
@@ -154,7 +154,7 @@ MovePreview = {
   - tree.test.ts: moveNode(노트를 폴더로/폴더 이동/루트로/자신 거부/자손 거부), isSelfOrDescendant, folderOptions(자신·자손 제외·루트 미포함·경로 라벨).
   - vaultReducer.test.ts: move 액션이 노드를 옮긴다 + 자손 이동은 무변경.
   - useVaultSync.test.ts: 기존 "maps move to move" 유지 + (가능하면) synced.move가 actions.move 호출 + move op fire 단언(기존 패턴대로).
-- [ ] Step 1 red 테스트 → Step 2 `pnpm test` red → Step 3 구현 → Step 4 green(현재 100 + 신규) → Step 5 커밋 `feat: 프런트 이동 배관 — moveNode·folderOptions·reducer·sync`
+- [x] Step 1 red 테스트 → Step 2 `pnpm test` red → Step 3 구현 → Step 4 green(현재 100 + 신규) → Step 5 커밋 `feat: 프런트 이동 배관 — moveNode·folderOptions·reducer·sync`
 
 ## Task 4: VaultApi.movePreview + MoveModal + 컨텍스트 메뉴 (프런트)
 
@@ -210,14 +210,14 @@ MovePreview = {
 - 테스트:
   - moveWarning.test.ts: 공개 노출 시작(strong), 공개 해제(warn·약), cross-space(strong), added/removed(warn), 변경 없음(warn=false). lines 내용 단언.
   - VaultApi.test.ts: movePreview 경로(parentId 있을 때 `?parentId=...`, null이면 쿼리 없음, 특수문자 인코딩).
-- [ ] Step 1 red 테스트 → Step 2 `pnpm test` red → Step 3 구현 → Step 4 `pnpm test` green + `pnpm build` → Step 5 커밋 `feat: 이동 폴더 피커 + 노출 경고 모달 + 컨텍스트 메뉴`
+- [x] Step 1 red 테스트 → Step 2 `pnpm test` red → Step 3 구현 → Step 4 `pnpm test` green + `pnpm build` → Step 5 커밋 `feat: 이동 폴더 피커 + 노출 경고 모달 + 컨텍스트 메뉴`
 
 ## Task 5: 통합 검증 + 문서 갱신
 
 **Files:** `backend/README.md`, `CLAUDE.md`, 이 플랜 체크박스, 메모리.
 
-- [ ] **Step 1: 전체 테스트** — `cd backend && ./gradlew test && ./gradlew test`, `cd frontend && pnpm test && pnpm test` 각 2회 green.
-- [ ] **Step 2: 빌드 + jar 스모크** — `pnpm build` → `./gradlew bootJar` → server 모드 jar:
+- [x] **Step 1: 전체 테스트** — `cd backend && ./gradlew test && ./gradlew test`, `cd frontend && pnpm test && pnpm test` 각 2회 green.
+- [x] **Step 2: 빌드 + jar 스모크** — `pnpm build` → `./gradlew bootJar` → server 모드 jar:
   1. admin 로그인 → 200
   2. 폴더 A(public 토글)·폴더 B 생성, 노트 N을 B 아래 생성
   3. GET `/api/nodes/N/move-preview?parentId={A}` → publicAfter 확인
@@ -225,7 +225,7 @@ MovePreview = {
   5. GET `/api/admin/audit?act=node.move` → target에 `[공개노출 시작]` 접미사 확인
   6. 사이클 preview(폴더를 자기 자손으로) → 422
   + local 모드: 노트 생성→move-preview(빈 결과여도 200)→move 204.
-- [ ] **Step 3: 문서 + 메모리** — README API 표에 move-preview 추가, 이월 목록에서 "이동 노출 변경 경고(§7)" 제거, CLAUDE.md 갱신, 플랜 체크박스 [x], 메모리 신규 파일 + MEMORY.md 인덱스. 커밋 `docs: 이동 노출 변경 경고 완료 반영 (§7)`.
+- [x] **Step 3: 문서 + 메모리** — README API 표에 move-preview 추가, 이월 목록에서 "이동 노출 변경 경고(§7)" 제거, CLAUDE.md 갱신, 플랜 체크박스 [x], 메모리 신규 파일 + MEMORY.md 인덱스. 커밋 `docs: 이동 노출 변경 경고 완료 반영 (§7)`.
 
 ---
 
