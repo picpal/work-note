@@ -96,6 +96,23 @@ public class AuthService {
         return salt;
     }
 
+    /** 본인 프로필(name/email) 수정 — 역할·상태·credential은 불변. email 공백은 null로 정규화. */
+    @Transactional
+    public UserRow updateProfile(String userId, String name, String email) {
+        UserRow current = users.findById(userId);
+        if (current == null) {
+            throw VaultException.invalid("사용자를 찾을 수 없습니다");
+        }
+        if (name == null || name.isBlank()) {
+            throw VaultException.invalid("이름은 빈 값일 수 없습니다");
+        }
+        String normalizedEmail = (email != null && !email.isBlank()) ? email.trim() : null;
+        UserRow merged = new UserRow(current.id(), current.emp(), normalizedEmail, name.trim(),
+            current.roleId(), current.status(), current.lastLogin());
+        users.update(merged);
+        return merged;
+    }
+
     /** 세션 사용자의 caps 조회 — 후속 AuthFilter·me 엔드포인트에서 사용. */
     public Set<String> caps(UserRow user) {
         return roleCaps.of(user.roleId());

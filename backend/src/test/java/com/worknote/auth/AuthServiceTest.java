@@ -106,4 +106,33 @@ class AuthServiceTest {
             .isInstanceOf(VaultException.class)
             .satisfies(e -> assertThat(((VaultException) e).status()).isEqualTo(VaultException.Status.INVALID));
     }
+
+    @Test
+    void updateProfileChangesNameAndEmail() {
+        createUser("u1", "10001", "operator", "active", "pw-current");
+        UserRow updated = auth.updateProfile("u1", "새이름", "new@corp.local");
+        assertThat(updated.name()).isEqualTo("새이름");
+        assertThat(updated.email()).isEqualTo("new@corp.local");
+        UserRow row = users.findById("u1");
+        assertThat(row.name()).isEqualTo("새이름");
+        assertThat(row.email()).isEqualTo("new@corp.local");
+        assertThat(row.roleId()).isEqualTo("operator");
+        assertThat(row.status()).isEqualTo("active");
+    }
+
+    @Test
+    void updateProfileBlankEmailNormalizesToNull() {
+        createUser("u1", "10001", "operator", "active", "pw-current");
+        UserRow updated = auth.updateProfile("u1", "이름", "   ");
+        assertThat(updated.email()).isNull();
+        assertThat(users.findById("u1").email()).isNull();
+    }
+
+    @Test
+    void updateProfileBlankNameIs422() {
+        createUser("u1", "10001", "operator", "active", "pw-current");
+        assertThatThrownBy(() -> auth.updateProfile("u1", "  ", "x@corp.local"))
+            .isInstanceOf(VaultException.class)
+            .satisfies(e -> assertThat(((VaultException) e).status()).isEqualTo(VaultException.Status.INVALID));
+    }
 }
