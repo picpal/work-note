@@ -92,8 +92,12 @@ public class VaultService {
         }
     }
 
-    @Transactional
-    public void move(String id, String newParentId) {
+    /**
+     * move의 검증부만 분리 — preview와 move가 동일 검증(404/422)을 공유하기 위함. 동작 불변.
+     * requireActive(id) + (newParentId != null이면 requireActiveFolder + 사이클 체크).
+     */
+    @Transactional(readOnly = true)
+    public void validateMove(String id, String newParentId) {
         requireActive(id);   // 휴지통 노드는 이동 불가 — trash/update와 동일 패턴 (복구가 유일한 출구)
         if (newParentId != null) {
             requireActiveFolder(newParentId);
@@ -101,6 +105,11 @@ public class VaultService {
                 throw VaultException.invalid("자기 자신 또는 하위로 이동할 수 없습니다: " + id);
             }
         }
+    }
+
+    @Transactional
+    public void move(String id, String newParentId) {
+        validateMove(id, newParentId);
         mapper.move(id, newParentId, mapper.maxPosition(newParentId) + 1);
     }
 
