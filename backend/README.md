@@ -1,6 +1,6 @@
 # backend
 
-work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) + 5단계(30일 purge 스케줄러 + 공유 링크 §6) + 6단계(이동 노출 변경 경고 §7) 구현 완료** — 248 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선 + 공유 모달·share.html·admin 공유 링크 화면 + 이동 폴더 피커·노출 경고 모달) 완료.
+work-note 서버. 단일 실행 jar (정적 frontend 서빙 + 노드 단위 REST API + SQLite). **1단계 + 2단계 코어(세션 인증 + 권한 엔진 + 감사 로그) + 3단계 관리자 API(가입 승인·사용자/역할/팀/스페이스/ACL/public/감사 조회) + 5단계(30일 purge 스케줄러 + 공유 링크 §6) + 6단계(이동 노출 변경 경고 §7) + 4단계 이월 마감(본인 비밀번호 변경 API·401 편집 유실 복구·백엔드 다운 차단 배너) 구현 완료** — 259 tests green, local/server 모드 jar 스모크 검증 완료. 프런트 연동(4단계: 로그인·가입 + admin 8스크린 실 API 배선 + 공유 모달·share.html·admin 공유 링크 화면 + 이동 폴더 피커·노출 경고 모달 + 본인 비밀번호 변경·편집 유실 복구·다운 차단 화면) 완료.
 
 ## 스택 (확정)
 
@@ -67,6 +67,7 @@ cd backend
 | POST | `/api/auth/login` | `{"emp", "password"}` 로그인 | 200 me / 401(자격 불일치 — 동일 메시지) / 403(disabled·pending) |
 | POST | `/api/auth/signup` | `{"emp", "name", "password"[, "email"]}` 가입 신청 — pending visitor 생성(무세션, allowlist) | 201 `{id, status}` / 409(사번 중복) / 400(비밀번호 8자 미만) |
 | POST | `/api/auth/logout` | 세션 종료 | 204 |
+| POST | `/api/auth/change-password` | `{"currentPassword", "newPassword"}` 본인 비밀번호 변경 — 세션 salt 갱신(본인 세션 유지·타 기기 세션 무효) + 감사 `auth.password.change` | 204 / 422(현재 비번 불일치·새 비번 10자 미만·동일) / 401(미인증) / 403(local 모드) |
 | GET | `/api/auth/me` | 현재 주체 조회 | 200 `{id, emp, name, roleId, caps}` — local 모드는 합성 `local` admin |
 
 ### 권한 모델 적용 현황 (server 모드)
@@ -187,9 +188,8 @@ cd backend
 
 ## 다음 계획 이월 항목
 
-- 401 리다이렉트 시 디바운스 pending patch 유실 — 복구 스냅샷 (4단계 리뷰에서 식별)
-- http 모드 백엔드 다운 시 시드 fallback "가짜 정상" — 차단 배너 (4단계 리뷰에서 식별)
-- ProfileModal http 모드 저장·비밀번호 변경이 localStorage mock에만 동작 — 본인 비밀번호 변경 API 필요 (4단계 리뷰에서 식별)
+- 본인 프로필(name/email) 수정 실 API — 현재 localStorage mock 유지 (admin user PATCH는 타인 관리용. 본인 비밀번호 변경 마감 시 스코프 분리, D11)
+- 비밀번호 최소 길이 정책 불일치 — 가입 8자(`SignupRequest @Size(min=8)`) vs 본인 변경 10자(`AuthService.changePassword`·프런트 검증). 변경 플로우는 프런트·백엔드 모두 10자로 내부 일관, 두 플로우 통일 여부는 제품 결정 대기
 - 폴더 이동 시 서브트리 노드별 개별 override 열거 (현재 폴더 레벨 노출 신호만 — 6단계 §7 구현 범위 결정 M7)
 - pin 사번 존재 검증 (현재 미검증 — 오타 시 아무도 못 여는 링크, fail-closed라 무해. 5단계 리뷰에서 식별)
 - 만료·취소 공유 링크 행 정리 배치 (현재 영구 보존 — 감사 재구성 우선. 5단계 리뷰에서 식별)
