@@ -14,6 +14,7 @@ import { ShareModal } from "./components/ShareModal";
 import { MoveModal } from "./components/MoveModal";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
+import { loadPending, clearAllPending } from "./state/pendingStore";
 import { useSession } from "./state/useSession";
 import { repository, storageMode } from "./storage";
 import { usePersist } from "./state/usePersist";
@@ -100,6 +101,25 @@ export function App() {
   useEffect(() => {
     if (!ready) return;
     void bootstrapIfEmpty(tree, toast);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  // ---- 미저장 편집 복구 (HTTP 모드: 401/크래시로 유실된 디바운스 편집을 재로그인 후 재적용·재전송) ----
+  const recoveredRef = useRef(false);
+  useEffect(() => {
+    if (storageMode !== "http" || !ready || recoveredRef.current) return;
+    recoveredRef.current = true;
+    const pending = loadPending();
+    const ids = Object.keys(pending);
+    if (ids.length === 0) return;
+    clearAllPending(); // 존재 노트만 재적용이 다시 미러링 — 사라진 노트는 자연 정리
+    let n = 0;
+    for (const id of ids) {
+      if (!findNode(tree, id).node) continue; // 그 사이 삭제된 노트는 건너뜀
+      actions.updateNote(id, pending[id]);    // synced.updateNote → 재미러링 + 디바운스 재전송
+      n++;
+    }
+    if (n > 0) toast("미저장 변경 " + n + "건을 복구해 다시 저장합니다", "check");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 

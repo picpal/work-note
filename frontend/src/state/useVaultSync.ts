@@ -6,6 +6,7 @@ import { VaultApi, ApiError } from "../storage/VaultApi";
 import type { VaultApiType } from "../storage/VaultApi";
 import { storageMode, repository } from "../storage";
 import { HttpVaultRepository } from "../storage/HttpVaultRepository";
+import { savePending, clearPending } from "./pendingStore";
 import type { VaultTree } from "../types";
 import type { useVault } from "./useVault";
 
@@ -111,11 +112,16 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
   const pendingRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; patch: MergedPatch }>());
 
   // 안정 ref만 닫아두므로 첫 렌더 인스턴스를 useMemo/useEffect가 공유해도 안전
-  const fire = (op: SyncOp) => {
-    syncAction(VaultApi, op).catch((e: unknown) => {
-      if (e instanceof ApiError && e.status === 401) return; // 세션 만료 — 전역 on401 리다이렉트가 처리
-      toastRef.current("서버 동기화 실패: " + (e instanceof Error ? e.message : String(e)));
-    });
+  const fire = (op: SyncOp, onSuccess?: () => void) => {
+    syncAction(VaultApi, op)
+      .then(() => onSuccess?.())
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 401) return; // 세션 만료 — 전역 on401 리다이렉트가 처리(pending은 localStorage에 남아 복구됨)
+        // 401 외 4xx(404 노트없음·403 권한회수 등)는 재시도해도 영원히 실패 → update 미러를 버려 복구 루프를 끊는다.
+        // 5xx·네트워크 오류는 일시적이므로 미러 보존(다음 세션에서 재전송). create/move 등은 pending 미러 대상 아님.
+        if (op.kind === "update" && e instanceof ApiError && e.status >= 400 && e.status < 500) clearPending(op.id);
+        toastRef.current("서버 동기화 실패: " + (e instanceof Error ? e.message : String(e)));
+      });
   };
 
   const synced = useMemo<VaultActions>(() => {
@@ -133,7 +139,8 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
         fire({ kind: "rename", id, name: value });
       },
       remove: (id) => {
-        cancelPending(id); // 삭제된 노트로 늦은 PATCH가 날아가지 않도록
+        cancelPending(id);   // 삭제된 노트로 늦은 PATCH가 날아가지 않도록
+        clearPending(id);    // 미전송 미러도 함께 폐기
         actionsRef.current.remove(id);
         fire({ kind: "remove", id });
       },
@@ -150,9 +157,10 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
         if (patch.title !== undefined) merged.title = patch.title; // flush 때 name으로 변환
         if (patch.content !== undefined) merged.content = patch.content;
         if (patch.tags !== undefined) merged.tags = patch.tags;
+        savePending(id, merged);   // write-through — 401/크래시로 끊겨도 미전송분 복구 가능
         const timer = setTimeout(() => {
           pendingRef.current.delete(id);
-          fire(buildUpdateOp(id, merged));
+          fire(buildUpdateOp(id, merged), () => clearPending(id)); // 서버 확정 시에만 미러 제거
         }, PATCH_DEBOUNCE);
         pendingRef.current.set(id, { timer, patch: merged });
       },
@@ -175,7 +183,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
     return () => {
       for (const [id, p] of pendingRef.current) {
         clearTimeout(p.timer);
-        fire(buildUpdateOp(id, p.patch));
+        fire(buildUpdateOp(id, p.patch), () => clearPending(id));
       }
       pendingRef.current.clear();
     };
