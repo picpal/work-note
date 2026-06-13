@@ -169,6 +169,38 @@ class ExposureServiceTest {
     }
 
     @Test
+    void denyLiftedOnMoveAppearsInAdded() {
+        // 노출 경고의 핵심: 원본 체인의 deny가 대상에서 풀려 읽히게 됨 → added
+        node("mv-src", null, "folder");
+        node("mv-dst", null, "folder");
+        node("mv-note", "mv-src", "note");
+        teams.insertTeam("t-pay", "결제팀");
+        acl.insertAcl(new AclRow("team", "t-pay", "mv-src", "deny"));   // 원본에서 차단
+        acl.insertAcl(new AclRow("team", "t-pay", "mv-dst", "read"));   // 대상에선 허용
+
+        MovePreview p = exposure.preview("mv-note", "mv-dst");
+
+        assertThat(p.added()).containsExactly("결제팀");   // deny→read = 새로 읽게 됨
+        assertThat(p.removed()).isEmpty();
+    }
+
+    @Test
+    void denyImposedOnMoveAppearsInRemoved() {
+        // 반대: 원본에서 읽던 팀이 대상 deny로 차단됨 → removed
+        node("mv-src", null, "folder");
+        node("mv-dst", null, "folder");
+        node("mv-note", "mv-src", "note");
+        teams.insertTeam("t-pay", "결제팀");
+        acl.insertAcl(new AclRow("team", "t-pay", "mv-src", "read"));
+        acl.insertAcl(new AclRow("team", "t-pay", "mv-dst", "deny"));
+
+        MovePreview p = exposure.preview("mv-note", "mv-dst");
+
+        assertThat(p.added()).isEmpty();
+        assertThat(p.removed()).containsExactly("결제팀");   // read→deny = 더는 못 읽음
+    }
+
+    @Test
     void labelsResolveUserEmpAndAtAllAndSortDeterministically() {
         // 대상에 user/team/@all grant 동시 → 라벨 해석 + 결정적 정렬(라벨 사전순) 확인
         node("mv-src", null, "folder");
