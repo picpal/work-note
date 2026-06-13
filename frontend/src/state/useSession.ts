@@ -4,7 +4,7 @@ import { AuthApi } from "../api/auth";
 import type { Me } from "../api/auth";
 import { storageMode } from "../storage";
 
-export function useSession(): { me: Me | null; isAdmin: boolean; logout: () => void } {
+export function useSession(): { me: Me | null; setMe: (m: Me | null) => void; isAdmin: boolean; logout: () => void } {
   const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
@@ -16,5 +16,5 @@ export function useSession(): { me: Me | null; isAdmin: boolean; logout: () => v
     AuthApi.logout().finally(() => { location.href = "login.html"; });
   };
 
-  return { me, isAdmin: me?.caps.includes("admin.users") ?? false, logout };
+  return { me, setMe, isAdmin: me?.caps.includes("admin.users") ?? false, logout };
 }

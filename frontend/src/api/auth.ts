@@ -6,6 +6,7 @@ export interface Me {
   emp: string;
   name: string;
   roleId: string;
+  email: string | null;
   caps: string[];
 }
 
@@ -25,4 +26,6 @@ export const AuthApi = {
   me: () => req<Me>("/auth/me"),
   changePassword: (currentPassword: string, newPassword: string) =>
     req<void>("/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
+  updateProfile: (name: string, email: string) =>
+    req<Me>("/auth/update-profile", { method: "POST", body: JSON.stringify({ name, email: email.trim() || undefined }) }),
 };

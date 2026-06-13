@@ -64,7 +64,7 @@ export function App() {
   const currentEmp = (function () { try { return sessionStorage.getItem("wn.session") || "S2019-0007"; } catch (e) { return "S2019-0007"; } })();
 
   // ---- session (http 모드 전용 — local 모드는 me=null 고정, 기존 mock 표시 유지) ----
-  const { me, isAdmin, logout } = useSession();
+  const { me, setMe, isAdmin, logout } = useSession();
   const meLabel = me ? me.name + " (" + me.emp + ")" : currentEmp;
 
   // ---- theme ----
@@ -293,7 +293,8 @@ export function App() {
       onOpen: openNote,
     }),
     profileOpen && createElement(ProfileModal, {
-      emp: me ? me.emp : currentEmp, role: me ? me.roleId : "운영자", name: me?.name,
+      emp: me ? me.emp : currentEmp, role: me ? me.roleId : "운영자", name: me?.name, email: me?.email,
+      onSaved: setMe,
       onClose: () => setProfileOpen(false),
       toast,
     }),

@@ -63,3 +63,27 @@ describe("AuthApi.changePassword", () => {
     });
   });
 });
+
+describe("AuthApi.updateProfile", () => {
+  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("POST로 name/email 전송하고 Me 반환", async () => {
+    const me = { id: "u1", emp: "10001", name: "새이름", email: "x@corp.local", roleId: "operator", caps: [] };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve(me) });
+    const res = await AuthApi.updateProfile("새이름", "x@corp.local");
+    expect(res).toEqual(me);
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toContain("/auth/update-profile");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ name: "새이름", email: "x@corp.local" });
+  });
+
+  it("빈 email은 body에서 생략", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    await AuthApi.updateProfile("이름", "");
+    const body = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    expect(body).toEqual({ name: "이름" });
+    expect("email" in body).toBe(false);
+  });
+});

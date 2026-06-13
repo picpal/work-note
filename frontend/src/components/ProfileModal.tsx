@@ -3,9 +3,11 @@ import { useState } from "react";
 import React from "react";
 import { Icon } from "./Icon";
 import { AuthApi } from "../api/auth";
+import type { Me } from "../api/auth";
 import { storageMode } from "../storage";
 import { ApiError } from "../api/http";
 import { validatePasswordChange } from "./passwordValidation";
+import { validateProfile } from "./profileValidation";
 
 const h = React.createElement;
 
@@ -19,26 +21,41 @@ interface ProfileModalProps {
   emp?: string;
   role?: string;
   name?: string; // http 모드 세션 사용자 이름 — 있으면 localStorage mock보다 우선
+  email?: string | null; // http 모드 세션 이메일 — 있으면 localStorage mock보다 우선
   onClose: () => void;
+  onSaved?: (me: Me) => void; // http 모드 프로필 저장 성공 시 세션(me) 갱신
   toast?: (message: string, icon: string) => void;
 }
 
-export function ProfileModal({ emp, role, name: sessionName, onClose, toast }: ProfileModalProps) {
+export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail, onClose, onSaved, toast }: ProfileModalProps) {
   const init = loadProfile(emp);
   const [name, setName] = useState(sessionName || init.name);
-  const [email, setEmail] = useState(init.email);
+  const [email, setEmail] = useState(storageMode === "http" ? (sessionEmail ?? "") : init.email);
   const [savedInfo, setSavedInfo] = useState(false);
+  const [infoMsg, setInfoMsg] = useState<{ type: string; text: string } | null>(null);
 
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
   const [pwMsg, setPwMsg] = useState<{ type: string; text: string } | null>(null);
 
-  const saveInfo = () => {
-    if (!email.trim()) { return; }
-    try { localStorage.setItem(PKEY, JSON.stringify({ name: name.trim(), email: email.trim() })); } catch (e) {}
-    setSavedInfo(true);
-    toast && toast("프로필을 저장했습니다", "check");
+  const saveInfo = async () => {
+    if (storageMode !== "http") {
+      try { localStorage.setItem(PKEY, JSON.stringify({ name: name.trim(), email: email.trim() })); } catch (e) {}
+      setSavedInfo(true); setInfoMsg(null);
+      toast && toast("프로필을 저장했습니다", "check");
+      return;
+    }
+    const err = validateProfile(name);
+    if (err) { setInfoMsg({ type: "err", text: err }); return; }
+    try {
+      const updated = await AuthApi.updateProfile(name.trim(), email.trim());
+      setSavedInfo(true); setInfoMsg(null);
+      onSaved && onSaved(updated);
+      toast && toast("프로필을 저장했습니다", "check");
+    } catch (e) {
+      setInfoMsg({ type: "err", text: e instanceof ApiError ? e.message : "프로필 저장에 실패했습니다." });
+    }
   };
 
   const changePw = async () => {
@@ -78,11 +95,12 @@ export function ProfileModal({ emp, role, name: sessionName, onClose, toast }: P
           h("div", { className: "pf-field" },
             h("label", null, "이름"),
             h("input", { className: "pf-input", value: name, placeholder: "이름을 입력하세요",
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setName(e.target.value); setSavedInfo(false); } })),
+              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setName(e.target.value); setSavedInfo(false); setInfoMsg(null); } })),
           h("div", { className: "pf-field" },
             h("label", null, "이메일"),
             h("input", { className: "pf-input", type: "email", value: email, placeholder: "name@corp.local",
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setEmail(e.target.value); setSavedInfo(false); } })),
+              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setEmail(e.target.value); setSavedInfo(false); setInfoMsg(null); } })),
+          infoMsg && h("div", { className: "pf-msg " + infoMsg.type }, infoMsg.text),
           h("div", { className: "pf-foot" },
             h("button", { className: "pf-btn primary", onClick: saveInfo }, savedInfo ? "저장됨" : "정보 저장"))),
         // password section
