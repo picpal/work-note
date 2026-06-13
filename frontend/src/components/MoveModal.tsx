@@ -7,6 +7,7 @@ import type { MovePreview } from "../storage/VaultApi";
 import { ApiError } from "../api/http";
 import { storageMode } from "../storage";
 import { shouldWarn } from "./moveWarning";
+import { MoveWarnContent } from "./MoveWarnDialog";
 import { folderOptions, findNode } from "../lib/tree";
 import type { VaultTree } from "../types";
 
@@ -68,8 +69,6 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
     }
   };
 
-  const warn = preview ? shouldWarn(preview) : null;
-
   const body =
     phase === "pick"
       ? h("div", { className: "pf-sec" },
@@ -97,11 +96,7 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
             h("button", { className: "pf-btn", onClick: onClose }, "취소"),
             h("button", { className: "pf-btn primary", disabled: !selected || busy, onClick: onMoveClick }, "이동")))
       : h("div", { className: "pf-sec" },
-          h("div", { className: "pf-sec-label" }, "이동 시 변경 사항"),
-          (warn?.lines ?? []).map((line, i) =>
-            h("div", { className: "mv-warn-line", key: i }, line)),
-          h("div", { className: "pf-msg " + (warn?.strong ? "err" : "ok") },
-            warn?.strong ? "노출 범위가 넓어집니다. 계속하시겠습니까?" : "계속하시겠습니까?"),
+          h(MoveWarnContent, { preview: preview! }),
           h("div", { className: "pf-foot" },
             h("button", { className: "pf-btn", onClick: () => setPhase("pick") }, "취소"),
             h("button", { className: "pf-btn danger", disabled: busy, onClick: doMove }, "이동")));
