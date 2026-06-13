@@ -6,6 +6,8 @@ import { newId } from "../lib/id";
 import { SEED } from "../seed";
 import type { VaultTree, NoteNode } from "../types";
 import type { VaultRepository } from "../storage/VaultRepository";
+import { storageMode } from "../storage";
+import { isBackendDown } from "./loadErrorPolicy";
 
 const SAVE_DEBOUNCE = 5000; // persist 5s after the last change (typing pause)
 
@@ -15,6 +17,7 @@ export function useVault(repo: VaultRepository = defaultRepo) {
   const [tree, dispatch] = useReducer(vaultReducer, null, () => dedupeIds(SEED));
   const [savedTick, setSavedTick] = useState(0); // increments each time a debounced save lands
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false); // http 백엔드 다운 → App 차단 화면
   const firstRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeRef = useRef(tree);
@@ -33,8 +36,9 @@ export function useVault(repo: VaultRepository = defaultRepo) {
       setReady(true);
     }).catch((e) => {
       console.warn("vault load failed — falling back to seed", e);
+      if (isBackendDown(e, storageMode)) setLoadError(true); // http 다운: seed를 '정상'인 양 보여주지 않고 차단
       readyRef.current = true;
-      setReady(true); // 시드 트리로 렌더 (저장은 readyRef 가드로 계속 동작)
+      setReady(true); // 시드 트리로 렌더 (차단 화면이 App에서 우선)
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -89,5 +93,5 @@ export function useVault(repo: VaultRepository = defaultRepo) {
       return node;
     },
   };
-  return { tree, actions, savedTick, ready };
+  return { tree, actions, savedTick, ready, loadError };
 }

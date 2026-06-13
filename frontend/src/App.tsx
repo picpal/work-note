@@ -12,6 +12,7 @@ import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareModal } from "./components/ShareModal";
 import { MoveModal } from "./components/MoveModal";
+import { ConnectionLost } from "./components/ConnectionLost";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { loadPending, clearAllPending } from "./state/pendingStore";
@@ -46,7 +47,7 @@ const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: s
 ];
 
 export function App() {
-  const { tree, actions: rawActions, savedTick, ready } = useVault(repository);
+  const { tree, actions: rawActions, savedTick, ready, loadError } = useVault(repository);
   const { settings, set } = useSettings();
   const [activeId, setActiveId] = usePersist<string | null>("wn.activeId", null);
   const [collapsed, setCollapsed] = usePersist<boolean>("wn.sbCollapsed", false);
@@ -99,7 +100,7 @@ export function App() {
 
   // 빈 서버였으면 시드 1회 업로드 (HTTP 모드 한정 — 내부 가드)
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || loadError) return; // 차단(다운) 상태에선 어떤 동기화도 돌지 않는다
     void bootstrapIfEmpty(tree, toast);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
@@ -107,7 +108,8 @@ export function App() {
   // ---- 미저장 편집 복구 (HTTP 모드: 401/크래시로 유실된 디바운스 편집을 재로그인 후 재적용·재전송) ----
   const recoveredRef = useRef(false);
   useEffect(() => {
-    if (storageMode !== "http" || !ready || recoveredRef.current) return;
+    if (storageMode !== "http" || !ready || loadError || recoveredRef.current) return; // 차단 시 헛 PATCH 방지
+
     recoveredRef.current = true;
     const pending = loadPending();
     const ids = Object.keys(pending);
@@ -200,6 +202,7 @@ export function App() {
 
   const callTb = (fn: (h: ToolbarHandlers) => void) => fn(toolbarRef.current);
 
+  if (loadError) return createElement(ConnectionLost, { onRetry: () => location.reload() });
   if (!ready) return null;
 
   return createElement(
