@@ -2,6 +2,10 @@
 import { useState } from "react";
 import React from "react";
 import { Icon } from "./Icon";
+import { AuthApi } from "../api/auth";
+import { storageMode } from "../storage";
+import { ApiError } from "../api/http";
+import { validatePasswordChange } from "./passwordValidation";
 
 const h = React.createElement;
 
@@ -37,15 +41,23 @@ export function ProfileModal({ emp, role, name: sessionName, onClose, toast }: P
     toast && toast("프로필을 저장했습니다", "check");
   };
 
-  const changePw = () => {
-    setPwMsg(null);
-    if (!curPw || !newPw || !newPw2) { setPwMsg({ type: "err", text: "모든 비밀번호 항목을 입력하세요." }); return; }
-    if (newPw.length < 10) { setPwMsg({ type: "err", text: "새 비밀번호는 10자 이상이어야 합니다." }); return; }
-    if (newPw !== newPw2) { setPwMsg({ type: "err", text: "새 비밀번호가 일치하지 않습니다." }); return; }
-    if (newPw === curPw) { setPwMsg({ type: "err", text: "현재 비밀번호와 다른 비밀번호를 사용하세요." }); return; }
-    setCurPw(""); setNewPw(""); setNewPw2("");
-    setPwMsg(null);
-    toast && toast("비밀번호를 변경했습니다", "check");
+  const changePw = async () => {
+    if (storageMode !== "http") {
+      // local 모드(무인증 단일 PC) — 서버 신원이 없어 변경 대상 자체가 없음(검증보다 선행)
+      setPwMsg({ type: "err", text: "로컬 모드에서는 비밀번호를 변경할 수 없습니다." });
+      return;
+    }
+    const err = validatePasswordChange(curPw, newPw, newPw2);
+    if (err) { setPwMsg({ type: "err", text: err }); return; }
+    try {
+      await AuthApi.changePassword(curPw, newPw);
+      setCurPw(""); setNewPw(""); setNewPw2("");
+      setPwMsg(null);
+      toast && toast("비밀번호를 변경했습니다", "check");
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "비밀번호 변경에 실패했습니다.";
+      setPwMsg({ type: "err", text: msg });
+    }
   };
 
   return h("div", { className: "pf-overlay", onMouseDown: onClose },

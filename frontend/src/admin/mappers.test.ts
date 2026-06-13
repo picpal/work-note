@@ -16,8 +16,8 @@ describe("mappers", () => {
     expect(KNOWN_CAPS).toHaveLength(11);
     for (const c of KNOWN_CAPS) expect(capLabel(c), c + " 라벨 누락").not.toBe(c);
   });
-  it("KNOWN_ACTS는 30종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
-    expect(KNOWN_ACTS).toHaveLength(30);
+  it("KNOWN_ACTS는 31종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
+    expect(KNOWN_ACTS).toHaveLength(31);
     for (const a of KNOWN_ACTS) expect(actLabel(a), a + " 라벨 누락").not.toBe(a);
   });
   it("공유 링크 감사 라벨 3종", () => {

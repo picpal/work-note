@@ -40,3 +40,26 @@ describe("AuthApi", () => {
     expect(fetch).toHaveBeenCalledWith("/api/auth/me", expect.anything());
   });
 });
+
+describe("AuthApi.changePassword", () => {
+  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("POST /auth/change-password 로 두 비번을 본문에 담아 호출", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, status: 204, json: () => Promise.resolve(undefined) });
+    await AuthApi.changePassword("cur-pw-123", "new-pw-9999");
+    expect(fetch).toHaveBeenCalledWith("/api/auth/change-password", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ currentPassword: "cur-pw-123", newPassword: "new-pw-9999" }),
+    }));
+  });
+
+  it("422 응답은 ApiError(status 422, 서버 메시지)로 던진다", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false, status: 422, json: () => Promise.resolve({ error: "현재 비밀번호가 올바르지 않습니다" }),
+    });
+    await expect(AuthApi.changePassword("wrong", "new-pw-9999")).rejects.toMatchObject({
+      name: "ApiError", status: 422, message: "현재 비밀번호가 올바르지 않습니다",
+    });
+  });
+});

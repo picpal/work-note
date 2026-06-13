@@ -20,7 +20,7 @@ export const KNOWN_CAPS: string[] = [
 
 const ACTS: Record<string, string> = {
   "login.success": "로그인", "login.fail": "로그인 실패", logout: "로그아웃",
-  signup: "가입 신청", "signup.fail": "가입 실패",
+  signup: "가입 신청", "signup.fail": "가입 실패", "auth.password.change": "비밀번호 변경",
   "user.create": "사용자 생성", "user.update": "사용자 변경", "user.approve": "계정 승인", "user.reset": "비밀번호 초기화",
   "role.create": "역할 생성", "role.update": "역할 변경", "role.delete": "역할 삭제",
   "team.create": "팀 생성", "team.update": "팀 변경", "team.delete": "팀 삭제",
@@ -33,9 +33,9 @@ const ACTS: Record<string, string> = {
 };
 export function actLabel(act: string): string { return ACTS[act] ?? act; }
 
-/** 백엔드가 기록하는 act 30종 — canonical 순서(인증 → user → role → team → acl/public/space → node → share). ACTS 라벨 맵과 정합은 테스트로 가드. */
+/** 백엔드가 기록하는 act 31종 — canonical 순서(인증 → user → role → team → acl/public/space → node → share). ACTS 라벨 맵과 정합은 테스트로 가드. */
 export const KNOWN_ACTS: string[] = [
-  "login.success", "login.fail", "logout", "signup", "signup.fail",
+  "login.success", "login.fail", "logout", "signup", "signup.fail", "auth.password.change",
   "user.create", "user.update", "user.approve", "user.reset",
   "role.create", "role.update", "role.delete",
   "team.create", "team.update", "team.delete", "team.member.add", "team.member.remove",

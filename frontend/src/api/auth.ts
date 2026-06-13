@@ -23,4 +23,6 @@ export const AuthApi = {
     req<{ id: string; status: string }>("/auth/signup", { method: "POST", body: JSON.stringify(form) }),
   logout: () => req<void>("/auth/logout", { method: "POST" }),
   me: () => req<Me>("/auth/me"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req<void>("/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
 };
