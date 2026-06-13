@@ -115,6 +115,35 @@ export function removeNode(tree: VaultTree, id: string): VaultTree {
   return removeAt(tree, id) ?? tree;
 }
 
+// id가 ancestorId 자신 또는 그 자손인지 (폴더 자손만 — 노트는 자식 없음)
+export function isSelfOrDescendant(tree: VaultTree, ancestorId: string, id: string): boolean {
+  if (ancestorId === id) return true;
+  const { node } = findNode(tree, ancestorId);
+  if (!node || node.type !== "folder") return false;
+  let hit = false;
+  walkTree(node.children, (n) => { if (n.id === id) hit = true; });
+  return hit;
+}
+
+// 이동: 자기 자신/자손 폴더로는 금지(무변경), 그 외 removeNode + insertChild
+export function moveNode(tree: VaultTree, id: string, newParentId: string | null): VaultTree {
+  if (newParentId != null && isSelfOrDescendant(tree, id, newParentId)) return tree;
+  const { node } = findNode(tree, id);
+  if (!node) return tree;
+  return insertChild(removeNode(tree, id), newParentId, node);
+}
+
+// 이동 대상 후보 폴더(자신·자손 제외). 라벨은 "A / B / C" 경로. 루트는 호출측에서 별도 추가.
+export function folderOptions(tree: VaultTree, excludeId: string): Array<{ id: string; label: string }> {
+  const out: Array<{ id: string; label: string }> = [];
+  walkTree(tree, (n, _p, _d, path) => {
+    if (n.type !== "folder") return;
+    if (isSelfOrDescendant(tree, excludeId, n.id)) return;
+    out.push({ id: n.id, label: path.concat(n.name).join(" / ") });
+  });
+  return out;
+}
+
 // flatten all notes with their folder path, for search
 export function flattenNotes(tree: VaultTree): Array<{ note: NoteNode; path: string[] }> {
   const out: Array<{ note: NoteNode; path: string[] }> = [];

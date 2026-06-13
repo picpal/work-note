@@ -33,4 +33,18 @@ describe("vaultReducer", () => {
     const t = vaultReducer(base(), { type: "collapseAll" });
     expect((t[0] as FolderNode).open).toBe(false);
   });
+  it("move relocates a node to a new parent", () => {
+    const t = vaultReducer(base(), { type: "move", id: "n1", parentId: null });
+    expect((t[0] as FolderNode).children).toHaveLength(0); // gone from f1
+    expect(t[t.length - 1].id).toBe("n1"); // now at root
+  });
+  it("move into own descendant is a no-op", () => {
+    const tree: VaultTree = [
+      { id: "f1", type: "folder", name: "A", open: true, children: [
+        { id: "f2", type: "folder", name: "B", open: true, children: [] },
+      ] },
+    ];
+    const t = vaultReducer(tree, { type: "move", id: "f1", parentId: "f2" });
+    expect(t).toBe(tree); // unchanged
+  });
 });

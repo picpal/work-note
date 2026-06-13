@@ -1,5 +1,5 @@
 import type { VaultTree, VaultNode, NoteNode } from "../types";
-import { walkTree, updateNode, insertChild, removeNode } from "../lib/tree";
+import { walkTree, updateNode, insertChild, removeNode, moveNode } from "../lib/tree";
 
 const clone = <T>(t: T): T => JSON.parse(JSON.stringify(t));
 
@@ -10,6 +10,7 @@ export type VaultAction =
   | { type: "insert"; folderId: string | null; node: VaultNode }
   | { type: "rename"; id: string; value: string }
   | { type: "remove"; id: string }
+  | { type: "move"; id: string; parentId: string | null }
   | { type: "updateNote"; id: string; patch: Partial<NoteNode> }
   | { type: "replace"; tree: VaultTree };
 
@@ -32,6 +33,8 @@ export function vaultReducer(tree: VaultTree, a: VaultAction): VaultTree {
       });
     case "remove":
       return removeNode(tree, a.id);
+    case "move":
+      return moveNode(tree, a.id, a.parentId);
     case "updateNote":
       return updateNode(tree, a.id, (n) => {
         Object.assign(n, a.patch);

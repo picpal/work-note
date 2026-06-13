@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds } from "./tree";
+import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions } from "./tree";
 import type { VaultTree, FolderNode, NoteNode } from "../types";
 
 const note = (id: string, title: string): NoteNode => ({ id, type: "note", title, tags: [], updated: "2026-06-10", content: "" });
@@ -65,6 +65,74 @@ describe("tree", () => {
     const seen: Array<[string, number]> = [];
     walkTree(make(), (n, _p, d) => seen.push([n.id, d]));
     expect(seen).toContainEqual(["n2", 2]);
+  });
+});
+
+describe("isSelfOrDescendant", () => {
+  it("self → true", () => {
+    expect(isSelfOrDescendant(make(), "f1", "f1")).toBe(true);
+  });
+  it("direct child → true", () => {
+    expect(isSelfOrDescendant(make(), "f1", "n1")).toBe(true);
+  });
+  it("grandchild → true", () => {
+    expect(isSelfOrDescendant(make(), "f1", "n2")).toBe(true);
+  });
+  it("unrelated node → false", () => {
+    expect(isSelfOrDescendant(make(), "f2", "n1")).toBe(false);
+  });
+  it("note (no children) → false for any other id", () => {
+    expect(isSelfOrDescendant(make(), "n3", "n1")).toBe(false);
+  });
+});
+
+describe("moveNode", () => {
+  it("moves a note into a folder (gone from origin, present in target)", () => {
+    const t2 = moveNode(make(), "n3", "f2");
+    expect(findNode(t2, "n3").parentNode?.id).toBe("f2");
+    expect(t2.some((n) => n.id === "n3")).toBe(false); // no longer at root
+  });
+  it("moves a folder into another folder", () => {
+    const t2 = moveNode(make(), "f2", null); // first pull B to root, then back under A
+    const t3 = moveNode(t2, "f2", "f1");
+    expect(findNode(t3, "f2").parentNode?.id).toBe("f1");
+  });
+  it("moves to root (parentId=null → top level)", () => {
+    const t2 = moveNode(make(), "n2", null);
+    expect(t2.some((n) => n.id === "n2")).toBe(true);
+    expect(findNode(t2, "n2").parentNode).toBeNull();
+  });
+  it("rejects move into self (unchanged, same reference)", () => {
+    const t = make();
+    expect(moveNode(t, "f1", "f1")).toBe(t);
+  });
+  it("rejects move into own descendant (unchanged)", () => {
+    const t = make();
+    expect(moveNode(t, "f1", "f2")).toBe(t); // f2 is inside f1
+  });
+  it("missing id → unchanged", () => {
+    const t = make();
+    expect(moveNode(t, "zz", "f1")).toBe(t);
+  });
+});
+
+describe("folderOptions", () => {
+  it("includes all folders, excludes notes", () => {
+    const opts = folderOptions(make(), "n3");
+    expect(opts.map((o) => o.id).sort()).toEqual(["f1", "f2"]);
+  });
+  it("excludes the excludeId folder and its descendant folders", () => {
+    const opts = folderOptions(make(), "f1");
+    expect(opts.map((o) => o.id)).toEqual([]); // f1 self + f2 descendant both excluded
+  });
+  it("path label format (A / B)", () => {
+    const opts = folderOptions(make(), "n3");
+    expect(opts.find((o) => o.id === "f2")?.label).toBe("A / B");
+    expect(opts.find((o) => o.id === "f1")?.label).toBe("A");
+  });
+  it("does not include root (caller adds it)", () => {
+    const opts = folderOptions(make(), "n3");
+    expect(opts.some((o) => o.id === null as unknown as string)).toBe(false);
   });
 });
 

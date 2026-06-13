@@ -22,7 +22,7 @@ export type SyncOp =
   | { kind: "rename"; id: string; name: string }
   | { kind: "update"; id: string; name?: string; content?: string; tags?: string[] } // title/content/tags 디바운스 대상
   | { kind: "remove"; id: string }
-  | { kind: "move"; id: string; parentId: string | null }; // 매핑만 준비 (UI 없음)
+  | { kind: "move"; id: string; parentId: string | null }; // 이동 UI 배선
 
 /** op → VaultApi 호출 매핑 (순수) */
 export async function syncAction(api: VaultApiType, op: SyncOp): Promise<void> {
@@ -136,6 +136,10 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
         cancelPending(id); // 삭제된 노트로 늦은 PATCH가 날아가지 않도록
         actionsRef.current.remove(id);
         fire({ kind: "remove", id });
+      },
+      move: (id, parentId) => {
+        actionsRef.current.move(id, parentId);
+        fire({ kind: "move", id, parentId });
       },
       updateNote: (id, patch) => {
         actionsRef.current.updateNote(id, patch);
