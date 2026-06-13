@@ -76,6 +76,26 @@ public class AuthService {
         return user;
     }
 
+    /** 본인 비밀번호 변경 — 현재 비밀번호 검증 후 새 salt/hash로 교체.
+        반환하는 새 salt로 컨트롤러가 현재 세션의 SESSION_CRED를 갱신해 본인 세션을 유지한다
+        (다른 기기 세션은 옛 salt라 AuthFilter가 자동 무효화 — 비번 변경 시 타 기기 로그아웃은 의도된 보안). */
+    @Transactional
+    public String changePassword(String userId, String currentPassword, String newPassword) {
+        CredentialRow cred = users.findCredential(userId);
+        if (cred == null || !PasswordHasher.verify(currentPassword, cred.salt(), cred.passwordHash())) {
+            throw VaultException.invalid("현재 비밀번호가 올바르지 않습니다");   // 422 — 401 금지(프런트 on401 로그아웃 유발)
+        }
+        if (newPassword.length() < 10) {
+            throw VaultException.invalid("새 비밀번호는 10자 이상이어야 합니다");
+        }
+        if (newPassword.equals(currentPassword)) {
+            throw VaultException.invalid("현재 비밀번호와 다른 비밀번호를 사용하세요");
+        }
+        String salt = PasswordHasher.newSalt();
+        users.updateCredential(new CredentialRow(userId, salt, PasswordHasher.hash(newPassword, salt)));
+        return salt;
+    }
+
     /** 세션 사용자의 caps 조회 — 후속 AuthFilter·me 엔드포인트에서 사용. */
     public Set<String> caps(UserRow user) {
         return roleCaps.of(user.roleId());

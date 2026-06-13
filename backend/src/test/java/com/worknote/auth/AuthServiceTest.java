@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.worknote.vault.VaultException;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared")
@@ -78,5 +79,31 @@ class AuthServiceTest {
     void unknownRoleYieldsEmptyCaps() {
         createUser("u1", "10001", "ghost-role", "active", "pw-1234");
         assertThat(auth.login("10001", "pw-1234").caps()).isEmpty();
+    }
+
+    @Test
+    void changePasswordReplacesCredentialAndReturnsNewSalt() {
+        createUser("u1", "10001", "operator", "active", "pw-current");
+        String oldSalt = users.findCredential("u1").salt();
+        String newSalt = auth.changePassword("u1", "pw-current", "new-pw-9999");
+        assertThat(newSalt).isNotEqualTo(oldSalt);
+        assertThat(users.findCredential("u1").salt()).isEqualTo(newSalt);
+        assertThat(auth.login("10001", "new-pw-9999").user().id()).isEqualTo("u1");
+    }
+
+    @Test
+    void changePasswordWrongCurrentIs422() {
+        createUser("u1", "10001", "operator", "active", "pw-current");
+        assertThatThrownBy(() -> auth.changePassword("u1", "WRONG", "new-pw-9999"))
+            .isInstanceOf(VaultException.class)
+            .satisfies(e -> assertThat(((VaultException) e).status()).isEqualTo(VaultException.Status.INVALID));
+    }
+
+    @Test
+    void changePasswordShortNewIs422() {
+        createUser("u1", "10001", "operator", "active", "pw-current");
+        assertThatThrownBy(() -> auth.changePassword("u1", "pw-current", "short"))
+            .isInstanceOf(VaultException.class)
+            .satisfies(e -> assertThat(((VaultException) e).status()).isEqualTo(VaultException.Status.INVALID));
     }
 }

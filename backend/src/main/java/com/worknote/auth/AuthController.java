@@ -1,6 +1,7 @@
 package com.worknote.auth;
 
 import com.worknote.audit.AuditService;
+import com.worknote.auth.dto.ChangePasswordRequest;
 import com.worknote.auth.dto.LoginRequest;
 import com.worknote.auth.dto.MeResponse;
 import com.worknote.auth.dto.SignupRequest;
@@ -78,6 +79,22 @@ public class AuthController {
             audit.log(user, "logout", null, http.getRemoteAddr());
             session.invalidate();
         }
+    }
+
+    @PostMapping("/change-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@Valid @RequestBody ChangePasswordRequest req, HttpServletRequest http) {
+        UserRow user = (UserRow) http.getAttribute(AuthFilter.CURRENT_USER);
+        if (user == null) {
+            // server 모드는 AuthFilter가 먼저 401 — 여기 도달은 local 모드(무인증, 본인 개념 없음)
+            throw AuthException.forbidden("비밀번호 변경은 로그인 상태에서만 가능합니다");
+        }
+        String newSalt = auth.changePassword(user.id(), req.currentPassword(), req.newPassword());
+        HttpSession session = http.getSession(false);
+        if (session != null) {
+            session.setAttribute(SESSION_CRED, newSalt);   // 본인 현재 세션 유지 (AuthFilter credChanged 통과)
+        }
+        audit.log(user, "auth.password.change", null, http.getRemoteAddr());
     }
 
     @GetMapping("/me")
