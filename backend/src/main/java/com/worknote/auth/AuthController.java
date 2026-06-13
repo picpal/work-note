@@ -5,6 +5,7 @@ import com.worknote.auth.dto.ChangePasswordRequest;
 import com.worknote.auth.dto.LoginRequest;
 import com.worknote.auth.dto.MeResponse;
 import com.worknote.auth.dto.SignupRequest;
+import com.worknote.auth.dto.UpdateProfileRequest;
 import com.worknote.vault.VaultException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -97,6 +98,18 @@ public class AuthController {
         audit.log(user, "auth.password.change", null, http.getRemoteAddr());
     }
 
+    @PostMapping("/update-profile")
+    public MeResponse updateProfile(@Valid @RequestBody UpdateProfileRequest req, HttpServletRequest http) {
+        UserRow user = (UserRow) http.getAttribute(AuthFilter.CURRENT_USER);
+        if (user == null) {
+            // server 모드는 AuthFilter가 먼저 401 — 여기 도달은 local 모드(무인증, 본인 개념 없음)
+            throw AuthException.forbidden("프로필 변경은 로그인 상태에서만 가능합니다");
+        }
+        UserRow updated = auth.updateProfile(user.id(), req.name(), req.email());
+        audit.log(user, "auth.profile.update", null, http.getRemoteAddr());
+        return toMe(updated, auth.caps(updated));
+    }
+
     @GetMapping("/me")
     public MeResponse me(HttpServletRequest http) {
         UserRow user = (UserRow) http.getAttribute(AuthFilter.CURRENT_USER);
@@ -108,10 +121,10 @@ public class AuthController {
             throw AuthException.unauthorized("인증이 필요합니다");
         }
         // 1단계 호환 — caps도 실제 admin 시드로 채움 (프런트 caps 기반 UI 가드가 모드 무관하게 동작)
-        return new MeResponse("local", "local", "local", "admin", roleCaps.of("admin"));
+        return new MeResponse("local", "local", "local", null, "admin", roleCaps.of("admin"));
     }
 
     private static MeResponse toMe(UserRow user, Set<String> caps) {
-        return new MeResponse(user.id(), user.emp(), user.name(), user.roleId(), caps);
+        return new MeResponse(user.id(), user.emp(), user.name(), user.email(), user.roleId(), caps);
     }
 }
