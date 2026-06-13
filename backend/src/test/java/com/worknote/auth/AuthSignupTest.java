@@ -82,4 +82,11 @@ class AuthSignupTest {
                 .content("{\"emp\":\"S1\",\"name\":\"n\",\"password\":\"short\"}"))
             .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void signup_ninePassword_400() throws Exception {
+        mvc.perform(post("/api/auth/signup").contentType(APPLICATION_JSON)
+                .content("{\"emp\":\"S9\",\"name\":\"n\",\"password\":\"123456789\"}"))
+            .andExpect(status().isBadRequest());   // 9자 < 10
+    }
 }

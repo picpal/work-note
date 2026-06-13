@@ -85,8 +85,8 @@ public class AuthService {
         if (cred == null || !PasswordHasher.verify(currentPassword, cred.salt(), cred.passwordHash())) {
             throw VaultException.invalid("현재 비밀번호가 올바르지 않습니다");   // 422 — 401 금지(프런트 on401 로그아웃 유발)
         }
-        if (newPassword.length() < 10) {
-            throw VaultException.invalid("새 비밀번호는 10자 이상이어야 합니다");
+        if (newPassword.length() < PasswordPolicy.MIN_LENGTH) {
+            throw VaultException.invalid("새 비밀번호는 " + PasswordPolicy.MIN_LENGTH + "자 이상이어야 합니다");
         }
         if (newPassword.equals(currentPassword)) {
             throw VaultException.invalid("현재 비밀번호와 다른 비밀번호를 사용하세요");
