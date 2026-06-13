@@ -11,6 +11,7 @@ import { Outline } from "./components/Outline";
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareModal } from "./components/ShareModal";
+import { MoveModal } from "./components/MoveModal";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { useSession } from "./state/useSession";
@@ -53,6 +54,7 @@ export function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string }>>([]);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const toolbarRef = useRef<ToolbarHandlers>({} as ToolbarHandlers);
@@ -137,6 +139,7 @@ export function App() {
         { icon: "newNote", label: "새 노트", onClick: () => newNoteIn(node.id) },
         { icon: "folderPlus", label: "새 폴더", onClick: () => newFolderIn(node.id) },
         { sep: true },
+        { icon: "move", label: "이동", onClick: () => setMoveTarget({ id: node.id, name: node.name }) },
         { icon: "edit", label: "이름 변경", onClick: () => setRenamingId(node.id) },
         { icon: "trash", label: "삭제", danger: true, onClick: () => removeNode(node.id) },
       ];
@@ -147,6 +150,7 @@ export function App() {
           ? [{ icon: "link", label: "공유 링크", onClick: () => setShareNote({ id: node.id, name: node.title || "제목 없음" }) }]
           : []),
         { sep: true },
+        { icon: "move", label: "이동", onClick: () => setMoveTarget({ id: node.id, name: node.title || "제목 없음" }) },
         { icon: "edit", label: "이름 변경", onClick: () => setRenamingId(node.id) },
         { icon: "trash", label: "삭제", danger: true, onClick: () => removeNode(node.id) },
       ];
@@ -272,6 +276,7 @@ export function App() {
     }),
     settingsOpen && createElement(SettingsModal, { settings, onSet: set, onClose: () => setSettingsOpen(false) }),
     shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
+    moveTarget && createElement(MoveModal, { node: moveTarget, tree, onMove: actions.move, onClose: () => setMoveTarget(null), toast }),
     menu && createElement(ContextMenu, { x: menu.x, y: menu.y, items: menu.items, onClose: closeMenu }),
     // toasts
     createElement(
