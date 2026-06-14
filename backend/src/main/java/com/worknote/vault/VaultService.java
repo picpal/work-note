@@ -88,9 +88,9 @@ public class VaultService {
     }
 
     @Transactional
-    public void update(String id, String name, String content, List<String> tags) {
+    public void update(String id, String name, String content, List<String> tags, String updatedBy) {
         requireActive(id);
-        mapper.updateFields(id, name, content, nowIso());
+        mapper.updateFields(id, name, content, nowIso(), updatedBy);
         if (tags != null) {
             mapper.replaceTags(id, tags);
         }

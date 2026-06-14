@@ -73,7 +73,7 @@ class VaultServiceTest {
     @Test
     void updateStampsUpdatedAtAndReplacesTags() {
         svc.create("n1", null, "note", "x", "");
-        svc.update("n1", "새 제목", "새 본문", List.of("운영"));
+        svc.update("n1", "새 제목", "새 본문", List.of("운영"), "local");
         VaultNode n = svc.tree().get(0);
         assertThat(n.title()).isEqualTo("새 제목");
         assertThat(n.tags()).containsExactly("운영");
@@ -129,6 +129,6 @@ class VaultServiceTest {
     void unknownIdThrowsNotFound() {
         assertThatThrownBy(() -> svc.trash("ghost", "me")).isInstanceOf(VaultException.class);
         assertThatThrownBy(() -> svc.move("ghost", null)).isInstanceOf(VaultException.class);
-        assertThatThrownBy(() -> svc.update("ghost", "a", null, null)).isInstanceOf(VaultException.class);
+        assertThatThrownBy(() -> svc.update("ghost", "a", null, null, null)).isInstanceOf(VaultException.class);
     }
 }

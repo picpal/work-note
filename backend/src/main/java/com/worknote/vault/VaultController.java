@@ -59,7 +59,7 @@ public class VaultController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void update(@PathVariable String id, @RequestBody UpdateNodeRequest body, HttpServletRequest req) {
         guard.requireEdit(user(req), id);
-        svc.update(id, body.name(), body.content(), body.tags());
+        svc.update(id, body.name(), body.content(), body.tags(), guard.who(user(req)));
         // PATCH는 1.5초 디바운스 고빈도 — 감사 제외 (스펙 §7 감사 목록에 편집 없음)
     }
 

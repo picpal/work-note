@@ -12,7 +12,9 @@ public interface NodeMapper {
     List<String> subtreeIds(@Param("id") String id);              // 재귀 CTE — 자신 포함 자손 id
     int maxPosition(@Param("parentId") String parentId);          // 형제 최대 position (없으면 0)
     void updateFields(@Param("id") String id, @Param("name") String name,
-                      @Param("content") String content, @Param("updatedAt") String updatedAt);
+                      @Param("content") String content, @Param("updatedAt") String updatedAt,
+                      @Param("updatedBy") String updatedBy);
+    String findUpdatedBy(@Param("id") String id);
     void move(@Param("id") String id, @Param("parentId") String parentId, @Param("position") int position);
     void softDeleteSubtree(@Param("id") String id, @Param("deletedAt") String deletedAt, @Param("deletedBy") String deletedBy);
     void restoreSubtree(@Param("id") String id);

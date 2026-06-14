@@ -80,7 +80,7 @@ class NodeMapperTest {
         mapper.insert(folder("f1", null));
         mapper.insert(folder("f2", null));
         mapper.insert(note("n1", "f1"));
-        mapper.updateFields("n1", "renamed", "new body", "2026-06-11T11:00:00");
+        mapper.updateFields("n1", "renamed", "new body", "2026-06-11T11:00:00", "local");
         assertThat(mapper.findById("n1").name()).isEqualTo("renamed");
         mapper.move("n1", "f2", 5);
         assertThat(mapper.findById("n1").parentId()).isEqualTo("f2");
