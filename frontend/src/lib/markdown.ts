@@ -70,7 +70,24 @@ function escAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// 이미지 src를 내부 첨부·상대경로로만 제한 (설계 결정 ②: 외부 콜백/추적 픽셀 차단).
+// 허용: "/api/attachments/...", "/api/share/.../attachments/...", 스킴/"//" 없는 상대경로.
+// 모듈 1회만 등록(중복 방지 플래그) — DOMPurify는 프로세스 전역 싱글턴이라 다중 등록 시 훅이 누적된다.
+let imgHookAdded = false;
+function ensureImgHook(): void {
+  if (imgHookAdded) return;
+  imgHookAdded = true;
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if ((node as Element).tagName !== "IMG") return;
+    const src = node.getAttribute("src") || "";
+    const internal = src.startsWith("/api/attachments/") || src.startsWith("/api/share/");
+    const relative = !/^[a-z][a-z0-9+.-]*:/i.test(src) && !src.startsWith("//"); // 스킴·protocol-relative 아님
+    if (!(internal || relative)) node.removeAttribute("src");
+  });
+}
+
 export function renderMarkdown(src: string): string {
+  ensureImgHook();
   let html: string;
   try { html = marked.parse(src || "") as string; } catch (e) { return "<p>" + escAttr(src) + "</p>"; }
   const tpl = document.createElement("template");
@@ -126,6 +143,11 @@ export function renderMarkdown(src: string): string {
     if (done) tick.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     li.appendChild(tick);
     li.appendChild(body);
+  });
+
+  // 첨부 링크 → 다운로드 칩 (비이미지). href가 내부 첨부 경로인 a에 클래스 부여(DOMPurify 기본이 class 보존).
+  frag.querySelectorAll('a[href^="/api/attachments/"]').forEach((a) => {
+    (a as HTMLElement).classList.add("attach-chip");
   });
 
   // 타인 작성 노트(팀 공유·공유 링크)도 같은 경로로 렌더 — 마크다운 HTML의 stored XSS 차단은 여기서,

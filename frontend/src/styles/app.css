@@ -631,6 +631,16 @@ button.topbar-me { font-family: var(--font-ui); }
 .mermaid-wrap .messageText, .mermaid-wrap .noteText { font-weight: 450; }
 .mermaid-wrap .labelBox { rx: 7px; ry: 7px; }
 
+/* attachment download chip (비이미지 첨부 링크) */
+.md a.attach-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px 2px 8px; border: 1px solid var(--border-strong); border-radius: 999px;
+  background: var(--bg-sunken); color: var(--text); text-decoration: none;
+  font-size: .92em; line-height: 1.5; vertical-align: baseline;
+}
+.md a.attach-chip::before { content: "📎"; font-size: .9em; opacity: .85; }
+.md a.attach-chip:hover { background: var(--bg-elev); border-color: var(--ink); color: var(--ink); }
+
 /* images / placeholders */
 .md img { max-width: 100%; border-radius: var(--radius); }
 .md .img-ph {
