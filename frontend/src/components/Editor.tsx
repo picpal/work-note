@@ -8,6 +8,7 @@ import * as cm from "../editor/cm";
 import { setMermaidTheme } from "../lib/markdown";
 import { AttachmentApi } from "../storage/AttachmentApi";
 import { AttachmentBar } from "./AttachmentBar";
+import { Icon } from "./Icon";
 import { ApiError } from "../api/http";
 
 export interface ToolbarHandlers {
@@ -237,8 +238,11 @@ export function Editor(props: EditorProps) {
       }),
       createElement("div", { className: "cm-host-wrap" + (dropActive ? " drop-active" : "") },
         createElement("div", { className: "cm-drop-veil", "aria-hidden": true }),
-        createElement("div", { className: "cm-drop-hint", "aria-hidden": true },
-          createElement("span", null, "📎 여기에 놓으면 첨부됩니다")),
+        createElement("div", { className: "cm-drop-cue", "aria-hidden": true },
+          createElement("div", { className: "cue-card" },
+            createElement("div", { className: "cue-badge" }, createElement(Icon, { name: "download" })),
+            createElement("div", { className: "cue-t1" }, "여기에 파일을 놓으세요"),
+            createElement("div", { className: "cue-t2" }, "이미지는 본문에 미리보기 · 그 외 파일은 첨부함에 추가"))),
         createElement("div", { className: "cm-host", ref: hostRef })),
       createElement("div", {
         className: "cm-tail",
