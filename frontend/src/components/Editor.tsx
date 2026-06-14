@@ -22,6 +22,7 @@ export interface ToolbarHandlers {
   checklist: () => void;
   link: () => void;
   image: () => void;
+  attach: () => void;
   code: () => void;
   table: () => void;
   mermaid: () => void;
@@ -181,6 +182,11 @@ export function Editor(props: EditorProps) {
         // 서버 모드면 파일 피커를 열어 실제 첨부 업로드, 아니면 기존 마크다운 템플릿 삽입
         if (props.canUpload) fileRef.current?.click();
         else if (viewRef.current) cm.block(viewRef.current, TEMPLATES.image);
+      },
+      attach: () => {
+        // 파일 첨부: 모든 확장자 파일 선택창을 연다. 이미지=본문 인라인, 그 외=첨부함(uploadFiles가 분기).
+        if (props.canUpload) fileRef.current?.click();
+        else props.toast("서버 모드에서만 첨부할 수 있습니다");
       },
       code: () => { if (viewRef.current) cm.block(viewRef.current, TEMPLATES.code); },
       table: () => { if (viewRef.current) cm.block(viewRef.current, TEMPLATES.table); },

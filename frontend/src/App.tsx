@@ -48,6 +48,7 @@ const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: s
    { k: "table", icon: "table", title: "표", fn: (h) => h.table() }],
   [{ k: "link", icon: "link", title: "링크", fn: (h) => h.link() },
    { k: "image", icon: "image", title: "이미지", fn: (h) => h.image() },
+   { k: "attach", icon: "paperclip", title: "파일 첨부", fn: (h) => h.attach() },
    { k: "code", icon: "code", title: "코드 블록", fn: (h) => h.code() }],
   [{ k: "mermaid", icon: "mermaid", title: "Mermaid 다이어그램", fn: (h) => h.mermaid() },
    { k: "sequence", icon: "sequence", title: "시퀀스 다이어그램", fn: (h) => h.sequence() }],
