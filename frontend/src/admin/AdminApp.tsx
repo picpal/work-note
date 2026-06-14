@@ -14,6 +14,7 @@ import { Roles } from "./screens/Roles";
 import { Teams } from "./screens/Teams";
 import { Shares } from "./screens/Shares";
 import { Audit } from "./screens/Audit";
+import { Uploads } from "./screens/Uploads";
 import { Security } from "./screens/Security";
 
 const { useState, useEffect, useCallback, useMemo } = React;
@@ -28,6 +29,7 @@ const NAV = [
   { id: "teams", label: "팀·스페이스", icon: "users" },
   { id: "shares", label: "공유 링크", icon: "link" },
   { id: "audit", label: "감사 로그", icon: "history" },
+  { id: "uploads", label: "업로드 정책", icon: "image" },
   { id: "security", label: "보안 설정", icon: "settings" },
 ];
 const TITLES: Record<string, [string, string]> = {
@@ -39,6 +41,7 @@ const TITLES: Record<string, [string, string]> = {
   teams: ["팀·스페이스", "팀 구성·팀 스페이스 관리"],
   shares: ["공유 링크", "활성 공유 링크 조회·취소"],
   audit: ["감사 로그", "보안 감사 추적"],
+  uploads: ["업로드 정책", "첨부 허용 확장자·용량"],
   security: ["보안 설정", "인증·세션 정책"],
 };
 
@@ -92,6 +95,7 @@ export function AdminApp() {
     teams: Teams,
     shares: Shares,
     audit: Audit,
+    uploads: Uploads,
     security: Security,
   };
   const Screen = screenMap[route] || Dashboard;

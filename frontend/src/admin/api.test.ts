@@ -228,4 +228,21 @@ describe("AdminApi", () => {
     expect(out.total).toBe(1);
     expect(fetch).toHaveBeenCalledWith("/api/admin/audit", expect.anything());
   });
+
+  // ── upload policy ──
+  it("getUploadPolicy는 GET /api/admin/settings/upload", async () => {
+    mockJson({ allowedExt: ["png"], maxBytes: 26214400 });
+    const p = await AdminApi.getUploadPolicy();
+    expect(p.allowedExt).toContain("png");
+    expect(p.maxBytes).toBe(26214400);
+    expect(fetch).toHaveBeenCalledWith("/api/admin/settings/upload", expect.anything());
+  });
+
+  it("setUploadPolicy는 PUT /api/admin/settings/upload (204)", async () => {
+    mock204();
+    await expect(AdminApi.setUploadPolicy(["png", "svg"], 5000)).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith("/api/admin/settings/upload", expect.objectContaining({
+      method: "PUT", body: JSON.stringify({ allowedExt: ["png", "svg"], maxBytes: 5000 }),
+    }));
+  });
 });

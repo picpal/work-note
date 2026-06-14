@@ -23,6 +23,7 @@ export interface ApiShare {
   pinEmps: string[] | null;
 }
 export interface AuditQuery { who?: string; act?: string; from?: string; to?: string; limit?: number; offset?: number; }
+export interface UploadPolicy { allowedExt: string[]; maxBytes: number; }
 
 /** 빈 문자열/undefined 필터는 쿼리에서 생략 — 백엔드가 빈 값을 필터로 오해하지 않게. */
 function qs(params: Record<string, string | number | undefined>): string {
@@ -78,4 +79,8 @@ export const AdminApi = {
   revokeShare: (id: string) => req<void>(`/shares/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   audit: (q: AuditQuery) => req<{ total: number; rows: ApiAudit[] }>("/admin/audit" + qs(q as Record<string, string | number | undefined>)),
+
+  getUploadPolicy: () => req<UploadPolicy>("/admin/settings/upload"),
+  setUploadPolicy: (allowedExt: string[], maxBytes: number) =>
+    req<void>("/admin/settings/upload", { method: "PUT", body: JSON.stringify({ allowedExt, maxBytes }) }),
 };
