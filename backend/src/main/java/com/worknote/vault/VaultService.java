@@ -3,6 +3,7 @@ package com.worknote.vault;
 import com.worknote.acl.AclMapper;
 import com.worknote.acl.AclResolver;
 import com.worknote.acl.PublicFlagRow;
+import com.worknote.attachment.AttachmentService;
 import com.worknote.share.ShareLinkMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,12 +28,15 @@ public class VaultService {
     private final NodeMapper mapper;
     private final AclMapper aclMapper;
     private final ShareLinkMapper shareLinks;
+    private final AttachmentService attachments;
     private final Clock clock;
 
-    public VaultService(NodeMapper mapper, AclMapper aclMapper, ShareLinkMapper shareLinks, Clock clock) {
+    public VaultService(NodeMapper mapper, AclMapper aclMapper, ShareLinkMapper shareLinks,
+                        AttachmentService attachments, Clock clock) {
         this.mapper = mapper;
         this.aclMapper = aclMapper;
         this.shareLinks = shareLinks;
+        this.attachments = attachments;
         this.clock = clock;
     }
 
@@ -144,6 +148,7 @@ public class VaultService {
         // purge = node + 종속행(tag·acl·public_flag·space·share_link) 영구 삭제 — 스펙 §4.3.
         // create가 클라이언트 id를 받으므로 잔여 행을 남기면 같은 id 재생성 시 옛 권한이 부활(fail-open)한다.
         List<String> ids = mapper.subtreeIds(id);
+        attachments.deleteForNodes(ids);  // 첨부 파일+메타 먼저 — node 삭제 후엔 id 집합을 못 구함
         mapper.deleteTagsIn(ids);
         aclMapper.deleteAclIn(ids);
         aclMapper.deletePublicFlagIn(ids);
