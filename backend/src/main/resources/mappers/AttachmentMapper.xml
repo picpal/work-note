@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.attachment.AttachmentMapper">
+
+  <insert id="insert">
+    INSERT INTO attachment (id, node_id, filename, ext, mime, size, rel_path, created_by, created_at)
+    VALUES (#{id}, #{nodeId}, #{filename}, #{ext}, #{mime}, #{size}, #{relPath}, #{createdBy}, #{createdAt})
+  </insert>
+
+  <select id="findById" resultType="com.worknote.attachment.AttachmentRow">
+    SELECT * FROM attachment WHERE id = #{id}
+  </select>
+
+  <select id="findByNode" resultType="com.worknote.attachment.AttachmentRow">
+    SELECT * FROM attachment WHERE node_id = #{nodeId} ORDER BY created_at
+  </select>
+
+  <delete id="delete">
+    DELETE FROM attachment WHERE id = #{id}
+  </delete>
+
+  <select id="findByNodeIds" resultType="com.worknote.attachment.AttachmentRow">
+    SELECT * FROM attachment WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </select>
+
+  <delete id="deleteByNodeIds">
+    DELETE FROM attachment WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
+</mapper>
