@@ -7,10 +7,12 @@
 ```
 work-note/
   frontend/                    Vite 6 + TypeScript + React 18 (구현 완료)
-                               백엔드 연동 완료(로그인·가입 + admin 9스크린 실 API, mock 제거)
+                               백엔드 연동 완료(로그인·가입 + admin 10스크린 실 API, mock 제거)
+                               drag&drop/paste/📎 파일 첨부 + 이미지 인라인 미리보기(src 내부 첨부로 제한)
                                엔트리 4개: index / login / admin / share(공유 노트 read-only 열람)
   backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite
                                1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API + 5단계(30일 purge·공유 링크 §6) + 6단계(이동 노출 경고 §7) 구현 완료
+                               파일 첨부: 디스크 저장(WORKNOTE_UPLOAD_DIR, DB는 메타·경로만) · 노트 종속(read/write 상속) · 공유 토큰 스코프 서빙 · 관리자 업로드 정책(확장자·용량, app_setting) · purge 시 파일 정리
                                worknote.mode로 스위치(기본 local=무인증)
                                server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar ...
                                공유 링크 = deny를 넘는 유일 read 예외(만료·취소·pin·감사), 휴지통 30일 자동 purge(WORKNOTE_PURGE_RETENTION_DAYS)
