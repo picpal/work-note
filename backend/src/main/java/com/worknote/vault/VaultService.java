@@ -165,6 +165,8 @@ public class VaultService {
         aclMapper.deletePublicFlagIn(ids);
         aclMapper.deleteSpaceIn(ids);
         shareLinks.deleteIn(ids);    // 공유 링크도 영구 삭제 — id 재생성 fail-open 방지 (결정 S4)
+        piiMapper.deleteFlagsIn(ids);     // PII 플래그 정리
+        piiMapper.deleteNoticesIn(ids);   // PII 알림 정리
         mapper.purgeSubtree(id);
     }
 
