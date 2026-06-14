@@ -6,6 +6,8 @@ import type { NoteNode } from "../types";
 import type { EditorView } from "@codemirror/view";
 import * as cm from "../editor/cm";
 import { setMermaidTheme } from "../lib/markdown";
+import { AttachmentApi } from "../storage/AttachmentApi";
+import { ApiError } from "../api/http";
 
 export interface ToolbarHandlers {
   h: (n: number) => void;
@@ -29,6 +31,8 @@ interface EditorProps {
   onChange: (patch: Partial<NoteNode>) => void;
   registerToolbar: (handlers: ToolbarHandlers) => void;
   onView?: (v: EditorView | null) => void;
+  toast: (msg: string, icon?: string) => void;
+  canUpload: boolean;
 }
 
 const TEMPLATES = {
@@ -49,9 +53,34 @@ export function Editor(props: EditorProps) {
   const { note, theme, onChange, registerToolbar } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   onChangeRef.current = onChange;
+
+  // ---- 첨부 업로드 (stale closure 방지: 항상 최신 note/props를 ref로 참조) ----
+  const uploadDepsRef = useRef({ note, toast: props.toast, canUpload: props.canUpload });
+  uploadDepsRef.current = { note, toast: props.toast, canUpload: props.canUpload };
+  const uploadFiles = async (files: FileList | File[]) => {
+    const { note: cur, toast, canUpload } = uploadDepsRef.current;
+    if (!canUpload) { toast("서버 모드에서만 첨부할 수 있습니다"); return; }
+    const v = viewRef.current;
+    if (!v) return;
+    for (const file of Array.from(files)) {
+      toast("업로드 중…");
+      try {
+        const res = await AttachmentApi.upload(cur.id, file);
+        const isImg = /\.(png|jpe?g|gif|webp)$/i.test(res.filename);
+        const md = isImg ? `![${res.filename}](${res.url})` : `[📎 ${res.filename}](${res.url})`;
+        cm.insertAtCursor(v, md + "\n");
+        toast("첨부했습니다", "check");
+      } catch (e) {
+        toast(e instanceof ApiError ? e.message : "업로드 실패");
+      }
+    }
+  };
+  const uploadRef = useRef(uploadFiles);
+  uploadRef.current = uploadFiles;
 
   useLayoutEffect(() => { grow(titleRef.current); }, []);
 
@@ -63,7 +92,22 @@ export function Editor(props: EditorProps) {
       onChange: (text) => onChangeRef.current({ content: text }),
     });
     props.onView && props.onView(viewRef.current);
+    // drop/paste 첨부 — CM DOM에 직접 바인딩(ref 경유 최신 uploadFiles 호출로 stale closure 회피)
+    const dom = viewRef.current.dom;
+    const onDrop = (e: DragEvent) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      void uploadRef.current(e.dataTransfer.files);
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      const files = e.clipboardData?.files;
+      if (files && files.length) { e.preventDefault(); void uploadRef.current(files); }
+    };
+    dom.addEventListener("drop", onDrop);
+    dom.addEventListener("paste", onPaste);
     return () => {
+      dom.removeEventListener("drop", onDrop);
+      dom.removeEventListener("paste", onPaste);
       if (viewRef.current) {
         props.onView && props.onView(null);
         viewRef.current.destroy();
@@ -86,7 +130,11 @@ export function Editor(props: EditorProps) {
       list: () => { if (viewRef.current) cm.prefix(viewRef.current, "- "); },
       checklist: () => { if (viewRef.current) cm.prefix(viewRef.current, "- [ ] "); },
       link: () => { if (viewRef.current) cm.wrap(viewRef.current, "[", "](https://)", "링크"); },
-      image: () => { if (viewRef.current) cm.block(viewRef.current, TEMPLATES.image); },
+      image: () => {
+        // 서버 모드면 파일 피커를 열어 실제 첨부 업로드, 아니면 기존 마크다운 템플릿 삽입
+        if (props.canUpload) fileRef.current?.click();
+        else if (viewRef.current) cm.block(viewRef.current, TEMPLATES.image);
+      },
       code: () => { if (viewRef.current) cm.block(viewRef.current, TEMPLATES.code); },
       table: () => { if (viewRef.current) cm.block(viewRef.current, TEMPLATES.table); },
       mermaid: () => { if (viewRef.current) cm.block(viewRef.current, TEMPLATES.mermaid); },
@@ -136,6 +184,13 @@ export function Editor(props: EditorProps) {
     // editor surface
     createElement(
       Fragment, null,
+      createElement("input", {
+        type: "file", ref: fileRef, multiple: true, style: { display: "none" },
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+          if (e.target.files?.length) void uploadFiles(e.target.files);
+          e.target.value = "";
+        },
+      }),
       createElement("div", { className: "cm-host", ref: hostRef }),
       createElement("div", {
         className: "cm-tail",

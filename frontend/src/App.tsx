@@ -329,6 +329,7 @@ export function App() {
               onChange: (patch) => actions.updateNote(activeNote.id, patch),
               registerToolbar: (h) => { toolbarRef.current = h; },
               onView: (v) => { editorViewRef.current = v; },
+              toast, canUpload: storageMode === "http",
             })
           : createElement(
               "div", { className: "empty-state" },
