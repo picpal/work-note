@@ -6,6 +6,10 @@ spring:
       maximum-pool-size: 1   # SQLite 단일 라이터 — 풀 1로 SQLITE_BUSY 방지
   flyway:
     locations: classpath:db/migration/sqlite   # Oracle 전환 시 vendor 디렉토리 추가
+  servlet:
+    multipart:
+      max-file-size: 64MB      # 실제 파일당 제한은 UploadPolicy(app_setting)가 422로 — 여기는 상한 안전망
+      max-request-size: 64MB
 mybatis:
   mapper-locations: classpath:mappers/*.xml
   configuration:
@@ -18,5 +22,7 @@ server:
 worknote:
   mode: ${WORKNOTE_MODE:local}                     # local=1단계(무인증), server=2단계(인증+권한)
   admin-password: ${WORKNOTE_ADMIN_PASSWORD:}      # server 모드 최초 기동 시 관리자 비밀번호 (필수)
+  upload:
+    dir: ${WORKNOTE_UPLOAD_DIR:./attachments}      # 첨부 바이너리 루트 (기본 DB와 같은 작업 디렉토리 → 백업 한 폴더)
   purge:
     retention-days: ${WORKNOTE_PURGE_RETENTION_DAYS:30}   # 휴지통 보존기한 (0 이하 = 자동 purge 끔)

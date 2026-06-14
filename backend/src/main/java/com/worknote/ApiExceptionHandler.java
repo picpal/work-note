@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 
@@ -41,5 +42,11 @@ public class ApiExceptionHandler {
             .map(err -> err.getField() + ": " + err.getDefaultMessage())
             .orElse("잘못된 요청 본문입니다");
         return ResponseEntity.badRequest().body(Map.of("error", message));
+    }
+
+    /** multipart 상한(64MB) 초과 → 422 단일화 (UploadPolicy 위반과 같은 상태코드). */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> tooLarge(MaxUploadSizeExceededException e) {
+        return ResponseEntity.unprocessableEntity().body(Map.of("error", "파일이 너무 큽니다"));
     }
 }

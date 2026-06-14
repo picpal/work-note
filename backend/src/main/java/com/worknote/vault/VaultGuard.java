@@ -47,6 +47,15 @@ public class VaultGuard {
         }
     }
 
+    /** read(N) — 첨부 열람 가드. local/관리자 bypass. */
+    public void requireRead(UserRow user, String id) {
+        if (bypass(user)) return;
+        requireUser(user);
+        if (!perm.canRead(user, id)) {
+            throw VaultException.forbidden("열람 권한이 없습니다: " + id);
+        }
+    }
+
     /** move = edit(원본) ∧ edit(대상). 대상 null(루트)은 관리자만 — canEdit이 처리. */
     public void requireMove(UserRow user, String id, String newParentId) {
         requireEdit(user, id);
