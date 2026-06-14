@@ -11,6 +11,8 @@ import { AttachmentApi } from "../storage/AttachmentApi";
 import { AttachmentBar } from "./AttachmentBar";
 import { Icon } from "./Icon";
 import { ApiError } from "../api/http";
+import { piiWarns } from "../lib/pii";
+import { PiiApi } from "../storage/PiiApi";
 
 export interface ToolbarHandlers {
   h: (n: number) => void;
@@ -37,6 +39,7 @@ interface EditorProps {
   onView?: (v: EditorView | null) => void;
   toast: (msg: string, icon?: string) => void;
   canUpload: boolean;
+  onSetPii?: (id: string, pii: import("../types").NotePii) => void;
 }
 
 const TEMPLATES = {
@@ -205,6 +208,30 @@ export function Editor(props: EditorProps) {
   };
   const removeTag = (t: string) => onChange({ tags: (note.tags || []).filter((x) => x !== t) });
 
+  // ---- PII 배너 ----
+  const pii = note.pii;
+  const requestException = async () => {
+    try {
+      await PiiApi.requestException(note.id);
+      props.onSetPii?.(note.id, { status: "requested", types: pii?.types || [] });
+      props.toast("개인정보 예외를 요청했습니다", "check");
+    } catch (e) {
+      props.toast(e instanceof Error ? e.message : "요청 실패");
+    }
+  };
+  const piiBanner = piiWarns(pii)
+    ? createElement("div", { className: "pii-banner " + pii!.status },
+        createElement("span", { className: "pii-ic" }, createElement(Icon, { name: "alert" })),
+        createElement("span", { className: "pii-msg" },
+          pii!.status === "suspected" ? "개인정보 기입 확인"
+            : pii!.status === "requested" ? "개인정보 예외 검토 중"
+            : "개인정보 예외 반려됨"),
+        props.canUpload && pii!.status === "suspected" &&
+          createElement("button", { className: "pii-act", onClick: () => void requestException() }, "예외 요청"),
+        props.canUpload && pii!.status === "rejected" &&
+          createElement("button", { className: "pii-act", onClick: () => void requestException() }, "다시 요청"))
+    : null;
+
   return createElement(
     "div", { className: "doc" + (dropActive ? " drop-dim" : ""), key: note.id },
     createElement("textarea", {
@@ -214,6 +241,7 @@ export function Editor(props: EditorProps) {
       onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter") { e.preventDefault(); viewRef.current && viewRef.current.focus(); } },
     }),
     createElement("div", { className: "title-rule" }),
+    piiBanner,
     createElement(
       "div", { className: "tags-row" },
       (note.tags || []).map((t) =>

@@ -934,3 +934,14 @@ button.topbar-me { font-family: var(--font-ui); }
 .cl-icon svg { width: 100%; height: 100%; }
 .cl-card h2 { font-size: 18px; margin: 0 0 8px; color: var(--text-2); }
 .cl-card p { font-size: 13.5px; color: var(--text-3); margin: 0 0 20px; line-height: 1.5; }
+
+/* PII 배너 — 제목 밑(title-rule와 tags-row 사이). 상태별 색 + 서버 모드 예외 요청 버튼. */
+.pii-banner { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.pii-banner .pii-ic { display: grid; place-items: center; }
+.pii-banner .pii-msg { font-weight: 600; }
+.pii-banner.suspected { background: var(--bg-sunken); color: var(--ink); border: 1px solid var(--border); }
+.pii-banner.suspected .pii-ic { color: #d9534f; }
+.pii-banner.requested { background: var(--bg-sunken); color: var(--text-2); border: 1px solid var(--border); }
+.pii-banner.rejected { background: rgba(217,83,79,.10); color: #c0392b; border: 1px solid rgba(217,83,79,.35); }
+.pii-act { margin-left: auto; padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-elev); cursor: pointer; }
+.pii-act:hover { background: var(--bg-active); }

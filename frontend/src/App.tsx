@@ -331,6 +331,7 @@ export function App() {
               registerToolbar: (h) => { toolbarRef.current = h; },
               onView: (v) => { editorViewRef.current = v; },
               toast, canUpload: storageMode === "http",
+              onSetPii: (id, pii) => actions.setNotePii(id, pii),
             })
           : createElement(
               "div", { className: "empty-state" },
