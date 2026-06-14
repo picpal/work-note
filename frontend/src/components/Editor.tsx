@@ -60,6 +60,8 @@ export function Editor(props: EditorProps) {
   onChangeRef.current = onChange;
   // 첨부영역 새로고침 트리거 — 업로드/삭제 후 bump (Editor는 note별 리마운트라 노트 전환 시 0으로 초기화).
   const [attachVersion, setAttachVersion] = useState(0);
+  // 파일 드래그가 에디터 위에 올라온 동안 드롭존 하이라이트.
+  const [dropActive, setDropActive] = useState(false);
 
   // ---- 첨부 업로드 (stale closure 방지: 항상 최신 note/props를 ref로 참조) ----
   const uploadDepsRef = useRef({ note, toast: props.toast, canUpload: props.canUpload });
@@ -106,7 +108,20 @@ export function Editor(props: EditorProps) {
     props.onView && props.onView(viewRef.current);
     // drop/paste 첨부 — CM DOM에 직접 바인딩(ref 경유 최신 uploadFiles 호출로 stale closure 회피)
     const dom = viewRef.current.dom;
+    // 파일 드래그(텍스트 선택 드래그 제외)인지 — dataTransfer.types에 "Files" 포함.
+    const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes("Files");
+    const onDragOver = (e: DragEvent) => {
+      if (!uploadDepsRef.current.canUpload || !isFileDrag(e)) return;
+      e.preventDefault(); // drop 허용
+      setDropActive(true);
+    };
+    const onDragLeave = (e: DragEvent) => {
+      // 내부 자식 간 이동은 무시, 에디터 밖으로 나갈 때만 해제.
+      if (e.relatedTarget && dom.contains(e.relatedTarget as Node)) return;
+      setDropActive(false);
+    };
     const onDrop = (e: DragEvent) => {
+      setDropActive(false);
       if (!e.dataTransfer?.files?.length) return;
       e.preventDefault();
       // 드롭 좌표 → 문서 위치. 그래야 이미지가 직전 커서가 아닌 "떨어뜨린 그 자리"에 삽입된다.
@@ -118,9 +133,13 @@ export function Editor(props: EditorProps) {
       const files = e.clipboardData?.files;
       if (files && files.length) { e.preventDefault(); void uploadRef.current(files); }
     };
+    dom.addEventListener("dragover", onDragOver);
+    dom.addEventListener("dragleave", onDragLeave);
     dom.addEventListener("drop", onDrop);
     dom.addEventListener("paste", onPaste);
     return () => {
+      dom.removeEventListener("dragover", onDragOver);
+      dom.removeEventListener("dragleave", onDragLeave);
       dom.removeEventListener("drop", onDrop);
       dom.removeEventListener("paste", onPaste);
       if (viewRef.current) {
@@ -216,7 +235,10 @@ export function Editor(props: EditorProps) {
           e.target.value = "";
         },
       }),
-      createElement("div", { className: "cm-host", ref: hostRef }),
+      createElement("div", { className: "cm-host-wrap" + (dropActive ? " drop-active" : "") },
+        createElement("div", { className: "cm-drop-hint", "aria-hidden": true },
+          createElement("span", null, "📎 여기에 놓으면 첨부됩니다")),
+        createElement("div", { className: "cm-host", ref: hostRef })),
       createElement("div", {
         className: "cm-tail",
         onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
