@@ -53,6 +53,9 @@ public final class UploadPolicy {
         if (ext.isEmpty() || !allowedExt.contains(ext)) {
             throw VaultException.invalid("허용하지 않는 파일 형식입니다: " + (ext.isEmpty() ? filename : "." + ext));
         }
+        if (size <= 0) {
+            throw VaultException.invalid("빈 파일은 업로드할 수 없습니다");
+        }
         if (size > maxBytes) {
             throw VaultException.invalid("파일이 너무 큽니다 (최대 " + (maxBytes / 1024 / 1024) + "MB)");
         }

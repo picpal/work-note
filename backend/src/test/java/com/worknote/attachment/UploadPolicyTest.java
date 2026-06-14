@@ -41,6 +41,11 @@ class UploadPolicyTest {
     }
 
     @Test
+    void emptyFile_throws() {
+        assertThatThrownBy(() -> policy().check("a.png", 0)).isInstanceOf(VaultException.class);
+    }
+
+    @Test
     void isImage_onlyKnownImageExts() {
         assertThat(UploadPolicy.isImage("png")).isTrue();
         assertThat(UploadPolicy.isImage("pdf")).isFalse();

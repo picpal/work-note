@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 /** 첨부 디스크 저장/삭제 + 정책 강제. 메타는 DB, 바이너리는 worknote.upload.dir 아래. */
 @Service
 public class AttachmentService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttachmentService.class);
+
     private final AttachmentMapper mapper;
     private final SettingService settings;
     private final Clock clock;
@@ -45,7 +47,9 @@ public class AttachmentService {
             Files.createDirectories(target.getParent());
             Files.write(target, bytes, StandardOpenOption.CREATE_NEW);
         } catch (IOException e) {
-            throw VaultException.invalid("파일 저장 실패: " + e.getMessage());
+            // 경로·권한 등 내부 정보가 응답에 새지 않도록 상세는 서버 로그로만, 클라엔 일반 메시지.
+            log.warn("첨부 저장 실패 nodeId={} rel={}", nodeId, relPath, e);
+            throw VaultException.invalid("파일을 저장하지 못했습니다");
         }
         String ext = UploadPolicy.ext(filename);
         String mime = guessMime(ext);
