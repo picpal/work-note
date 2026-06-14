@@ -59,7 +59,16 @@ export function SharePage() {
   useEffect(() => {
     if (state.kind !== "ok") return;
     document.title = "WorkNote · " + state.view.name;
-    if (bodyRef.current) enhanceMermaid(bodyRef.current);
+    if (!bodyRef.current) return;
+    enhanceMermaid(bodyRef.current);
+    // 공유 열람자는 노트 read 권한이 없으므로 첨부 이미지를 토큰 스코프 엔드포인트로 재지정.
+    const token = new URLSearchParams(location.search).get("token");
+    if (token) {
+      bodyRef.current.querySelectorAll<HTMLImageElement>('img[src^="/api/attachments/"]').forEach((img) => {
+        const id = img.getAttribute("src")!.slice("/api/attachments/".length);
+        img.setAttribute("src", `/api/share/${encodeURIComponent(token)}/attachments/${encodeURIComponent(id)}`);
+      });
+    }
   }, [state]);
 
   let body: React.ReactNode;
