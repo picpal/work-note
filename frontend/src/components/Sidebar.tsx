@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
 import { countNotes } from "../lib/tree";
+import { piiWarns } from "../lib/pii";
 import type { VaultTree, VaultNode, NoteNode } from "../types";
 
 const INDENT = 16;
@@ -66,8 +67,12 @@ function Row(props: RowProps): React.ReactElement {
     isFolder
       ? React.createElement("span", { className: "twirl" + ((node as { open?: boolean }).open ? " open" : "") }, React.createElement(Icon, { name: "chevron" }))
       : React.createElement("span", { className: "twirl", style: { visibility: "hidden" } }),
-    React.createElement("span", { className: "ic" },
-      React.createElement(Icon, { name: isFolder ? ((node as { open?: boolean }).open ? "folderOpen" : "folder") : "fileLines" })),
+    React.createElement("span", { className: "ic" + (!isFolder && piiWarns((node as NoteNode).pii) ? " pii-warn" : "") },
+      React.createElement(Icon, {
+        name: isFolder
+          ? ((node as { open?: boolean }).open ? "folderOpen" : "folder")
+          : (piiWarns((node as NoteNode).pii) ? "alert" : "fileLines"),
+      })),
     renaming
       ? React.createElement("input", {
           className: "tree-rename", ref: inputRef,

@@ -211,6 +211,7 @@ button { font-family: inherit; cursor: pointer; }
 .row .ic { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--text-3); }
 .row.active .ic { color: var(--text-2); }
 .row .ic svg { width: 15px; height: 15px; }
+.row .ic.pii-warn { color: var(--danger, #d9534f); }
 .row .label { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .row .count { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
 
