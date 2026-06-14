@@ -82,7 +82,9 @@ export function ShareModal({ note, onClose, toast }: ShareModalProps) {
     if (emps.length) body.pinEmps = emps;
     void run(async () => {
       const res = await ShareApi.create(note.id, body);
-      await copyText(shareUrl(res.token));
+      // 클립보드 복사는 best-effort — 실패(보안 컨텍스트 미포커스/권한 거부)해도
+      // 링크 생성 성공·목록 갱신을 막지 않는다. 복사는 목록의 복사 버튼으로 재시도 가능.
+      try { await copyText(shareUrl(res.token)); } catch { /* noop */ }
     }, "공유 링크를 만들어 복사했습니다", "check");
   };
 
