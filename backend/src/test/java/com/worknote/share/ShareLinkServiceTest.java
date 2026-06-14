@@ -202,4 +202,24 @@ class ShareLinkServiceTest {
             .extracting(ShareLinkRow::createdBy).containsExactly("emp1");
         assertThat(service.listForNode("ss-n1", null)).hasSize(2);
     }
+
+    // 10. 첨부 이미지 서빙용 — 유효 토큰이면 노드 id를 반환하되 열람수는 증가시키지 않는다
+    @Test
+    void nodeIdForAttachment_validToken_returnsNodeId_withoutIncrement() {
+        note("ss-n1");
+        ShareLinkRow link = service.create("ss-n1", "local", 7, null, null);
+        int before = service.listForNode("ss-n1", null).get(0).viewCount();
+
+        String nodeId = service.nodeIdForAttachment(link.token(), null);
+
+        assertThat(nodeId).isEqualTo("ss-n1");
+        int after = service.listForNode("ss-n1", null).get(0).viewCount();
+        assertThat(after).isEqualTo(before); // 이미지 로드는 열람수 미증가
+    }
+
+    @Test
+    void nodeIdForAttachment_invalidToken_throws() {
+        assertThrows(() -> service.nodeIdForAttachment("bogus", null),
+            VaultException.Status.NOT_FOUND, "유효하지 않습니다");
+    }
 }

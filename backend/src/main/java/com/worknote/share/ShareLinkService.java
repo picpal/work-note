@@ -66,9 +66,12 @@ public class ShareLinkService {
         return row;
     }
 
-    /** 열람 — 무효 사유는 전부 404 단일화(존재·사유 비노출, 결정 S2). viewer=null은 local 모드(pin 생략, 결정 S5). */
-    @Transactional
-    public ShareView resolve(String token, String viewerEmp) {
+    /**
+     * 공통 검증 — 무효 사유 전부 404 단일화(존재·사유 비노출, 결정 S2).
+     * 활성·미만료·열람수·pin·노드 존재 확인. viewer=null은 local 모드(pin 생략, 결정 S5).
+     * @return 검증을 통과한 행 + 노드 (열람수는 증가시키지 않음 — 증가는 resolve 책임).
+     */
+    private ValidShare validate(String token, String viewerEmp) {
         ShareLinkRow row = mapper.findByToken(token);
         if (row == null || row.revokedAt() != null
             || row.expiresAt().compareTo(iso(LocalDateTime.now(clock))) <= 0
@@ -80,10 +83,27 @@ public class ShareLinkService {
         if (node == null || node.deletedAt() != null) {   // 휴지통 = suspend (결정 S3)
             throw invalidLink();
         }
-        mapper.incrementViewCount(row.id());
-        return new ShareView(row.id(), row.nodeId(), node.name(), node.content(),
+        return new ValidShare(row, node);
+    }
+
+    /** 열람 — 검증 통과 시 열람수 증가 + 노트 내용 반환. */
+    @Transactional
+    public ShareView resolve(String token, String viewerEmp) {
+        ValidShare v = validate(token, viewerEmp);
+        NodeRow node = v.node();
+        mapper.incrementViewCount(v.link().id());
+        return new ShareView(v.link().id(), v.link().nodeId(), node.name(), node.content(),
             node.updatedAt() == null ? null : node.updatedAt().substring(0, 10));
     }
+
+    /** 첨부 이미지 서빙용 — 검증만, 열람수 미증가. 노드 id 반환. */
+    @Transactional(readOnly = true)
+    public String nodeIdForAttachment(String token, String viewerEmp) {
+        return validate(token, viewerEmp).link().nodeId();
+    }
+
+    /** validate 내부 결과 — 검증된 링크 행 + 노드. */
+    private record ValidShare(ShareLinkRow link, NodeRow node) {}
 
     /** @return 취소된 행(감사 target 구성용). privileged = 관리자 또는 local 모드. */
     @Transactional
