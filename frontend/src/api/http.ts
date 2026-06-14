@@ -30,3 +30,14 @@ export async function req<T>(
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
+
+/** multipart 업로드 — Content-Type을 설정하지 않아 브라우저가 boundary를 채운다. (req와 동일 오류·401 처리) */
+export async function reqForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(BASE + path, { method: "POST", body: form });
+  if (!res.ok) {
+    if (res.status === 401 && on401) on401();
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status);
+  }
+  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
