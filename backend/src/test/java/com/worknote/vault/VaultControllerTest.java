@@ -71,8 +71,8 @@ class VaultControllerTest {
         createNote("n1", null, "원래 제목");
         mvc.perform(patch("/api/nodes/n1").contentType(APPLICATION_JSON)
                 .content("{\"name\":\"새 제목\",\"content\":\"abc\",\"tags\":[\"운영\"]}"))
-            .andExpect(status().isNoContent())
-            .andExpect(content().string(""));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pii.status").value("none"));   // content 변경 → 재탐지(PII 없음)
         mvc.perform(get("/api/tree"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].title").value("새 제목"))

@@ -187,7 +187,7 @@ class VaultPermissionApiTest {
         MockHttpSession session = login("10001", "pw-1234");
         mvc.perform(patch("/api/nodes/n1").session(session).contentType(APPLICATION_JSON)
                 .content("{\"content\":\"수정\"}"))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isOk());   // PATCH는 이제 pii JSON(200) — 감사는 여전히 미기록
         // login()이 login.success 1건을 이미 기록 — PATCH 미기록은 node.* 부재로 단언
         assertThat(jdbc.queryForObject(
             "SELECT COUNT(*) FROM audit_log WHERE act LIKE 'node.%'", Integer.class)).isZero();

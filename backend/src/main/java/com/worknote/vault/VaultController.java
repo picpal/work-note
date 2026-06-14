@@ -5,6 +5,8 @@ import com.worknote.acl.MovePreview;
 import com.worknote.audit.AuditService;
 import com.worknote.auth.AuthFilter;
 import com.worknote.auth.UserRow;
+import com.worknote.pii.PiiEval;
+import com.worknote.pii.PiiService;
 import com.worknote.vault.dto.CreateNodeRequest;
 import com.worknote.vault.dto.MoveNodeRequest;
 import com.worknote.vault.dto.UpdateNodeRequest;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,12 +30,14 @@ public class VaultController {
     private final VaultGuard guard;
     private final AuditService audit;
     private final ExposureService exposure;
+    private final PiiService pii;
 
-    public VaultController(VaultService svc, VaultGuard guard, AuditService audit, ExposureService exposure) {
+    public VaultController(VaultService svc, VaultGuard guard, AuditService audit, ExposureService exposure, PiiService pii) {
         this.svc = svc;
         this.guard = guard;
         this.audit = audit;
         this.exposure = exposure;
+        this.pii = pii;
     }
 
     /** server 모드에선 AuthFilter가 적재한 사용자, local 모드는 null(무인증). */
@@ -56,11 +61,17 @@ public class VaultController {
     }
 
     @PatchMapping("/nodes/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void update(@PathVariable String id, @RequestBody UpdateNodeRequest body, HttpServletRequest req) {
-        guard.requireEdit(user(req), id);
-        svc.update(id, body.name(), body.content(), body.tags(), guard.who(user(req)));
+    public Map<String, Object> update(@PathVariable String id, @RequestBody UpdateNodeRequest body, HttpServletRequest req) {
+        UserRow user = user(req);
+        guard.requireEdit(user, id);
+        svc.update(id, body.name(), body.content(), body.tags(), guard.who(user));
         // PATCH는 1.5초 디바운스 고빈도 — 감사 제외 (스펙 §7 감사 목록에 편집 없음)
+        Map<String, Object> resp = new HashMap<>();
+        if (body.content() != null) {   // content 변경 시에만 재탐지
+            PiiEval e = pii.evaluate(id, body.content());
+            resp.put("pii", Map.of("status", e.status(), "types", e.types()));
+        }
+        return resp;   // tags-only면 {} → 프런트는 pii 미변경으로 취급
     }
 
     /** 이동 미리보기 — 실제 이동 없이 노출(접근 집합/공개/스페이스) 델타만 계산. move와 동일 가드·검증으로 동일 오류(404/422). */
