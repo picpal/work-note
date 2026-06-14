@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.pii.PiiMapper">
+
+  <select id="findFlag" resultType="com.worknote.pii.PiiFlagRow">
+    SELECT node_id, status, types, detected_at, requested_by, requested_at, request_reason,
+           decided_by, decided_at, decision_reason
+    FROM pii_flag WHERE node_id = #{nodeId}
+  </select>
+
+  <insert id="insertFlag">
+    INSERT INTO pii_flag (node_id, status, types, detected_at, requested_by, requested_at, request_reason, decided_by, decided_at, decision_reason)
+    VALUES (#{nodeId}, #{status}, #{types}, #{detectedAt}, #{requestedBy}, #{requestedAt}, #{requestReason}, #{decidedBy}, #{decidedAt}, #{decisionReason})
+  </insert>
+
+  <update id="updateFlag">
+    UPDATE pii_flag SET status=#{status}, types=#{types}, detected_at=#{detectedAt},
+      requested_by=#{requestedBy}, requested_at=#{requestedAt}, request_reason=#{requestReason},
+      decided_by=#{decidedBy}, decided_at=#{decidedAt}, decision_reason=#{decisionReason}
+    WHERE node_id=#{nodeId}
+  </update>
+
+  <delete id="deleteFlag">DELETE FROM pii_flag WHERE node_id=#{nodeId}</delete>
+  <delete id="deleteFlagsIn">
+    DELETE FROM pii_flag WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+
+  <select id="activeFlags" resultType="com.worknote.pii.PiiFlagRow">
+    SELECT f.node_id, f.status, f.types, f.detected_at, f.requested_by, f.requested_at, f.request_reason,
+           f.decided_by, f.decided_at, f.decision_reason
+    FROM pii_flag f JOIN node n ON n.id = f.node_id WHERE n.deleted_at IS NULL
+  </select>
+
+  <select id="adminList" resultType="map">
+    SELECT f.node_id AS nodeId, n.name AS title, n.updated_by AS updatedBy,
+           f.types AS types, f.status AS status, f.detected_at AS detectedAt
+    FROM pii_flag f JOIN node n ON n.id = f.node_id
+    WHERE n.deleted_at IS NULL ORDER BY f.detected_at DESC
+  </select>
+
+  <select id="adminRequests" resultType="map">
+    SELECT f.node_id AS nodeId, n.name AS title, n.updated_by AS updatedBy,
+           f.types AS types, f.requested_by AS requestedBy, f.requested_at AS requestedAt,
+           f.request_reason AS requestReason
+    FROM pii_flag f JOIN node n ON n.id = f.node_id
+    WHERE n.deleted_at IS NULL AND f.status = 'requested' ORDER BY f.requested_at
+  </select>
+
+  <insert id="insertNotice">
+    INSERT INTO pii_notice (node_id, recipient, kind, message, sent_by, sent_at, ack_at)
+    VALUES (#{nodeId}, #{recipient}, #{kind}, #{message}, #{sentBy}, #{sentAt}, #{ackAt})
+  </insert>
+  <delete id="deleteNoticesIn">
+    DELETE FROM pii_notice WHERE node_id IN
+    <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+  </delete>
+  <select id="findUnackedNoticeId" resultType="long">
+    SELECT id FROM pii_notice
+    WHERE node_id=#{nodeId} AND recipient=#{recipient} AND kind=#{kind} AND ack_at IS NULL
+    ORDER BY id DESC LIMIT 1
+  </select>
+  <update id="touchNotice">
+    UPDATE pii_notice SET message=#{message}, sent_at=#{sentAt} WHERE id=#{id}
+  </update>
+  <select id="noticesFor" resultType="map">
+    SELECT p.id AS id, p.node_id AS noteId, n.name AS noteTitle, p.kind AS kind, p.message AS message
+    FROM pii_notice p JOIN node n ON n.id = p.node_id
+    WHERE p.recipient=#{recipient} AND p.ack_at IS NULL ORDER BY p.id
+  </select>
+  <update id="ack">
+    UPDATE pii_notice SET ack_at = (SELECT datetime('now'))
+    WHERE recipient=#{recipient} AND ack_at IS NULL
+    <if test="ids != null and ids.size() > 0">
+      AND id IN <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
+    </if>
+  </update>
+
+</mapper>
