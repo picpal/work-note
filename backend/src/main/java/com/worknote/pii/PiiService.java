@@ -1,5 +1,6 @@
 package com.worknote.pii;
 
+import com.worknote.vault.NodeMapper;
 import com.worknote.vault.VaultException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +18,21 @@ import java.util.TreeSet;
 public class PiiService {
 
     private final PiiMapper mapper;
+    private final NodeMapper nodeMapper;
     private final Clock clock;
 
-    public PiiService(PiiMapper mapper, Clock clock) {
+    public PiiService(PiiMapper mapper, NodeMapper nodeMapper, Clock clock) {
         this.mapper = mapper;
+        this.nodeMapper = nodeMapper;
         this.clock = clock;
+    }
+
+    /** 능동 알림 수신자 = 최종 수정자(node.updated_by). 없으면 invalid(400). */
+    @Transactional(readOnly = true)
+    public String recipientForNotice(String nodeId) {
+        String emp = nodeMapper.findUpdatedBy(nodeId);
+        if (emp == null) throw VaultException.invalid("최종 수정자가 없어 알림을 보낼 수 없습니다");
+        return emp;
     }
 
     private String now() {
