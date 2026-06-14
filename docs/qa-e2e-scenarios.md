@@ -101,15 +101,17 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 **기대**: 1·4=위치 변경 · 2=경고 모달 분기(강한 경고는 danger) · 3=가드
 **자동화 노트**: 1·2·4 ✅(컨텍스트 메뉴 경로). **DnD(노트→폴더 드래그) 🔧** — HTML5 네이티브 drag는 헤드리스 자동화로 신뢰성 없음 → 실브라우저 수동 + `lib/dnd.ts canDropOn` 9 단위테스트로 커버.
 
-## Batch 5 — 휴지통 (index/admin, server) ✅🔧
+## Batch 5 — 휴지통 (index, server) ✅🔧
 
+진입: 사이드바 푸터 **휴지통 버튼**(http 모드 전용) → TrashModal.
 ```
 /qa http://localhost:8080/login.html admin/qa-admin-1234.
-1) 노트 삭제 → 휴지통 목록(있는 화면)에 노출
-2) 휴지통에서 복구 → 원위치 트리에 재등장
-3) 영구 삭제(purge) → 목록에서 제거(관리자)
+1) 노트/폴더 삭제(우클릭 → 삭제) → 휴지통 버튼 클릭 → 모달 목록에 노출(라벨·노트/폴더 구분)
+2) 모달에서 복구 → 토스트 "복구했습니다" + 원위치 트리 재동기화(부모 폴더 펼치면 노출)
+3) 영구 삭제 → "영구 삭제 확인" 2단계 → 토스트 "영구 삭제했습니다" + 목록에서 제거
+4) 빈 상태 "휴지통이 비어 있습니다"
 ```
-**자동화 노트**: 1·2·3 ✅. **30일 자동 purge 🔧** — 시간 의존, 스케줄러 단위테스트로 커버(WORKNOTE_PURGE_RETENTION_DAYS).
+**자동화 노트**: 1·2·3·4 ✅(2026-06-14 UI 신설 — `VaultApi.trashList/restore/purge` + `TrashModal`, 백엔드 `GET /trash`·`POST /trash/{id}/restore`·`DELETE /trash/{id}` 연결). **30일 자동 purge 🔧** — 시간 의존, 스케줄러 단위테스트로 커버(WORKNOTE_PURGE_RETENTION_DAYS). 알려진 사소: 복구 시 트리 reload가 폴더 펼침 상태를 리셋(데이터는 정상).
 
 ## Batch 6 — 공유 링크 (index→share.html, server) ✅⚠️
 
