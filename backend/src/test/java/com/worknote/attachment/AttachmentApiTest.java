@@ -72,6 +72,36 @@ class AttachmentApiTest {
     }
 
     @Test
+    void list_returnsNodeAttachmentsWithMeta() throws Exception {
+        upload("a.png", new byte[]{1, 2, 3});
+        upload("doc.pdf", new byte[]{4, 5});
+        mvc.perform(get("/api/nodes/n1/attachments"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[?(@.filename=='a.png')].image")
+                .value(org.hamcrest.Matchers.contains(true)))
+            .andExpect(jsonPath("$[?(@.filename=='a.png')].mime")
+                .value(org.hamcrest.Matchers.contains("image/png")))
+            .andExpect(jsonPath("$[?(@.filename=='doc.pdf')].image")
+                .value(org.hamcrest.Matchers.contains(false)))
+            .andExpect(jsonPath("$[?(@.filename=='a.png')].url")
+                .value(org.hamcrest.Matchers.contains(startsWith("/api/attachments/att-"))));
+    }
+
+    @Test
+    void shareList_returnsAttachmentsWithShareScopedUrls() throws Exception {
+        upload("a.png", new byte[]{9});
+        String shareJson = mvc.perform(post("/api/nodes/n1/share").contentType("application/json").content("{}"))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String token = JsonPath.read(shareJson, "$.token");
+        mvc.perform(get("/api/share/" + token + "/attachments"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].url")
+                .value(startsWith("/api/share/" + token + "/attachments/att-")));
+    }
+
+    @Test
     void shareScoped_validToken_serves_and_otherNodeAttachment_404() throws Exception {
         String json = upload("a.png", new byte[]{9});
         String id = JsonPath.read(json, "$.id");

@@ -7,6 +7,7 @@ import type { EditorView } from "@codemirror/view";
 import * as cm from "../editor/cm";
 import { setMermaidTheme } from "../lib/markdown";
 import { AttachmentApi } from "../storage/AttachmentApi";
+import { AttachmentBar } from "./AttachmentBar";
 import { ApiError } from "../api/http";
 
 export interface ToolbarHandlers {
@@ -57,6 +58,8 @@ export function Editor(props: EditorProps) {
   const onChangeRef = useRef(onChange);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   onChangeRef.current = onChange;
+  // 첨부영역 새로고침 트리거 — 업로드/삭제 후 bump (Editor는 note별 리마운트라 노트 전환 시 0으로 초기화).
+  const [attachVersion, setAttachVersion] = useState(0);
 
   // ---- 첨부 업로드 (stale closure 방지: 항상 최신 note/props를 ref로 참조) ----
   const uploadDepsRef = useRef({ note, toast: props.toast, canUpload: props.canUpload });
@@ -66,18 +69,21 @@ export function Editor(props: EditorProps) {
     if (!canUpload) { toast("서버 모드에서만 첨부할 수 있습니다"); return; }
     const v = viewRef.current;
     if (!v) return;
+    let added = 0;
     for (const file of Array.from(files)) {
       toast("업로드 중…");
       try {
         const res = await AttachmentApi.upload(cur.id, file);
+        // 이미지는 본문에 인라인 미리보기 마크다운 삽입. 비이미지는 본문 표기 없이 첨부영역에만 등록.
         const isImg = /\.(png|jpe?g|gif|webp)$/i.test(res.filename);
-        const md = isImg ? `![${res.filename}](${res.url})` : `[📎 ${res.filename}](${res.url})`;
-        cm.insertAtCursor(v, md + "\n");
+        if (isImg) cm.insertAtCursor(v, `![${res.filename}](${res.url})\n`);
+        added++;
         toast("첨부했습니다", "check");
       } catch (e) {
         toast(e instanceof ApiError ? e.message : "업로드 실패");
       }
     }
+    if (added) setAttachVersion((n) => n + 1); // 첨부영역 새로고침
   };
   const uploadRef = useRef(uploadFiles);
   uploadRef.current = uploadFiles;
@@ -181,6 +187,16 @@ export function Editor(props: EditorProps) {
         onBlur: () => addTag(tagDraft),
       })
     ),
+    // 첨부파일 영역 (http 모드에서만 — local 모드는 백엔드 없음)
+    props.canUpload
+      ? createElement(AttachmentBar, {
+          load: () => AttachmentApi.list(note.id),
+          reloadKey: attachVersion,
+          removable: true,
+          onRemove: (id: string) => AttachmentApi.remove(id),
+          toast: props.toast,
+        })
+      : null,
     // editor surface
     createElement(
       Fragment, null,

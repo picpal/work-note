@@ -6,6 +6,8 @@ import { Icon } from "../components/Icon";
 import { ShareApi } from "../api/share";
 import type { ShareView } from "../api/share";
 import { ApiError } from "../api/http";
+import { AttachmentBar } from "../components/AttachmentBar";
+import { AttachmentApi } from "../storage/AttachmentApi";
 import { renderMarkdown, enhanceMermaid, setMermaidTheme } from "../lib/markdown";
 
 const h = React.createElement;
@@ -89,6 +91,7 @@ export function SharePage() {
     });
   } else {
     const { view } = state;
+    const token = new URLSearchParams(location.search).get("token");
     body = h("div", { className: "share-wrap fade-key" },
       h("header", { className: "share-head" },
         h("div", { className: "share-brand" },
@@ -97,6 +100,8 @@ export function SharePage() {
           h("span", { className: "share-badge" }, "읽기 전용 공유")),
         h("h1", { className: "share-title" }, view.name),
         view.updatedAt && h("div", { className: "share-sub" }, "마지막 수정 " + fmtStamp(view.updatedAt))),
+      // 첨부영역 — 토큰 스코프 목록(읽기 전용, 삭제 없음). 토큰 없으면 미표시.
+      token ? h(AttachmentBar, { load: () => AttachmentApi.listShare(token), removable: false }) : null,
       h("div", {
         className: "md share-body", ref: bodyRef,
         dangerouslySetInnerHTML: { __html: renderMarkdown(view.content || "") },

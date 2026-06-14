@@ -29,6 +29,22 @@ describe("AttachmentApi", () => {
     expect(AttachmentApi.url("att-1")).toBe("/api/attachments/att-1");
   });
 
+  it("list는 노트 첨부 목록을 GET한다", async () => {
+    const rows = [{ id: "att-1", filename: "a.png", size: 3, mime: "image/png", image: true, url: "/api/attachments/att-1" }];
+    const f = mockFetch(200, rows);
+    vi.stubGlobal("fetch", f);
+    const res = await AttachmentApi.list("n1");
+    expect(f.mock.calls[0][0]).toBe("/api/nodes/n1/attachments");
+    expect(res[0].image).toBe(true);
+  });
+
+  it("listShare는 토큰 스코프 목록을 GET한다", async () => {
+    const f = mockFetch(200, []);
+    vi.stubGlobal("fetch", f);
+    await AttachmentApi.listShare("tok-1");
+    expect(f.mock.calls[0][0]).toBe("/api/share/tok-1/attachments");
+  });
+
   it("remove는 DELETE를 보낸다", async () => {
     const f = mockFetch(204, {});
     vi.stubGlobal("fetch", f);

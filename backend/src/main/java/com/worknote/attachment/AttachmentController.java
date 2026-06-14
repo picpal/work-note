@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -63,6 +64,16 @@ public class AttachmentController {
             "url", "/api/attachments/" + row.id()));
     }
 
+    /** 노트의 첨부 목록 (read 권한). 본문 마크다운과 무관하게 attachment 테이블이 출처. */
+    @GetMapping("/nodes/{id}/attachments")
+    public List<Map<String, Object>> list(@PathVariable String id, HttpServletRequest req) {
+        UserRow user = user(req);
+        guard.requireRead(user, id);
+        return svc.findByNode(id).stream()
+            .map(r -> meta(r, "/api/attachments/" + r.id()))
+            .toList();
+    }
+
     @GetMapping("/attachments/{id}")
     public ResponseEntity<byte[]> download(@PathVariable String id, HttpServletRequest req) {
         UserRow user = user(req);
@@ -87,6 +98,16 @@ public class AttachmentController {
         audit.log(user, "attachment.remove", id + " -> " + row.nodeId(), req.getRemoteAddr());
     }
 
+    /** 공유 노트의 첨부 목록 — 토큰 검증(비증가). url은 토큰 스코프 서빙 경로. */
+    @GetMapping("/share/{token}/attachments")
+    public List<Map<String, Object>> shareList(@PathVariable String token, HttpServletRequest req) {
+        UserRow user = user(req);
+        String nodeId = share.nodeIdForAttachment(token, user == null ? null : user.emp());
+        return svc.findByNode(nodeId).stream()
+            .map(r -> meta(r, "/api/share/" + token + "/attachments/" + r.id()))
+            .toList();
+    }
+
     /** 공유 서빙 — 토큰 검증(비증가) + 첨부가 그 노드 소속인지. 무효 전부 404. */
     @GetMapping("/share/{token}/attachments/{id}")
     public ResponseEntity<byte[]> shareDownload(@PathVariable String token, @PathVariable String id,
@@ -98,6 +119,13 @@ public class AttachmentController {
             throw VaultException.notFound("첨부를 찾을 수 없습니다");
         }
         return serve(row);
+    }
+
+    /** 첨부 메타 직렬화 — 다운로드 url은 호출 맥락(일반/공유)에 따라 주입. */
+    private static Map<String, Object> meta(AttachmentRow r, String url) {
+        return Map.of(
+            "id", r.id(), "filename", r.filename(), "size", r.size(),
+            "mime", r.mime(), "image", UploadPolicy.isImage(r.ext()), "url", url);
     }
 
     private ResponseEntity<byte[]> serve(AttachmentRow row) {
