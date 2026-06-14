@@ -57,4 +57,11 @@ describe("setNotePii", () => {
     expect(note.pii?.status).toBe("suspected");
     expect(note.updated).toBe("2026-01-01");
   });
+  it("pii: null로 기존 pii를 지운다 (배지 클리어)", () => {
+    const flat: VaultTree = [{ id: "n1", type: "note", title: "T", tags: [], updated: "2026-01-01", content: "c", pii: { status: "suspected", types: ["phone"] } }];
+    const out = vaultReducer(flat, { type: "setNotePii", id: "n1", pii: null });
+    const note = out[0] as NoteNode;
+    expect(note.pii).toBeNull();
+    expect(note.updated).toBe("2026-01-01");
+  });
 });

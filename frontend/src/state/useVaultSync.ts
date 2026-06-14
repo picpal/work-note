@@ -7,7 +7,7 @@ import type { VaultApiType } from "../storage/VaultApi";
 import { storageMode, repository } from "../storage";
 import { HttpVaultRepository } from "../storage/HttpVaultRepository";
 import { savePending, clearPending } from "./pendingStore";
-import type { VaultTree } from "../types";
+import type { VaultTree, NotePii } from "../types";
 import type { useVault } from "./useVault";
 
 const PATCH_DEBOUNCE = 1500; // 노트별 title/content/tags PATCH 디바운스 (타이핑 폭주 방지)
@@ -25,8 +25,11 @@ export type SyncOp =
   | { kind: "remove"; id: string }
   | { kind: "move"; id: string; parentId: string | null }; // 이동 UI 배선
 
+/** syncAction 결과 — update만 서버 응답({pii})을 돌려주고, 나머지는 void. */
+export type SyncResult = { pii?: NotePii } | void;
+
 /** op → VaultApi 호출 매핑 (순수). update는 서버 응답({pii})을 그대로 반환 — Task 11 라이브 반영용. */
-export async function syncAction(api: VaultApiType, op: SyncOp): Promise<unknown> {
+export async function syncAction(api: VaultApiType, op: SyncOp): Promise<SyncResult> {
   switch (op.kind) {
     case "create":
       await api.create(op.node);
@@ -111,7 +114,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
   const pendingRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; patch: MergedPatch }>());
 
   // 안정 ref만 닫아두므로 첫 렌더 인스턴스를 useMemo/useEffect가 공유해도 안전
-  const fire = (op: SyncOp, onSuccess?: (res?: unknown) => void) => {
+  const fire = (op: SyncOp, onSuccess?: (res?: SyncResult) => void) => {
     syncAction(VaultApi, op)
       .then((res) => onSuccess?.(res))
       .catch((e: unknown) => {
@@ -121,6 +124,13 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
         if (op.kind === "update" && e instanceof ApiError && e.status >= 400 && e.status < 500) clearPending(op.id);
         toastRef.current("서버 동기화 실패: " + (e instanceof Error ? e.message : String(e)));
       });
+  };
+
+  // PATCH 성공 콜백(디바운스/언마운트 공통): 미러 제거 + PATCH 응답 PII를 로컬 반영(디바운스 비유발).
+  // actionsRef.current·clearPending(모듈 import)만 닫으므로 안정 ref 패턴 유지.
+  const reflectPii = (id: string, res?: SyncResult) => {
+    clearPending(id); // 서버 확정 시에만 미러 제거
+    if (res?.pii !== undefined) actionsRef.current.setNotePii(id, res.pii.status === "none" ? null : res.pii);
   };
 
   const synced = useMemo<VaultActions>(() => {
@@ -159,11 +169,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
         savePending(id, merged);   // write-through — 401/크래시로 끊겨도 미전송분 복구 가능
         const timer = setTimeout(() => {
           pendingRef.current.delete(id);
-          fire(buildUpdateOp(id, merged), (res) => {
-            clearPending(id); // 서버 확정 시에만 미러 제거
-            const pii = (res as { pii?: import("../types").NotePii })?.pii;
-            if (pii !== undefined) actionsRef.current.setNotePii(id, pii.status === "none" ? null : pii); // PATCH 응답 PII를 로컬 반영(디바운스 비유발)
-          });
+          fire(buildUpdateOp(id, merged), (res) => reflectPii(id, res));
         }, PATCH_DEBOUNCE);
         pendingRef.current.set(id, { timer, patch: merged });
       },
@@ -189,11 +195,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
     return () => {
       for (const [id, p] of pendingRef.current) {
         clearTimeout(p.timer);
-        fire(buildUpdateOp(id, p.patch), (res) => {
-          clearPending(id);
-          const pii = (res as { pii?: import("../types").NotePii })?.pii;
-          if (pii !== undefined) actionsRef.current.setNotePii(id, pii.status === "none" ? null : pii);
-        });
+        fire(buildUpdateOp(id, p.patch), (res) => reflectPii(id, res));
       }
       pendingRef.current.clear();
     };
