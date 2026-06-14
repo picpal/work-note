@@ -14,6 +14,7 @@ import { TrashModal } from "./components/TrashModal";
 import { ShareModal } from "./components/ShareModal";
 import { MoveModal } from "./components/MoveModal";
 import { MoveWarnDialog } from "./components/MoveWarnDialog";
+import { PiiNoticeModal } from "./components/PiiNoticeModal";
 import { ConnectionLost } from "./components/ConnectionLost";
 import { canDropOn } from "./lib/dnd";
 import { VaultApi } from "./storage/VaultApi";
@@ -366,6 +367,7 @@ export function App() {
       onConfirm: () => { actions.move(pendingWarn.id, pendingWarn.parentId); toast("이동했습니다", "check"); setPendingWarn(null); },
       onCancel: () => setPendingWarn(null),
     }),
+    storageMode === "http" && me != null && createElement(PiiNoticeModal, { key: "pii-notice-" + me.emp }),
     menu && createElement(ContextMenu, { x: menu.x, y: menu.y, items: menu.items, onClose: closeMenu }),
     // toasts
     createElement(

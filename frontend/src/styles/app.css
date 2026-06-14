@@ -380,6 +380,18 @@ button.topbar-me { font-family: var(--font-ui); }
 .pf-btn.danger:hover { opacity: .9; color: #fff; }
 [data-theme="dark"] .pf-btn.danger { background: #c0473f; border-color: #c0473f; }
 
+/* ---- PII 알림 팝업 (PiiNoticeModal — pf-* 프레임 재사용 + 알림 목록 전용) ---- */
+.pf-head .pf-av.pii-av { background: #fbeae9; color: #d9534f; }
+[data-theme="dark"] .pf-head .pf-av.pii-av { background: #3a2624; color: #e9837c; }
+.pii-notice-group { margin-bottom: 12px; }
+.pii-notice-group:last-child { margin-bottom: 0; }
+.pii-notice-kind { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 4px; }
+.pii-notice-list { margin: 0; padding-left: 16px; }
+.pii-notice-list li { font-size: 13px; margin: 2px 0; line-height: 1.5; }
+.pii-notice-title { color: var(--ink); font-weight: 600; }
+.pii-notice-reason { color: var(--text-2); }
+.pii-notice-foot { padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--border-soft); }
+
 /* ---- share viewer (share.html — read-only 공유 열람, .md 본문 스타일 재사용) ---- */
 .share { height: 100vh; overflow-y: auto; background: var(--bg); }
 .share-theme { position: fixed; top: 18px; right: 18px; z-index: 10; }
