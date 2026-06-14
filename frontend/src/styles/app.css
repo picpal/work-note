@@ -757,30 +757,31 @@ button.topbar-me { font-family: var(--font-ui); }
 .cm-host { font-size: var(--reading-size); }
 .cm-tail { min-height: 30vh; cursor: text; }
 
-/* 파일 드래그 중 — 노트 영역 프로스티드 베일 + 드롭 안내 카드 */
-.cm-host-wrap { position: relative; border-radius: var(--radius); }
-.cm-drop-veil {
-  position: absolute; inset: 0; z-index: 5; pointer-events: none;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.58);
-  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
-  opacity: 0; visibility: hidden; transition: opacity .14s ease;
-}
-[data-theme="dark"] .cm-drop-veil { background: rgba(255, 255, 255, 0.10); }
-.cm-host-wrap.drop-active .cm-drop-veil { opacity: 1; visibility: visible; }
+/* 파일 드래그 중 — 노트 콘텐츠(.doc) opacity를 낮춰 배경(흰색)으로 페이드.
+   반투명 오버레이를 CodeMirror 위에 합성하면 별도 GPU 레이어 때문에 본문이 안 가려져서,
+   콘텐츠 자체 opacity로 처리(content×0.28 + 흰 배경 = 흰 반투명 veil과 동일, 블러 아님). */
+.doc { transition: opacity .14s ease; }
+.doc.drop-dim { opacity: 0.28; }
 
-/* 안내 카드 — 에디터 앞 height:0 sticky(레이아웃 안 밀림) + absolute 중앙정렬, 스크롤해도 상단에 떠 있음 */
-.cm-drop-cue { position: sticky; top: 30px; height: 0; z-index: 6; pointer-events: none; }
+/* 드롭 안내 카드 컨테이너 — body로 포털, .doc-scroll 바운딩에 맞춘 position:fixed(좌표 inline 주입).
+   배경은 투명(가림은 .doc opacity가 담당), 카드만 중앙에 띄움. */
+.cm-drop-overlay {
+  position: fixed; z-index: 1500; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  opacity: 0; transition: opacity .14s ease;
+}
+.cm-drop-overlay.active { opacity: 1; }
+
+/* 안내 카드 — 오버레이 중앙. 페이드+슬라이드 등장 */
 .cue-card {
-  position: absolute; top: 0; left: 50%;
-  transform: translateX(-50%) translateY(-7px) scale(.98);
   display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center;
-  padding: 20px 28px; border-radius: 12px;
+  padding: 22px 30px; border-radius: 12px;
   background: var(--bg-elev); border: 1.5px dashed var(--border-strong);
   box-shadow: var(--shadow-pop);
-  opacity: 0; transition: opacity .16s ease, transform .16s ease;
+  transform: translateY(7px) scale(.98); transition: transform .16s ease;
 }
-.cm-host-wrap.drop-active .cue-card { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.cm-drop-overlay.active .cue-card { transform: translateY(0) scale(1); }
 .cue-badge {
   width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
   color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--border);

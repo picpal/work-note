@@ -2,6 +2,7 @@
    Type like a notepad; markdown renders inline and markers reveal only on the cursor line.
    CDN fallback path removed — cm module is always available in the bundle. */
 import { createElement, Fragment, useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import type { NoteNode } from "../types";
 import type { EditorView } from "@codemirror/view";
 import * as cm from "../editor/cm";
@@ -61,8 +62,11 @@ export function Editor(props: EditorProps) {
   onChangeRef.current = onChange;
   // 첨부영역 새로고침 트리거 — 업로드/삭제 후 bump (Editor는 note별 리마운트라 노트 전환 시 0으로 초기화).
   const [attachVersion, setAttachVersion] = useState(0);
-  // 파일 드래그가 에디터 위에 올라온 동안 드롭존 하이라이트.
+  // 파일 드래그가 노트 영역 위에 올라온 동안 드롭존 오버레이.
   const [dropActive, setDropActive] = useState(false);
+  const dropActiveRef = useRef(false);
+  // 오버레이는 .doc-scroll(노트 전체 뷰포트)에 맞춰 position:fixed로 깐다 — 활성화 시 바운딩 계산.
+  const [veilRect, setVeilRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // ---- 첨부 업로드 (stale closure 방지: 항상 최신 note/props를 ref로 참조) ----
   const uploadDepsRef = useRef({ note, toast: props.toast, canUpload: props.canUpload });
@@ -107,22 +111,30 @@ export function Editor(props: EditorProps) {
       onChange: (text) => onChangeRef.current({ content: text }),
     });
     props.onView && props.onView(viewRef.current);
-    // drop/paste 첨부 — CM DOM에 직접 바인딩(ref 경유 최신 uploadFiles 호출로 stale closure 회피)
+    // drop/paste 첨부 — paste는 CM DOM, drag/drop은 노트 전체(.doc-scroll)에 바인딩.
     const dom = viewRef.current.dom;
+    const dropZone: HTMLElement = (hostRef.current?.closest(".doc-scroll") as HTMLElement) || dom;
     // 파일 드래그(텍스트 선택 드래그 제외)인지 — dataTransfer.types에 "Files" 포함.
     const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes("Files");
+    const activate = () => {
+      const r = dropZone.getBoundingClientRect();
+      setVeilRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      setDropActive(true);
+      dropActiveRef.current = true;
+    };
+    const deactivate = () => { setDropActive(false); dropActiveRef.current = false; };
     const onDragOver = (e: DragEvent) => {
       if (!uploadDepsRef.current.canUpload || !isFileDrag(e)) return;
       e.preventDefault(); // drop 허용
-      setDropActive(true);
+      if (!dropActiveRef.current) activate();
     };
     const onDragLeave = (e: DragEvent) => {
-      // 내부 자식 간 이동은 무시, 에디터 밖으로 나갈 때만 해제.
-      if (e.relatedTarget && dom.contains(e.relatedTarget as Node)) return;
-      setDropActive(false);
+      // 내부 자식 간 이동은 무시, 노트 영역 밖으로 나갈 때만 해제.
+      if (e.relatedTarget && dropZone.contains(e.relatedTarget as Node)) return;
+      deactivate();
     };
     const onDrop = (e: DragEvent) => {
-      setDropActive(false);
+      deactivate();
       if (!e.dataTransfer?.files?.length) return;
       e.preventDefault();
       // 드롭 좌표 → 문서 위치. 그래야 이미지가 직전 커서가 아닌 "떨어뜨린 그 자리"에 삽입된다.
@@ -134,14 +146,14 @@ export function Editor(props: EditorProps) {
       const files = e.clipboardData?.files;
       if (files && files.length) { e.preventDefault(); void uploadRef.current(files); }
     };
-    dom.addEventListener("dragover", onDragOver);
-    dom.addEventListener("dragleave", onDragLeave);
-    dom.addEventListener("drop", onDrop);
+    dropZone.addEventListener("dragover", onDragOver);
+    dropZone.addEventListener("dragleave", onDragLeave);
+    dropZone.addEventListener("drop", onDrop);
     dom.addEventListener("paste", onPaste);
     return () => {
-      dom.removeEventListener("dragover", onDragOver);
-      dom.removeEventListener("dragleave", onDragLeave);
-      dom.removeEventListener("drop", onDrop);
+      dropZone.removeEventListener("dragover", onDragOver);
+      dropZone.removeEventListener("dragleave", onDragLeave);
+      dropZone.removeEventListener("drop", onDrop);
       dom.removeEventListener("paste", onPaste);
       if (viewRef.current) {
         props.onView && props.onView(null);
@@ -188,7 +200,7 @@ export function Editor(props: EditorProps) {
   const removeTag = (t: string) => onChange({ tags: (note.tags || []).filter((x) => x !== t) });
 
   return createElement(
-    "div", { className: "doc", key: note.id },
+    "div", { className: "doc" + (dropActive ? " drop-dim" : ""), key: note.id },
     createElement("textarea", {
       className: "title-input", ref: titleRef, rows: 1, placeholder: "제목을 입력하세요",
       value: note.title,
@@ -236,14 +248,7 @@ export function Editor(props: EditorProps) {
           e.target.value = "";
         },
       }),
-      createElement("div", { className: "cm-host-wrap" + (dropActive ? " drop-active" : "") },
-        createElement("div", { className: "cm-drop-veil", "aria-hidden": true }),
-        createElement("div", { className: "cm-drop-cue", "aria-hidden": true },
-          createElement("div", { className: "cue-card" },
-            createElement("div", { className: "cue-badge" }, createElement(Icon, { name: "download" })),
-            createElement("div", { className: "cue-t1" }, "여기에 파일을 놓으세요"),
-            createElement("div", { className: "cue-t2" }, "이미지는 본문에 미리보기 · 그 외 파일은 첨부함에 추가"))),
-        createElement("div", { className: "cm-host", ref: hostRef })),
+      createElement("div", { className: "cm-host", ref: hostRef }),
       createElement("div", {
         className: "cm-tail",
         onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
@@ -255,6 +260,22 @@ export function Editor(props: EditorProps) {
           v.dispatch({ selection: { anchor: end }, scrollIntoView: true });
         },
       })
+    ),
+    // 드롭 오버레이 — .doc-scroll 바운딩에 맞춘 position:fixed, 반투명(블러 아님).
+    // document.body로 포털 → .cm-editor(z-index:0 스태킹 컨텍스트) 위로 확실히 합성.
+    createPortal(
+      createElement("div", {
+        className: "cm-drop-overlay" + (dropActive ? " active" : ""),
+        "aria-hidden": true,
+        style: veilRect
+          ? { top: veilRect.top + "px", left: veilRect.left + "px", width: veilRect.width + "px", height: veilRect.height + "px" }
+          : { display: "none" },
+      },
+        createElement("div", { className: "cue-card" },
+          createElement("div", { className: "cue-badge" }, createElement(Icon, { name: "download" })),
+          createElement("div", { className: "cue-t1" }, "여기에 파일을 놓으세요"),
+          createElement("div", { className: "cue-t2" }, "이미지는 본문에 미리보기 · 그 외 파일은 첨부함에 추가"))),
+      document.body
     )
   );
 }
