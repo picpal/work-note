@@ -4,7 +4,7 @@ import { LocalStorageRepository } from "../storage/LocalStorageRepository";
 import { dedupeIds } from "../lib/tree";
 import { newId } from "../lib/id";
 import { SEED } from "../seed";
-import type { VaultTree, NoteNode } from "../types";
+import type { VaultTree, NoteNode, NotePii } from "../types";
 import type { VaultRepository } from "../storage/VaultRepository";
 import { storageMode } from "../storage";
 import { isBackendDown } from "./loadErrorPolicy";
@@ -82,6 +82,7 @@ export function useVault(repo: VaultRepository = defaultRepo) {
     remove: (id: string) => dispatch({ type: "remove", id }),
     move: (id: string, parentId: string | null) => dispatch({ type: "move", id, parentId }),
     updateNote: (id: string, patch: Partial<NoteNode>) => dispatch({ type: "updateNote", id, patch }),
+    setNotePii: (id: string, pii: NotePii | null) => dispatch({ type: "setNotePii", id, pii }),
     addNote: (folderId: string | null) => {
       const node = { id: newId(), type: "note" as const, title: "제목 없는 노트", tags: [] as string[], updated: new Date().toISOString().slice(0, 10), content: "" };
       dispatch({ type: "insert", folderId, node });

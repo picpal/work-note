@@ -48,3 +48,13 @@ describe("vaultReducer", () => {
     expect(t).toBe(tree); // unchanged
   });
 });
+
+describe("setNotePii", () => {
+  it("pii만 설정하고 updated는 건드리지 않는다", () => {
+    const flat: VaultTree = [{ id: "n1", type: "note", title: "T", tags: [], updated: "2026-01-01", content: "c" }];
+    const out = vaultReducer(flat, { type: "setNotePii", id: "n1", pii: { status: "suspected", types: ["phone"] } });
+    const note = out[0] as NoteNode;
+    expect(note.pii?.status).toBe("suspected");
+    expect(note.updated).toBe("2026-01-01");
+  });
+});
