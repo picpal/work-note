@@ -21,5 +21,5 @@ public interface PiiMapper {
     Long findUnackedNoticeId(@Param("nodeId") String nodeId, @Param("recipient") String recipient, @Param("kind") String kind);
     void touchNotice(@Param("id") Long id, @Param("message") String message, @Param("sentAt") String sentAt);
     List<Map<String, Object>> noticesFor(@Param("recipient") String recipient);
-    void ack(@Param("recipient") String recipient, @Param("ids") List<Long> ids);
+    void ack(@Param("recipient") String recipient, @Param("ids") List<Long> ids, @Param("ackedAt") String ackedAt);
 }

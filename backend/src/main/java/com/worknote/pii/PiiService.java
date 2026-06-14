@@ -95,4 +95,48 @@ public class PiiService {
         if (cur == null) throw VaultException.notFound("플래그가 없습니다: " + nodeId);
         return cur;
     }
+
+    /** 능동 알림(flagged) — recipient에게. 중복(미확인 동일 kind) 시 sent_at만 갱신. */
+    @Transactional
+    public void notice(String nodeId, String recipient, String adminEmp) {
+        sendNotice(nodeId, recipient, "flagged", null, adminEmp);
+    }
+
+    /** 허용 + 요청자에게 approved 알림. */
+    @Transactional
+    public void approveWithNotice(String nodeId, String adminEmp) {
+        PiiFlagRow cur = requireFlag(nodeId);
+        approve(nodeId, adminEmp);
+        if (cur.requestedBy() != null) sendNotice(nodeId, cur.requestedBy(), "approved", null, adminEmp);
+    }
+
+    /** 반려 + 요청자에게 rejected 알림(사유 포함). */
+    @Transactional
+    public void rejectWithNotice(String nodeId, String adminEmp, String reason) {
+        PiiFlagRow cur = requireFlag(nodeId);
+        reject(nodeId, adminEmp, reason);
+        if (cur.requestedBy() != null) sendNotice(nodeId, cur.requestedBy(), "rejected", reason, adminEmp);
+    }
+
+    private void sendNotice(String nodeId, String recipient, String kind, String message, String adminEmp) {
+        Long dup = mapper.findUnackedNoticeId(nodeId, recipient, kind);
+        if (dup != null) { mapper.touchNotice(dup, message, now()); return; }
+        mapper.insertNotice(new PiiNoticeRow(null, nodeId, recipient, kind, message, adminEmp, now(), null));
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> noticesFor(String recipient) {
+        return mapper.noticesFor(recipient);
+    }
+
+    @Transactional
+    public void ack(String recipient, java.util.List<Long> ids) {
+        mapper.ack(recipient, ids, now());
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> adminList() { return mapper.adminList(); }
+
+    @Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> adminRequests() { return mapper.adminRequests(); }
 }

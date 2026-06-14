@@ -34,7 +34,7 @@ class PiiMapperTest {
         List<java.util.Map<String, Object>> mine = pii.noticesFor("e100");
         assertEquals(1, mine.size());
         assertEquals("제목", mine.get(0).get("noteTitle"));
-        pii.ack("e100", null);
+        pii.ack("e100", null, "2026-06-14T00:00:00");
         assertTrue(pii.noticesFor("e100").isEmpty());
     }
 }

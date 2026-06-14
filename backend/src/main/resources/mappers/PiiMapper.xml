@@ -69,7 +69,7 @@
     WHERE p.recipient=#{recipient} AND p.ack_at IS NULL ORDER BY p.id
   </select>
   <update id="ack">
-    UPDATE pii_notice SET ack_at = (SELECT datetime('now'))
+    UPDATE pii_notice SET ack_at = #{ackedAt}
     WHERE recipient=#{recipient} AND ack_at IS NULL
     <if test="ids != null and ids.size() > 0">
       AND id IN <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>

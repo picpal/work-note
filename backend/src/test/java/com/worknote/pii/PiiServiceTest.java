@@ -63,4 +63,23 @@ class PiiServiceTest {
         svc.requestException("s6", "e1", null);
         assertThrows(RuntimeException.class, () -> svc.requestException("s6", "e1", null));
     }
+
+    @Test void notice_dedup_then_ack() {
+        note("n1");
+        svc.evaluate("n1", "010-1234-5678");
+        svc.notice("n1", "e9", "admin");
+        svc.notice("n1", "e9", "admin");      // 중복 → 신규 미생성
+        assertEquals(1, svc.noticesFor("e9").size());
+        svc.ack("e9", null);
+        assertTrue(svc.noticesFor("e9").isEmpty());
+    }
+
+    @Test void approve_creates_notice_to_requester() {
+        note("n2");
+        svc.evaluate("n2", "010-1234-5678");
+        svc.requestException("n2", "eReq", "오탐");
+        svc.approveWithNotice("n2", "admin");
+        assertEquals(1, svc.noticesFor("eReq").size());
+        assertEquals("approved", svc.noticesFor("eReq").get(0).get("kind"));
+    }
 }
