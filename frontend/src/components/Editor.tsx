@@ -236,6 +236,7 @@ export function Editor(props: EditorProps) {
         },
       }),
       createElement("div", { className: "cm-host-wrap" + (dropActive ? " drop-active" : "") },
+        createElement("div", { className: "cm-drop-veil", "aria-hidden": true }),
         createElement("div", { className: "cm-drop-hint", "aria-hidden": true },
           createElement("span", null, "📎 여기에 놓으면 첨부됩니다")),
         createElement("div", { className: "cm-host", ref: hostRef })),

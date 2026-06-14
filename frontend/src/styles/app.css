@@ -757,10 +757,19 @@ button.topbar-me { font-family: var(--font-ui); }
 .cm-host { font-size: var(--reading-size); }
 .cm-tail { min-height: 30vh; cursor: text; }
 
-/* 파일 드래그 중 드롭존 하이라이트 — 트리 drop-target과 동일 디자인 언어(inset ring + bg-active) */
-.cm-host-wrap { position: relative; border-radius: var(--radius); transition: background .12s, box-shadow .12s; }
-.cm-host-wrap.drop-active { background: var(--bg-active); box-shadow: inset 0 0 0 2px var(--ink); }
-/* 힌트 라벨 — 에디터 앞 height:0 sticky(레이아웃 안 밀림) + span absolute 중앙정렬, 스크롤해도 상단에 떠 있음 */
+/* 파일 드래그 중 노트 영역 프로스티드 베일 — 반투명 흰색 + 블러로 "여기에 끌어다 놓기" 느낌 */
+.cm-host-wrap { position: relative; border-radius: var(--radius); }
+.cm-drop-veil {
+  position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(2.5px); backdrop-filter: blur(2.5px);
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  opacity: 0; visibility: hidden; transition: opacity .12s ease;
+}
+[data-theme="dark"] .cm-drop-veil { background: rgba(255, 255, 255, 0.12); }
+.cm-host-wrap.drop-active .cm-drop-veil { opacity: 1; visibility: visible; }
+/* 안내 pill — 베일 위, 에디터 앞 height:0 sticky라 레이아웃 안 밀고 스크롤해도 상단 중앙에 떠 있음 */
 .cm-drop-hint { position: sticky; top: 14px; height: 0; display: none; pointer-events: none; z-index: 6; }
 .cm-host-wrap.drop-active .cm-drop-hint { display: block; }
 .cm-drop-hint span {
