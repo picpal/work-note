@@ -174,6 +174,7 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
         fire({ kind: "create", node: { id: node.id, parentId: folderId, type: "folder", name: node.name } });
         return node;
       },
+      reload: () => actionsRef.current.reload(),  // 서버 재동기화 — 동기화 부수효과 없이 위임
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

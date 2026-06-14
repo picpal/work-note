@@ -119,6 +119,8 @@ interface SidebarProps {
   showLogout?: boolean;  // 로그아웃 버튼 노출 (http 모드 + 세션 존재)
   onLogout?: () => void;
   onSettings?: () => void;
+  showTrash?: boolean;   // 휴지통 버튼 노출 (http 모드 + 세션)
+  onTrash?: () => void;
   draggingId: string | null;
   dragOverId: string | null;            // 폴더 id 또는 "__ROOT__"
   onNodeDragStart: (id: string, e: React.DragEvent) => void;
@@ -170,6 +172,8 @@ export function Sidebar(props: SidebarProps) {
         React.createElement(Icon, { name: "shield" })),
       React.createElement(
         "div", { className: "sb-fgroup" },
+        props.showTrash && React.createElement("button", { className: "sb-fbtn", title: "휴지통", onClick: () => props.onTrash && props.onTrash() },
+          React.createElement(Icon, { name: "trash" })),
         props.showLogout && React.createElement("button", { className: "sb-fbtn", title: "로그아웃", onClick: () => props.onLogout && props.onLogout() },
           React.createElement(Icon, { name: "logout" })),
         React.createElement("button", { className: "sb-fbtn", title: "설정", onClick: () => props.onSettings && props.onSettings() },

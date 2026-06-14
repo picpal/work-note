@@ -92,6 +92,12 @@ export function useVault(repo: VaultRepository = defaultRepo) {
       dispatch({ type: "insert", folderId, node });
       return node;
     },
+    // 서버 상태로 트리 재동기화 — 휴지통 복구 등 외부 변경 후 호출(초기 load와 동일 경로).
+    reload: () => {
+      void repo.load().then((saved) => {
+        if (saved) dispatch({ type: "replace", tree: dedupeIds(saved) });
+      }).catch((e) => console.warn("vault reload failed", e));
+    },
   };
   return { tree, actions, savedTick, ready, loadError };
 }

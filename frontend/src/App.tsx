@@ -10,6 +10,7 @@ import { ContextMenu } from "./components/ContextMenu";
 import { Outline } from "./components/Outline";
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { TrashModal } from "./components/TrashModal";
 import { ShareModal } from "./components/ShareModal";
 import { MoveModal } from "./components/MoveModal";
 import { MoveWarnDialog } from "./components/MoveWarnDialog";
@@ -61,6 +62,7 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
   const ROOT_DROP = "__ROOT__";
@@ -268,6 +270,8 @@ export function App() {
       showAdmin: storageMode === "local" || isAdmin,    // local 모드는 기존 동작 보존, http 모드는 관리자만
       showLogout: storageMode === "http" && me != null, // 세션이 있을 때만
       onLogout: logout,
+      showTrash: storageMode === "http" && me != null,  // 휴지통은 server 모드 전용
+      onTrash: () => setTrashOpen(true),
       draggingId, dragOverId,
       onNodeDragStart, onNodeDragOver, onNodeDragLeave, onNodeDrop, onNodeDragEnd,
     }),
@@ -350,6 +354,7 @@ export function App() {
       toast,
     }),
     settingsOpen && createElement(SettingsModal, { settings, onSet: set, onClose: () => setSettingsOpen(false) }),
+    trashOpen && createElement(TrashModal, { onClose: () => setTrashOpen(false), toast, onRestored: rawActions.reload }),
     shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
     moveTarget && createElement(MoveModal, { node: moveTarget, tree, onMove: actions.move, onClose: () => setMoveTarget(null), toast }),
     pendingWarn && createElement(MoveWarnDialog, {

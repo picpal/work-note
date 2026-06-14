@@ -16,6 +16,14 @@ export interface MovePreview {
   removed: string[];
 }
 
+/** 휴지통 항목 — soft-delete된 노드(folder→name, note→title 중 하나만 non-null). */
+export interface TrashItem {
+  id: string;
+  type: "folder" | "note";
+  name?: string;
+  title?: string;
+}
+
 export const VaultApi = {
   tree: () => req<VaultTree>("/tree"),
   create: (n: { id: string; parentId: string | null; type: "folder" | "note"; name: string; content?: string }) =>
@@ -27,6 +35,9 @@ export const VaultApi = {
   movePreview: (id: string, parentId: string | null) =>
     req<MovePreview>(`/nodes/${encodeURIComponent(id)}/move-preview` + (parentId != null ? `?parentId=${encodeURIComponent(parentId)}` : "")),
   trash: (id: string) => req<void>(`/nodes/${id}`, { method: "DELETE" }),
+  trashList: () => req<TrashItem[]>("/trash"),
+  restore: (id: string) => req<void>(`/trash/${encodeURIComponent(id)}/restore`, { method: "POST" }),
+  purge: (id: string) => req<void>(`/trash/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };
 
 export type VaultApiType = typeof VaultApi;
