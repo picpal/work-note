@@ -453,6 +453,18 @@ export function insertAtCursor(view: EditorView, text: string): void {
   view.focus();
 }
 
+/** 지정한 문서 위치에 삽입 — 드롭 좌표(posAtCoords로 변환)에 이미지를 놓을 때. 범위를 문서 길이로 클램프. */
+export function insertAt(view: EditorView, pos: number, text: string): void {
+  const at = Math.max(0, Math.min(pos, view.state.doc.length));
+  view.dispatch({ changes: { from: at, insert: text }, selection: { anchor: at + text.length } });
+  view.focus();
+}
+
+/** 드롭 좌표 → 문서 위치(없으면 null). Editor 드롭 핸들러에서 사용. */
+export function posAtCoords(view: EditorView, x: number, y: number): number | null {
+  return view.posAtCoords({ x, y });
+}
+
 export function wrap(view: EditorView, left: string, right: string, ph?: string): void {
   const { from, to } = view.state.selection.main;
   const sel = view.state.sliceDoc(from, to) || ph || "";

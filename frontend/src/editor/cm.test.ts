@@ -13,6 +13,21 @@ describe("cm.insertAtCursor", () => {
   });
 });
 
+// Regression: 이미지 드롭이 직전 커서가 아닌 "드롭한 위치"에 삽입돼야 한다(insertAt)
+describe("cm.insertAt", () => {
+  it("지정한 위치에 삽입하고, 문서 길이로 클램프한다", () => {
+    const host = document.createElement("div");
+    const view = cm.create(host, { doc: "abc" });
+    cm.insertAt(view, 1, "X");
+    expect(view.state.doc.toString()).toBe("aXbc");
+    cm.insertAt(view, 999, "Z"); // 범위 밖 → 끝에 클램프
+    expect(view.state.doc.toString()).toBe("aXbcZ");
+    cm.insertAt(view, -5, "Q"); // 음수 → 0으로 클램프
+    expect(view.state.doc.toString()).toBe("QaXbcZ");
+    view.destroy();
+  });
+});
+
 // Regression: 에디터 라이브프리뷰가 이미지를 렌더하지 않던 문제(/qa e2e 발견)
 // Found by /qa on 2026-06-14 — cm.ts에 인라인 이미지 위젯(ImageWidget) 추가
 describe("cm 인라인 이미지 미리보기", () => {

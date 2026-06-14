@@ -64,19 +64,25 @@ export function Editor(props: EditorProps) {
   // ---- 첨부 업로드 (stale closure 방지: 항상 최신 note/props를 ref로 참조) ----
   const uploadDepsRef = useRef({ note, toast: props.toast, canUpload: props.canUpload });
   uploadDepsRef.current = { note, toast: props.toast, canUpload: props.canUpload };
-  const uploadFiles = async (files: FileList | File[]) => {
+  // at: 드롭 위치(문서 offset). 지정 시 그 위치에 이미지 삽입, 없으면 커서(파일피커·붙여넣기).
+  const uploadFiles = async (files: FileList | File[], at?: number) => {
     const { note: cur, toast, canUpload } = uploadDepsRef.current;
     if (!canUpload) { toast("서버 모드에서만 첨부할 수 있습니다"); return; }
     const v = viewRef.current;
     if (!v) return;
     let added = 0;
+    let pos = at; // 여러 이미지 연속 삽입 시 길이만큼 전진
     for (const file of Array.from(files)) {
       toast("업로드 중…");
       try {
         const res = await AttachmentApi.upload(cur.id, file);
         // 이미지는 본문에 인라인 미리보기 마크다운 삽입. 비이미지는 본문 표기 없이 첨부영역에만 등록.
         const isImg = /\.(png|jpe?g|gif|webp)$/i.test(res.filename);
-        if (isImg) cm.insertAtCursor(v, `![${res.filename}](${res.url})\n`);
+        if (isImg) {
+          const md = `![${res.filename}](${res.url})\n`;
+          if (pos != null) { cm.insertAt(v, pos, md); pos += md.length; }
+          else cm.insertAtCursor(v, md);
+        }
         added++;
         toast("첨부했습니다", "check");
       } catch (e) {
@@ -103,7 +109,10 @@ export function Editor(props: EditorProps) {
     const onDrop = (e: DragEvent) => {
       if (!e.dataTransfer?.files?.length) return;
       e.preventDefault();
-      void uploadRef.current(e.dataTransfer.files);
+      // 드롭 좌표 → 문서 위치. 그래야 이미지가 직전 커서가 아닌 "떨어뜨린 그 자리"에 삽입된다.
+      const v = viewRef.current;
+      const at = v ? cm.posAtCoords(v, e.clientX, e.clientY) : null;
+      void uploadRef.current(e.dataTransfer.files, at ?? undefined);
     };
     const onPaste = (e: ClipboardEvent) => {
       const files = e.clipboardData?.files;
