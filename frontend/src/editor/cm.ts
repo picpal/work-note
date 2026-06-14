@@ -180,6 +180,50 @@ class RenderWidget extends WidgetType {
   get estimatedHeight() { return this.kind === "mermaid" ? 180 : 80; }
 }
 
+// src 제한 — renderMarkdown(lib/markdown.ts)의 DOMPurify 훅과 동일 정책:
+// 내부 첨부(/api/attachments·/api/share)·상대경로만 허용, 외부 http(s)·data:·//·스킴은 차단.
+function imageSrcAllowed(src: string): boolean {
+  const internal = src.startsWith("/api/attachments/") || src.startsWith("/api/share/");
+  const relative = !/^[a-z][a-z0-9+.-]*:/i.test(src) && !src.startsWith("//");
+  return internal || relative;
+}
+
+// 인라인 이미지 위젯 — 커서가 줄 밖일 때 ![alt](url)·<img src..>를 실제 이미지로 렌더(라이브프리뷰).
+// 클릭하면 캐럿을 원문 위치로 보내 마크다운/태그를 다시 편집할 수 있게 한다.
+class ImageWidget extends WidgetType {
+  url: string;
+  alt: string;
+  pos: number;
+  width?: string;
+  constructor(url: string, alt: string, pos: number, width?: string) {
+    super();
+    this.url = url; this.alt = alt; this.pos = pos; this.width = width;
+  }
+  eq(o: ImageWidget) { return o.url === this.url && o.alt === this.alt && o.width === this.width; }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("span");
+    wrap.className = "cm-md-image";
+    if (imageSrcAllowed(this.url)) {
+      const img = document.createElement("img");
+      img.src = this.url;
+      if (this.alt) img.alt = this.alt;
+      if (this.width) img.setAttribute("width", this.width);
+      wrap.appendChild(img);
+    } else {
+      // 차단된 외부 src — 추적 픽셀 방지. 대체 텍스트만 표시.
+      wrap.classList.add("blocked");
+      wrap.textContent = this.alt ? "🚫 " + this.alt : "🚫 외부 이미지 차단됨";
+    }
+    wrap.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+    return wrap;
+  }
+  ignoreEvent() { return false; }
+}
+
 // ---------- focus state (unfocused editor = fully rendered clean preview) ----------
 const setFocus = StateEffect.define<boolean>();
 const focusField = StateField.define<boolean>({
@@ -259,6 +303,30 @@ function buildDecorations(state: EditorState) {
           const firstLine = state.doc.lineAt(nf), lastLine = state.doc.lineAt(Math.min(nt, state.doc.length));
           for (let l = firstLine.number; l <= lastLine.number; l++) out.push(Decoration.line({ class: "cm-md-quote" }).range(state.doc.line(l).from));
           return;
+        }
+
+        // ---- inline image: ![alt](url) → 실제 이미지 (커서가 줄 밖일 때) ----
+        if (name === "Image") {
+          if (!lineActive(nf)) {
+            const raw = state.sliceDoc(nf, nt);
+            const m = raw.match(/^!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+[^)]*)?\)$/);
+            if (m) {
+              out.push(Decoration.replace({ widget: new ImageWidget(m[2], m[1], nf) }).range(nf, nt));
+              return false;
+            }
+          }
+          return; // 편집 중이거나 파싱 불가 — 원문 표시
+        }
+        // ---- HTML <img ...> → 실제 이미지 (인라인 HTMLTag·단독 라인 HTMLBlock 모두) ----
+        if (name === "HTMLTag" || name === "HTMLBlock") {
+          const raw = state.sliceDoc(nf, nt).trim();
+          if (/^<img\b/i.test(raw) && !lineActive(nf)) {
+            const src = (raw.match(/src\s*=\s*["']([^"']*)["']/i) || [])[1] || "";
+            const alt = (raw.match(/alt\s*=\s*["']([^"']*)["']/i) || [])[1] || "";
+            const width = (raw.match(/width\s*=\s*["']?([^"'\s>/]+)/i) || [])[1];
+            out.push(Decoration.replace({ widget: new ImageWidget(src, alt, nf, width) }).range(nf, nt));
+            return false;
+          }
         }
 
         // ---- inline styling ----

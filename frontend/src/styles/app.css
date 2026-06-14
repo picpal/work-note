@@ -720,6 +720,11 @@ button.topbar-me { font-family: var(--font-ui); }
 .cm-md-render .md > *:first-child { margin-top: 0; }
 .cm-md-render .md > *:last-child { margin-bottom: 0; }
 
+/* 에디터 인라인 이미지 미리보기 (![]() / <img>) */
+.cm-md-image { cursor: pointer; display: inline-block; vertical-align: top; max-width: 100%; }
+.cm-md-image img { max-width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--line); display: block; }
+.cm-md-image.blocked { color: var(--text-3); font-size: .85em; border: 1px dashed var(--line); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+
 /* host + fallback */
 .cm-host { font-size: var(--reading-size); }
 .cm-tail { min-height: 30vh; cursor: text; }
