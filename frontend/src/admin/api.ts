@@ -24,6 +24,8 @@ export interface ApiShare {
 }
 export interface AuditQuery { who?: string; act?: string; from?: string; to?: string; limit?: number; offset?: number; }
 export interface UploadPolicy { allowedExt: string[]; maxBytes: number; }
+export interface ApiPiiNote { nodeId: string; title: string; updatedBy: string | null; types: string; status: string; detectedAt: string; }
+export interface ApiPiiRequest { nodeId: string; title: string; updatedBy: string | null; types: string; requestedBy: string | null; requestedAt: string | null; requestReason: string | null; }
 
 /** 빈 문자열/undefined 필터는 쿼리에서 생략 — 백엔드가 빈 값을 필터로 오해하지 않게. */
 function qs(params: Record<string, string | number | undefined>): string {
@@ -83,4 +85,10 @@ export const AdminApi = {
   getUploadPolicy: () => req<UploadPolicy>("/admin/settings/upload"),
   setUploadPolicy: (allowedExt: string[], maxBytes: number) =>
     req<void>("/admin/settings/upload", { method: "PUT", body: JSON.stringify({ allowedExt, maxBytes }) }),
+
+  piiNotes: () => req<ApiPiiNote[]>("/admin/pii/notes"),
+  piiRequests: () => req<ApiPiiRequest[]>("/admin/pii/requests"),
+  piiApprove: (nodeId: string) => req<void>(`/admin/pii/notes/${encodeURIComponent(nodeId)}/approve`, { method: "POST" }),
+  piiReject: (nodeId: string, reason: string) => req<void>(`/admin/pii/notes/${encodeURIComponent(nodeId)}/reject`, { method: "POST", body: JSON.stringify({ reason }) }),
+  piiNotice: (nodeId: string) => req<void>(`/admin/pii/notes/${encodeURIComponent(nodeId)}/notice`, { method: "POST" }),
 };

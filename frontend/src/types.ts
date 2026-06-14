@@ -1,3 +1,6 @@
+export type PiiStatus = "none" | "suspected" | "requested" | "exempted" | "rejected";
+export interface NotePii { status: PiiStatus; types: string[]; }
+
 export interface NoteNode {
   id: string;
   type: "note";
@@ -5,6 +8,7 @@ export interface NoteNode {
   tags: string[];
   updated: string; // YYYY-MM-DD
   content: string;
+  pii?: NotePii | null;
 }
 export interface FolderNode {
   id: string;
