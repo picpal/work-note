@@ -36,6 +36,23 @@ class SchemaMigrationTest {
     }
 
     @Test
+    void v4_createsAttachmentAndSettingTables() {
+        var tables = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='table'", String.class);
+        assertThat(tables).contains("attachment", "app_setting");
+        var indexes = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='attachment'", String.class);
+        assertThat(indexes).contains("idx_attachment_node");
+        // seed 2건
+        String exts = jdbc.queryForObject(
+            "SELECT value FROM app_setting WHERE key='upload.allowed_ext'", String.class);
+        String max = jdbc.queryForObject(
+            "SELECT value FROM app_setting WHERE key='upload.max_bytes'", String.class);
+        assertThat(exts).contains("png").contains("pdf");
+        assertThat(max).isEqualTo("26214400");
+    }
+
+    @Test
     void systemRolesSeeded() {
         var roles = jdbc.queryForList("SELECT id FROM role WHERE system = 1 ORDER BY id", String.class);
         assertThat(roles).containsExactly("admin", "operator", "visitor");
