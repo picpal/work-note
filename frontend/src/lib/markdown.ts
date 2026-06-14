@@ -18,7 +18,10 @@ function initMermaid(isDark: boolean): void {
     securityLevel: "strict",
     fontFamily: '"Pretendard", system-ui, sans-serif',
     fontSize: 15,
-    flowchart: { htmlLabels: true, padding: 14, diagramPadding: 10, nodeSpacing: 52, rankSpacing: 50, useMaxWidth: true },
+    // htmlLabels:false — strict의 SVG-only DOMPurify가 foreignObject 내부 HTML 라벨을 제거해
+    // 도형만 남고 텍스트가 사라지므로, 라벨을 SVG <text>로 렌더해 sanitize를 통과시킨다.
+    htmlLabels: false,
+    flowchart: { htmlLabels: false, padding: 14, diagramPadding: 10, nodeSpacing: 52, rankSpacing: 50, useMaxWidth: true },
     sequence: { useMaxWidth: true, boxMargin: 12 },
     theme: "base",
     themeVariables: {
