@@ -12,3 +12,10 @@ const LABELS: Record<string, string> = {
 export function piiTypeLabel(code: string): string {
   return LABELS[code] ?? code;
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  suspected: "탐지됨", requested: "검토 중", exempted: "허용됨", rejected: "반려됨", none: "없음",
+};
+export function piiStatusLabel(code: string): string {
+  return STATUS_LABELS[code] ?? code;
+}

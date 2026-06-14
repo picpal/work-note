@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { piiWarns, piiTypeLabel } from "./pii";
+import { piiWarns, piiTypeLabel, piiStatusLabel } from "./pii";
 
 describe("piiWarns", () => {
   it("suspected/requested/rejected는 경고", () => {
@@ -20,5 +20,16 @@ describe("piiTypeLabel", () => {
     expect(piiTypeLabel("rrn")).toBe("주민등록번호");
     expect(piiTypeLabel("phone")).toBe("휴대폰번호");
     expect(piiTypeLabel("unknown")).toBe("unknown");
+  });
+});
+
+describe("piiStatusLabel", () => {
+  it("상태 코드 → 한글 라벨", () => {
+    expect(piiStatusLabel("suspected")).toBe("탐지됨");
+    expect(piiStatusLabel("requested")).toBe("검토 중");
+    expect(piiStatusLabel("rejected")).toBe("반려됨");
+  });
+  it("미지정 코드는 그대로 반환", () => {
+    expect(piiStatusLabel("zzz")).toBe("zzz");
   });
 });

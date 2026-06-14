@@ -3,7 +3,7 @@ import React from "react";
 import { AdminApi, type ApiPiiNote, type ApiPiiRequest } from "../api";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, Modal } from "../common";
-import { piiTypeLabel } from "../../lib/pii";
+import { piiTypeLabel, piiStatusLabel } from "../../lib/pii";
 
 const { useState, useEffect, useCallback } = React;
 const h = React.createElement;
@@ -46,6 +46,8 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
     finally { setBusy(null); }
   };
 
+  const shown = notes.filter((n) => n.status !== "exempted");
+
   return h("div", { className: "apage" },
     h(SecHead, { title: "예외 요청 대기", hint: "사용자가 올린 개인정보 탐지 예외 요청을 검토합니다" }),
     reqs.length === 0
@@ -65,17 +67,17 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
 
     h("div", { style: { height: 22 } }),
     h(SecHead, { title: "전체 개인정보 노트", hint: "탐지된 모든 노트(허용 제외). 능동 알림 발송 가능" }),
-    notes.filter((n) => n.status !== "exempted").length === 0
+    shown.length === 0
       ? h(Empty, { icon: "shield", title: "표시할 노트가 없습니다", desc: "탐지된 노트가 이곳에 나열됩니다." })
       : h("div", { className: "table-wrap" }, h("table", { className: "atable" },
           h("thead", null, h("tr", null,
             h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
             h("th", null, "상태"), h("th", null, "탐지 시각"), h("th", { className: "right" }, "알림"))),
-          h("tbody", null, notes.filter((n) => n.status !== "exempted").map((n) => h("tr", { key: n.nodeId },
+          h("tbody", null, shown.map((n) => h("tr", { key: n.nodeId },
             h("td", null, n.title),
             h("td", { className: "mono" }, n.updatedBy ?? "—"),
             h("td", null, h("div", { className: "chips" }, typeChips(n.types))),
-            h("td", null, n.status),
+            h("td", null, piiStatusLabel(n.status)),
             h("td", { className: "mono" }, n.detectedAt?.slice(0, 16).replace("T", " ")),
             h("td", { className: "right" },
               h("button", { className: "btn sm", disabled: busy === n.nodeId || !n.updatedBy, onClick: () => void notify(n.nodeId) }, "알림 보내기"))))))),
