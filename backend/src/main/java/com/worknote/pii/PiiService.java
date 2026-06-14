@@ -27,7 +27,7 @@ public class PiiService {
         this.clock = clock;
     }
 
-    /** 능동 알림 수신자 = 최종 수정자(node.updated_by). 없으면 invalid(400). */
+    /** 능동 알림 수신자 = 최종 수정자(node.updated_by). 없으면 invalid → 422. */
     @Transactional(readOnly = true)
     public String recipientForNotice(String nodeId) {
         String emp = nodeMapper.findUpdatedBy(nodeId);

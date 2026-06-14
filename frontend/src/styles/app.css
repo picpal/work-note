@@ -391,6 +391,8 @@ button.topbar-me { font-family: var(--font-ui); }
 .pii-notice-title { color: var(--ink); font-weight: 600; }
 .pii-notice-reason { color: var(--text-2); }
 .pii-notice-foot { padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--border-soft); }
+/* pf-emp는 사번용 모노스페이스 — 이 팝업 제목은 한글이라 UI 폰트로 되돌린다 */
+.pii-notice-modal .pf-emp { font-family: var(--font-ui); }
 
 /* ---- share viewer (share.html — read-only 공유 열람, .md 본문 스타일 재사용) ---- */
 .share { height: 100vh; overflow-y: auto; background: var(--bg); }
