@@ -4,19 +4,20 @@
 
   <select id="findFlag" resultType="com.worknote.pii.PiiFlagRow">
     SELECT node_id, status, types, detected_at, requested_by, requested_at, request_reason,
-           decided_by, decided_at, decision_reason, matched_hash
+           decided_by, decided_at, decision_reason, matched_hash, exempt_hashes
     FROM pii_flag WHERE node_id = #{nodeId}
   </select>
 
   <insert id="insertFlag">
-    INSERT INTO pii_flag (node_id, status, types, detected_at, requested_by, requested_at, request_reason, decided_by, decided_at, decision_reason, matched_hash)
-    VALUES (#{nodeId}, #{status}, #{types}, #{detectedAt}, #{requestedBy}, #{requestedAt}, #{requestReason}, #{decidedBy}, #{decidedAt}, #{decisionReason}, #{matchedHash})
+    INSERT INTO pii_flag (node_id, status, types, detected_at, requested_by, requested_at, request_reason, decided_by, decided_at, decision_reason, matched_hash, exempt_hashes)
+    VALUES (#{nodeId}, #{status}, #{types}, #{detectedAt}, #{requestedBy}, #{requestedAt}, #{requestReason}, #{decidedBy}, #{decidedAt}, #{decisionReason}, #{matchedHash}, #{exemptHashes})
   </insert>
 
   <update id="updateFlag">
     UPDATE pii_flag SET status=#{status}, types=#{types}, detected_at=#{detectedAt},
       requested_by=#{requestedBy}, requested_at=#{requestedAt}, request_reason=#{requestReason},
-      decided_by=#{decidedBy}, decided_at=#{decidedAt}, decision_reason=#{decisionReason}, matched_hash=#{matchedHash}
+      decided_by=#{decidedBy}, decided_at=#{decidedAt}, decision_reason=#{decisionReason},
+      matched_hash=#{matchedHash}, exempt_hashes=#{exemptHashes}
     WHERE node_id=#{nodeId}
   </update>
 
@@ -28,7 +29,7 @@
 
   <select id="activeFlags" resultType="com.worknote.pii.PiiFlagRow">
     SELECT f.node_id, f.status, f.types, f.detected_at, f.requested_by, f.requested_at, f.request_reason,
-           f.decided_by, f.decided_at, f.decision_reason, f.matched_hash
+           f.decided_by, f.decided_at, f.decision_reason, f.matched_hash, f.exempt_hashes
     FROM pii_flag f JOIN node n ON n.id = f.node_id WHERE n.deleted_at IS NULL
   </select>
 

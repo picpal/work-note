@@ -12,8 +12,8 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.TreeSet;
 
 /** PII 상태 기계 + 예외 요청/관리자 결정. 탐지는 PiiDetector(순수)에 위임. */
@@ -60,22 +60,35 @@ public class PiiService {
         }
         if (cur == null) {
             mapper.insertFlag(new PiiFlagRow(nodeId, "suspected", matched, now(),
-                null, null, null, null, null, null, hash));
+                null, null, null, null, null, null, hash, null));
             return new PiiEval("suspected", typesList(matched));
         }
+        // 승인된 값으로 (다시) 들어오면 예외 재적용 — 이전 허용 해시 집합에 현재 값이 있으면.
+        if (parseHashes(cur.exemptHashes()).contains(hash)) {
+            mapper.updateFlag(new PiiFlagRow(nodeId, "exempted", matched, now(),
+                cur.requestedBy(), cur.requestedAt(), cur.requestReason(),
+                cur.decidedBy(), cur.decidedAt(), cur.decisionReason(), hash, cur.exemptHashes()));
+            return new PiiEval("exempted", typesList(matched));
+        }
         if ("exempted".equals(cur.status())) {
-            // 예외는 검토한 '값'에 한정 — 탐지 스팬 해시가 그대로면 유지, 바뀌면(값 변경·추가) 의심 복귀.
-            if (Objects.equals(hash, cur.matchedHash())) {
-                return new PiiEval("exempted", typesList(cur.types()));
-            }
+            // 예외였는데 승인되지 않은 값으로 바뀜 → 의심 복귀(승인 집합은 보존 → 되돌아오면 다시 예외).
             mapper.updateFlag(new PiiFlagRow(nodeId, "suspected", matched, now(),
-                null, null, null, null, null, null, hash));
+                null, null, null, null, null, null, hash, cur.exemptHashes()));
             return new PiiEval("suspected", typesList(matched));
         }
         mapper.updateFlag(new PiiFlagRow(nodeId, cur.status(), matched, now(),
             cur.requestedBy(), cur.requestedAt(), cur.requestReason(),
-            cur.decidedBy(), cur.decidedAt(), cur.decisionReason(), hash));
+            cur.decidedBy(), cur.decidedAt(), cur.decisionReason(), hash, cur.exemptHashes()));
         return new PiiEval(cur.status(), typesList(matched));
+    }
+
+    /** 승인 해시 CSV 파싱(순서 보존·중복제거). null/빈 → 빈 집합. */
+    private static LinkedHashSet<String> parseHashes(String csv) {
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        if (csv != null && !csv.isEmpty()) {
+            for (String h : csv.split(",")) if (!h.isEmpty()) set.add(h);
+        }
+        return set;
     }
 
     /** 탐지된 원문 스팬의 SHA-256 hex(정렬·중복제거). 평문 PII는 저장하지 않고 해시만 비교. */
@@ -102,15 +115,19 @@ public class PiiService {
             throw VaultException.invalid("예외 요청할 수 있는 상태가 아닙니다");
         }
         mapper.updateFlag(new PiiFlagRow(nodeId, "requested", cur.types(), cur.detectedAt(),
-            emp, now(), reason, null, null, null, cur.matchedHash()));
+            emp, now(), reason, null, null, null, cur.matchedHash(), cur.exemptHashes()));
     }
 
-    /** 관리자 허용 → exempted. */
+    /** 관리자 허용 → exempted. 현재 값 해시를 승인 집합에 누적(되돌아오면 재적용). */
     @Transactional
     public void approve(String nodeId, String adminEmp) {
         PiiFlagRow cur = requireFlag(nodeId);
+        LinkedHashSet<String> exempt = parseHashes(cur.exemptHashes());
+        if (cur.matchedHash() != null) exempt.add(cur.matchedHash());
+        String exemptCsv = exempt.isEmpty() ? null : String.join(",", exempt);
         mapper.updateFlag(new PiiFlagRow(nodeId, "exempted", cur.types(), cur.detectedAt(),
-            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), null, cur.matchedHash()));
+            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), null,
+            cur.matchedHash(), exemptCsv));
     }
 
     /** 관리자 반려 → rejected(+사유). */
@@ -118,7 +135,8 @@ public class PiiService {
     public void reject(String nodeId, String adminEmp, String reason) {
         PiiFlagRow cur = requireFlag(nodeId);
         mapper.updateFlag(new PiiFlagRow(nodeId, "rejected", cur.types(), cur.detectedAt(),
-            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), reason, cur.matchedHash()));
+            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), reason,
+            cur.matchedHash(), cur.exemptHashes()));
     }
 
     private PiiFlagRow requireFlag(String nodeId) {

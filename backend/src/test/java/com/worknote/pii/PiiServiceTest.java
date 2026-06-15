@@ -62,6 +62,15 @@ class PiiServiceTest {
         assertEquals("suspected", svc.evaluate("sv", "연락처 010-1234-1235 변경").status());
     }
 
+    @Test void exempted_reapplies_when_returning_to_approved_value() {   // 1112→1113→1112: 승인했던 값으로 돌아오면 다시 예외
+        note("sr");
+        svc.evaluate("sr", "010-1111-1112");
+        svc.requestException("sr", "e1", "샘플");
+        svc.approve("sr", "admin");
+        assertEquals("suspected", svc.evaluate("sr", "010-1111-1113").status());   // 다른 값 → 의심
+        assertEquals("exempted", svc.evaluate("sr", "010-1111-1112").status());     // 승인값 복귀 → 예외 재적용
+    }
+
     @Test void rejected_persists_through_save() {
         note("s5");
         svc.evaluate("s5", "010-1234-5678");

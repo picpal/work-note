@@ -19,7 +19,7 @@ class PiiMapperTest {
 
     @Test void flag_upsert_and_find() {
         nodes.insert(new NodeRow("pm1", null, "note", "n", 1, "c", "2026-06-14T00:00:00", null, null));
-        pii.insertFlag(new PiiFlagRow("pm1", "suspected", "rrn", "2026-06-14T00:00:00", null, null, null, null, null, null, "h0"));
+        pii.insertFlag(new PiiFlagRow("pm1", "suspected", "rrn", "2026-06-14T00:00:00", null, null, null, null, null, null, "h0", null));
         PiiFlagRow row = pii.findFlag("pm1");
         assertEquals("suspected", row.status());
         assertEquals("rrn", row.types());
