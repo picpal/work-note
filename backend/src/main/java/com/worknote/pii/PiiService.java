@@ -5,12 +5,15 @@ import com.worknote.vault.VaultException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
+import java.util.Objects;
 import java.util.TreeSet;
 
 /** PII 상태 기계 + 예외 요청/관리자 결정. 탐지는 PiiDetector(순수)에 위임. */
@@ -46,7 +49,9 @@ public class PiiService {
     /** 저장 시 재탐지 + 상태 기계 적용. content가 변경된 PATCH에서만 호출. */
     @Transactional
     public PiiEval evaluate(String nodeId, String content) {
-        String matched = PiiType.csv(PiiDetector.detect(content));
+        PiiDetector.Scan scan = PiiDetector.scan(content);
+        String matched = PiiType.csv(scan.types());
+        String hash = hashSpans(scan.spans());
         PiiFlagRow cur = mapper.findFlag(nodeId);
 
         if (matched.isEmpty()) {
@@ -55,23 +60,38 @@ public class PiiService {
         }
         if (cur == null) {
             mapper.insertFlag(new PiiFlagRow(nodeId, "suspected", matched, now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, hash));
             return new PiiEval("suspected", typesList(matched));
         }
         if ("exempted".equals(cur.status())) {
-            Set<String> old = new TreeSet<>(typesList(cur.types()));
-            Set<String> nw = new TreeSet<>(typesList(matched));
-            if (old.containsAll(nw)) {
+            // 예외는 검토한 '값'에 한정 — 탐지 스팬 해시가 그대로면 유지, 바뀌면(값 변경·추가) 의심 복귀.
+            if (Objects.equals(hash, cur.matchedHash())) {
                 return new PiiEval("exempted", typesList(cur.types()));
             }
             mapper.updateFlag(new PiiFlagRow(nodeId, "suspected", matched, now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, hash));
             return new PiiEval("suspected", typesList(matched));
         }
         mapper.updateFlag(new PiiFlagRow(nodeId, cur.status(), matched, now(),
             cur.requestedBy(), cur.requestedAt(), cur.requestReason(),
-            cur.decidedBy(), cur.decidedAt(), cur.decisionReason()));
+            cur.decidedBy(), cur.decidedAt(), cur.decisionReason(), hash));
         return new PiiEval(cur.status(), typesList(matched));
+    }
+
+    /** 탐지된 원문 스팬의 SHA-256 hex(정렬·중복제거). 평문 PII는 저장하지 않고 해시만 비교. */
+    private static String hashSpans(List<String> spans) {
+        if (spans == null || spans.isEmpty()) return null;
+        String joined = String.join("\n", new TreeSet<>(spans));
+        try {
+            byte[] dig = MessageDigest.getInstance("SHA-256").digest(joined.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(dig.length * 2);
+            for (byte b : dig) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);   // SHA-256은 표준 보장
+        }
     }
 
     /** 사용자 예외 요청 — suspected/rejected에서만 허용. */
@@ -82,7 +102,7 @@ public class PiiService {
             throw VaultException.invalid("예외 요청할 수 있는 상태가 아닙니다");
         }
         mapper.updateFlag(new PiiFlagRow(nodeId, "requested", cur.types(), cur.detectedAt(),
-            emp, now(), reason, null, null, null));
+            emp, now(), reason, null, null, null, cur.matchedHash()));
     }
 
     /** 관리자 허용 → exempted. */
@@ -90,7 +110,7 @@ public class PiiService {
     public void approve(String nodeId, String adminEmp) {
         PiiFlagRow cur = requireFlag(nodeId);
         mapper.updateFlag(new PiiFlagRow(nodeId, "exempted", cur.types(), cur.detectedAt(),
-            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), null));
+            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), null, cur.matchedHash()));
     }
 
     /** 관리자 반려 → rejected(+사유). */
@@ -98,7 +118,7 @@ public class PiiService {
     public void reject(String nodeId, String adminEmp, String reason) {
         PiiFlagRow cur = requireFlag(nodeId);
         mapper.updateFlag(new PiiFlagRow(nodeId, "rejected", cur.types(), cur.detectedAt(),
-            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), reason));
+            cur.requestedBy(), cur.requestedAt(), cur.requestReason(), adminEmp, now(), reason, cur.matchedHash()));
     }
 
     private PiiFlagRow requireFlag(String nodeId) {

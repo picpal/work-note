@@ -1,6 +1,8 @@
 package com.worknote.pii;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,25 +23,41 @@ public final class PiiDetector {
     private static final Pattern PASSPORT = Pattern.compile("(?<![A-Z0-9])[A-Z]\\d{8}(?![A-Z0-9])");
     private static final Pattern DRIVER   = Pattern.compile("(?<!\\d)\\d{2}[-\\s]?\\d{2}[-\\s]?\\d{6}[-\\s]?\\d{2}(?!\\d)");
 
+    /** 탐지 결과 — 유형 집합 + 매치된 원문 스팬(값 기준 예외 비교용). */
+    public record Scan(Set<PiiType> types, List<String> spans) {}
+
     public static Set<PiiType> detect(String text) {
-        EnumSet<PiiType> found = EnumSet.noneOf(PiiType.class);
-        if (text == null || text.isEmpty()) return found;
-        if (RRN.matcher(text).find()) found.add(PiiType.RRN);
-        if (BIZ.matcher(text).find()) found.add(PiiType.BIZ);
-        if (anyCard(text)) found.add(PiiType.CARD);
-        if (PHONE.matcher(text).find()) found.add(PiiType.PHONE);
-        if (EMAIL.matcher(text).find()) found.add(PiiType.EMAIL);
-        if (PASSPORT.matcher(text).find()) found.add(PiiType.PASSPORT);
-        if (DRIVER.matcher(text).find()) found.add(PiiType.DRIVER);
-        return found;
+        return scan(text).types();
     }
 
-    private static boolean anyCard(String text) {
+    public static Scan scan(String text) {
+        EnumSet<PiiType> types = EnumSet.noneOf(PiiType.class);
+        List<String> spans = new ArrayList<>();
+        if (text == null || text.isEmpty()) return new Scan(types, spans);
+        collect(RRN, PiiType.RRN, text, types, spans);
+        collect(BIZ, PiiType.BIZ, text, types, spans);
+        collectCard(text, types, spans);
+        collect(PHONE, PiiType.PHONE, text, types, spans);
+        collect(EMAIL, PiiType.EMAIL, text, types, spans);
+        collect(PASSPORT, PiiType.PASSPORT, text, types, spans);
+        collect(DRIVER, PiiType.DRIVER, text, types, spans);
+        return new Scan(types, spans);
+    }
+
+    private static void collect(Pattern p, PiiType t, String text, Set<PiiType> types, List<String> spans) {
+        Matcher m = p.matcher(text);
+        boolean any = false;
+        while (m.find()) { spans.add(m.group()); any = true; }
+        if (any) types.add(t);
+    }
+
+    private static void collectCard(String text, Set<PiiType> types, List<String> spans) {
         Matcher m = CARD.matcher(text);
+        boolean any = false;
         while (m.find()) {
-            if (luhn(m.group().replaceAll("[ -]", ""))) return true;
+            if (luhn(m.group().replaceAll("[ -]", ""))) { spans.add(m.group()); any = true; }
         }
-        return false;
+        if (any) types.add(PiiType.CARD);
     }
 
     private static boolean luhn(String d) {

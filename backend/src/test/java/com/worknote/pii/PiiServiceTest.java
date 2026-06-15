@@ -44,13 +44,22 @@ class PiiServiceTest {
         assertNull(pii.findFlag("s3"));
     }
 
-    @Test void exempted_stays_for_same_types_but_reverts_on_new_type() {
+    @Test void exempted_stays_on_same_value_but_reverts_on_added_value() {
         note("s4");
         svc.evaluate("s4", "010-1234-5678");
         svc.requestException("s4", "e1", "오탐");
         svc.approve("s4", "admin");
-        assertEquals("exempted", svc.evaluate("s4", "010-1234-5678 동일유형").status());
-        assertEquals("suspected", svc.evaluate("s4", "010-1234-5678 a.b@c.com").status());
+        assertEquals("exempted", svc.evaluate("s4", "010-1234-5678 동일값").status());      // 같은 값 → 유지
+        assertEquals("suspected", svc.evaluate("s4", "010-1234-5678 a.b@c.com").status()); // 값 추가 → 복귀
+    }
+
+    @Test void exempted_reverts_when_value_changes_same_type() {   // 1234→1235: 같은 phone 유형이어도 값 바뀌면 재감지
+        note("sv");
+        svc.evaluate("sv", "010-1234-1234");
+        svc.requestException("sv", "e1", "샘플");
+        svc.approve("sv", "admin");
+        assertEquals("exempted", svc.evaluate("sv", "연락처 010-1234-1234 유지").status());
+        assertEquals("suspected", svc.evaluate("sv", "연락처 010-1234-1235 변경").status());
     }
 
     @Test void rejected_persists_through_save() {
