@@ -920,7 +920,7 @@ button.topbar-me { font-family: var(--font-ui); }
 /* ============================================================
    misc
    ============================================================ */
-.empty-state { flex: 1; display: grid; place-items: center; color: var(--text-3); }
+.empty-state { min-height: 100%; display: grid; place-items: center; color: var(--text-3); }
 .empty-state .es-inner { text-align: center; }
 .empty-state .es-icon { color: var(--text-faint); margin-bottom: 14px; }
 .empty-state .es-icon svg { width: 46px; height: 46px; }
