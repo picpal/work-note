@@ -8,7 +8,10 @@ import com.worknote.vault.NodeMapper;
 import com.worknote.vault.NodeRow;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+// 인메모리 격리 — 작업 디렉토리 ./worknote.db(실 데이터/시드)와 분리(시드 n1/n2 PK 충돌 방지).
+@SpringBootTest(properties = {
+    "spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared"
+})
 @Transactional
 class PiiServiceTest {
     @Autowired PiiService svc;
