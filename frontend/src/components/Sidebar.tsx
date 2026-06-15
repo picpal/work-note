@@ -67,11 +67,15 @@ function Row(props: RowProps): React.ReactElement {
     isFolder
       ? React.createElement("span", { className: "twirl" + ((node as { open?: boolean }).open ? " open" : "") }, React.createElement(Icon, { name: "chevron" }))
       : React.createElement("span", { className: "twirl", style: { visibility: "hidden" } }),
-    React.createElement("span", { className: "ic" + (!isFolder && piiWarns((node as NoteNode).pii) ? " pii-warn" : "") },
+    React.createElement("span", { className: "ic"
+      + (!isFolder && piiWarns((node as NoteNode).pii) ? " pii-warn" : "")
+      + (!isFolder && (node as NoteNode).pii?.status === "exempted" ? " pii-exempt" : "") },
       React.createElement(Icon, {
         name: isFolder
           ? ((node as { open?: boolean }).open ? "folderOpen" : "folder")
-          : (piiWarns((node as NoteNode).pii) ? "alert" : "fileLines"),
+          : piiWarns((node as NoteNode).pii) ? "alert"
+          : (node as NoteNode).pii?.status === "exempted" ? "shieldCheck"
+          : "fileLines",
       })),
     renaming
       ? React.createElement("input", {

@@ -47,6 +47,7 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
   };
 
   const shown = notes.filter((n) => n.status !== "exempted");
+  const exempted = notes.filter((n) => n.status === "exempted");
 
   return h("div", { className: "apage" },
     h(SecHead, { title: "예외 요청 대기", hint: "사용자가 올린 개인정보 탐지 예외 요청을 검토합니다" }),
@@ -81,6 +82,20 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
             h("td", { className: "mono" }, n.detectedAt?.slice(0, 16).replace("T", " ")),
             h("td", { className: "right" },
               h("button", { className: "btn sm", disabled: busy === n.nodeId || !n.updatedBy, onClick: () => void notify(n.nodeId) }, "알림 보내기"))))))),
+
+    h("div", { style: { height: 22 } }),
+    h(SecHead, { title: "예외 처리된 노트", hint: "관리자가 허용한 개인정보 예외 노트. 값이 바뀌면 자동으로 다시 탐지됩니다" }),
+    exempted.length === 0
+      ? h(Empty, { icon: "shieldCheck", title: "예외 처리된 노트가 없습니다", desc: "예외를 허용하면 이곳에 모입니다." })
+      : h("div", { className: "table-wrap" }, h("table", { className: "atable" },
+          h("thead", null, h("tr", null,
+            h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
+            h("th", null, "탐지 시각"))),
+          h("tbody", null, exempted.map((n) => h("tr", { key: n.nodeId },
+            h("td", null, n.title),
+            h("td", { className: "mono" }, n.updatedBy ?? "—"),
+            h("td", null, h("div", { className: "chips" }, typeChips(n.types))),
+            h("td", { className: "mono" }, n.detectedAt?.slice(0, 16).replace("T", " "))))))),
 
     reject && h(Modal, {
       icon: "ban", iconWarn: true, title: "예외 반려", confirmLabel: "반려", confirmDanger: true,

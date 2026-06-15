@@ -230,6 +230,10 @@ export function Editor(props: EditorProps) {
           createElement("button", { className: "pii-act", onClick: () => void requestException() }, "예외 요청"),
         props.canUpload && pii!.status === "rejected" &&
           createElement("button", { className: "pii-act", onClick: () => void requestException() }, "다시 요청"))
+    : pii?.status === "exempted"
+    ? createElement("div", { className: "pii-banner exempted" },
+        createElement("span", { className: "pii-ic" }, createElement(Icon, { name: "shieldCheck" })),
+        createElement("span", { className: "pii-msg" }, "개인정보 예외 처리됨"))
     : null;
 
   return createElement(

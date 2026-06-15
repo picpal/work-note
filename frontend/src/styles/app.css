@@ -212,6 +212,7 @@ button { font-family: inherit; cursor: pointer; }
 .row.active .ic { color: var(--text-2); }
 .row .ic svg { width: 15px; height: 15px; }
 .row .ic.pii-warn { color: var(--danger, #d9534f); }
+.row .ic.pii-exempt { color: var(--text-3); }
 .row .label { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .row .count { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
 
@@ -961,5 +962,7 @@ button.topbar-me { font-family: var(--font-ui); }
 .pii-banner.suspected .pii-ic { color: #d9534f; }
 .pii-banner.requested { background: var(--bg-sunken); color: var(--text-2); border: 1px solid var(--border); }
 .pii-banner.rejected { background: rgba(217,83,79,.10); color: #c0392b; border: 1px solid rgba(217,83,79,.35); }
+.pii-banner.exempted { background: var(--bg-sunken); color: var(--text-2); border: 1px solid var(--border); }
+.pii-banner.exempted .pii-ic { color: var(--text-3); }
 .pii-act { margin-left: auto; padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-elev); cursor: pointer; }
 .pii-act:hover { background: var(--bg-active); }
