@@ -10,8 +10,13 @@ class PiiDetectorTest {
         assertTrue(PiiDetector.detect("주민번호 900101-1234568 입니다").contains(PiiType.RRN));
     }
 
-    @Test void 체크섬_무효_주민형식은_음성() {
-        assertFalse(PiiDetector.detect("900101-1234561").contains(PiiType.RRN));
+    @Test void 체크섬_무효라도_주민형식이면_탐지() {   // 경고용 — 형식만 맞으면 양성(가짜/테스트 번호 포함)
+        assertTrue(PiiDetector.detect("900101-1234561").contains(PiiType.RRN));
+        assertTrue(PiiDetector.detect("9001011234561").contains(PiiType.RRN));   // 구분자 없어도
+    }
+
+    @Test void 주민_성별자리_범위밖은_음성() {   // 형식 자체가 아니면 음성(7번째 자리 1-8만)
+        assertFalse(PiiDetector.detect("900101-9234567").contains(PiiType.RRN));
     }
 
     @Test void 휴대폰_탐지() {
@@ -28,9 +33,10 @@ class PiiDetectorTest {
         assertFalse(PiiDetector.detect("4111-1111-1111-1112").contains(PiiType.CARD));
     }
 
-    @Test void 사업자번호_체크섬() {
+    @Test void 사업자번호_형식이면_탐지() {   // 체크섬 무효라도 NNN-NN-NNNNN 형식이면 양성
         assertTrue(PiiDetector.detect("220-81-62517").contains(PiiType.BIZ));
-        assertFalse(PiiDetector.detect("123-45-67890").contains(PiiType.BIZ));
+        assertTrue(PiiDetector.detect("123-45-67890").contains(PiiType.BIZ));
+        assertFalse(PiiDetector.detect("12345-67890").contains(PiiType.BIZ));   // 대시 구조 다르면 음성
     }
 
     @Test void 여권_운전면허() {
