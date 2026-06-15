@@ -8,9 +8,10 @@ import com.worknote.vault.NodeMapper;
 import com.worknote.vault.NodeRow;
 import static org.junit.jupiter.api.Assertions.*;
 
-// 인메모리 격리 — 작업 디렉토리 ./worknote.db(실 데이터/시드)와 분리(시드 n1/n2 PK 충돌 방지).
+// 전용 네임드 인메모리 DB — 익명 ::memory: 풀을 공유하는 비-@Transactional 커밋 테스트들이
+// 같은 n1/n2 id를 남겨 PK 충돌을 내므로 격리(phase2mem/shareapimem과 동일 관례).
 @SpringBootTest(properties = {
-    "spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared"
+    "spring.datasource.url=jdbc:sqlite:file:piisvcmem?mode=memory&cache=shared"
 })
 @Transactional
 class PiiServiceTest {
