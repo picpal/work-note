@@ -9,7 +9,9 @@ import com.worknote.vault.NodeRow;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+// 전용 네임드 인메모리 DB — 온디스크 ./worknote.db(라이브 데이터)와 분리.
+// activeFlags().size() 단언이 라이브 PII 플래그에 오염되지 않도록.
+@SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file:piimapmem?mode=memory&cache=shared")
 @Transactional
 class PiiMapperTest {
     @Autowired PiiMapper pii;
@@ -17,7 +19,7 @@ class PiiMapperTest {
 
     @Test void flag_upsert_and_find() {
         nodes.insert(new NodeRow("pm1", null, "note", "n", 1, "c", "2026-06-14T00:00:00", null, null));
-        pii.insertFlag(new PiiFlagRow("pm1", "suspected", "rrn", "2026-06-14T00:00:00", null, null, null, null, null, null));
+        pii.insertFlag(new PiiFlagRow("pm1", "suspected", "rrn", "2026-06-14T00:00:00", null, null, null, null, null, null, "h0"));
         PiiFlagRow row = pii.findFlag("pm1");
         assertEquals("suspected", row.status());
         assertEquals("rrn", row.types());
