@@ -74,24 +74,18 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
       ? h("div", { className: "pf-sec" },
           h("div", { className: "pf-sec-label" }, "이동할 위치"),
           h("div", { className: "mv-list" },
-            h("button", {
-              className: "mv-opt" + (selected && target === null ? " sel" : ""),
-              disabled: currentParentId === null,
-              onClick: () => pick(null),
-            },
-              h("span", { className: "ic" }, h(Icon, { name: "folderOpen" })),
-              h("span", { className: "lbl" }, "루트 (최상위)"),
-              currentParentId === null ? h("span", { className: "here" }, "현재 위치") : null),
-            options.map((o) =>
-              h("button", {
-                key: o.id,
-                className: "mv-opt" + (selected && target === o.id ? " sel" : ""),
-                disabled: o.id === currentParentId,
-                onClick: () => pick(o.id),
-              },
-                h("span", { className: "ic" }, h(Icon, { name: o.isRoot ? "space" : "folder" })),
-                h("span", { className: "lbl" }, o.label),
-                o.id === currentParentId ? h("span", { className: "here" }, "현재 위치") : null))),
+            options.length === 0
+              ? h("div", { style: { padding: "14px", color: "var(--text-3)", fontSize: 13 } }, "이동 가능한 폴더가 없습니다")
+              : options.map((o) =>
+                  h("button", {
+                    key: o.id,
+                    className: "mv-opt" + (selected && target === o.id ? " sel" : ""),
+                    disabled: o.id === currentParentId,
+                    onClick: () => pick(o.id),
+                  },
+                    h("span", { className: "ic" }, h(Icon, { name: o.isRoot ? "space" : "folder" })),
+                    h("span", { className: "lbl" }, o.label),
+                    o.id === currentParentId ? h("span", { className: "here" }, "현재 위치") : null))),
           h("div", { className: "pf-foot" },
             h("button", { className: "pf-btn", onClick: onClose }, "취소"),
             h("button", { className: "pf-btn primary", disabled: !selected || busy, onClick: onMoveClick }, "이동")))
