@@ -3,6 +3,8 @@
 .admin { display: flex; height: 100vh; background: var(--bg); min-width: 1040px; }
 /* low-specificity fallback so any inline icon stays small unless a specific rule overrides */
 .admin svg { width: 1em; height: 1em; }
+/* icon-btn(app.css)은 admin.css가 뒤에 로드돼 .admin svg(1em)에 덮이므로 17px 복원 — 메인과 동일 */
+.admin .icon-btn svg { width: 17px; height: 17px; }
 
 /* ---- left admin nav ---- */
 .anav {

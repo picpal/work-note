@@ -57,6 +57,13 @@ export function AdminApp() {
     setNavCollapsed(next);
     try { localStorage.setItem("wn.adminNavCollapsed", next ? "1" : "0"); } catch (e) {}
   }, []);
+  const toggleCollapsed = useCallback(() => {
+    setNavCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("wn.adminNavCollapsed", next ? "1" : "0"); } catch (e) {}
+      return next;
+    });
+  }, []);
   const [toastPush, toastNode] = useToast();
   const [me, setMe] = useState<Me | null>(null);
   const [data, setData] = useState<{ users: ApiUser[]; roles: ApiRole[]; teams: ApiTeam[] } | null>(null);
@@ -94,6 +101,15 @@ export function AdminApp() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  // 전역 단축키 — 메인과 동일하게 Ctrl/⌘+\ 로 사이드바 토글.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); toggleCollapsed(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleCollapsed]);
   const go = (id: string) => { location.hash = id; setRoute(id); };
 
   const screenMap: Record<string, React.ComponentType<{ go: (id: string) => void; toast: (msg: string, icon?: string) => void }>> = {
