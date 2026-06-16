@@ -395,7 +395,7 @@ button.topbar-me { font-family: var(--font-ui); }
 .pii-notice-list li { font-size: 13px; margin: 2px 0; line-height: 1.5; }
 .pii-notice-title { color: var(--ink); font-weight: 600; }
 .pii-notice-reason { color: var(--text-2); }
-.pii-notice-foot { padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--border-soft); }
+.pii-notice-foot { padding: 14px 22px 18px; margin-top: 4px; border-top: 1px solid var(--border-soft); }
 /* pf-emp는 사번용 모노스페이스 — 이 팝업 제목은 한글이라 UI 폰트로 되돌린다 */
 .pii-notice-modal .pf-emp { font-family: var(--font-ui); }
 
