@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions } from "./tree";
+import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions, folderIconName } from "./tree";
 import type { VaultTree, FolderNode, NoteNode } from "../types";
 
 const note = (id: string, title: string): NoteNode => ({ id, type: "note", title, tags: [], updated: "2026-06-10", content: "" });
@@ -133,6 +133,24 @@ describe("folderOptions", () => {
   it("does not include root (caller adds it)", () => {
     const opts = folderOptions(make(), "n3");
     expect(opts.some((o) => o.id === null as unknown as string)).toBe(false);
+  });
+  it("marks top-level folder isRoot true, nested false", () => {
+    const opts = folderOptions(make(), "n3");
+    expect(opts.find((o) => o.id === "f1")?.isRoot).toBe(true);  // f1 = 최상위
+    expect(opts.find((o) => o.id === "f2")?.isRoot).toBe(false); // f2 = f1 하위
+  });
+});
+
+describe("folderIconName", () => {
+  it("top-level folder (depth 0) is a space, regardless of open state", () => {
+    expect(folderIconName(0, false)).toBe("space");
+    expect(folderIconName(0, true)).toBe("space");
+  });
+  it("nested closed folder is folder", () => {
+    expect(folderIconName(1, false)).toBe("folder");
+  });
+  it("nested open folder is folderOpen", () => {
+    expect(folderIconName(2, true)).toBe("folderOpen");
   });
 });
 

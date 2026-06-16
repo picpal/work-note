@@ -134,14 +134,20 @@ export function moveNode(tree: VaultTree, id: string, newParentId: string | null
 }
 
 // 이동 대상 후보 폴더(자신·자손 제외). 라벨은 "A / B / C" 경로. 루트는 호출측에서 별도 추가.
-export function folderOptions(tree: VaultTree, excludeId: string): Array<{ id: string; label: string }> {
-  const out: Array<{ id: string; label: string }> = [];
-  walkTree(tree, (n, _p, _d, path) => {
+export function folderOptions(tree: VaultTree, excludeId: string): Array<{ id: string; label: string; isRoot: boolean }> {
+  const out: Array<{ id: string; label: string; isRoot: boolean }> = [];
+  walkTree(tree, (n, _p, depth, path) => {
     if (n.type !== "folder") return;
     if (isSelfOrDescendant(tree, excludeId, n.id)) return;
-    out.push({ id: n.id, label: path.concat(n.name).join(" / ") });
+    out.push({ id: n.id, label: path.concat(n.name).join(" / "), isRoot: depth === 0 });
   });
   return out;
+}
+
+// 폴더 아이콘 선택: 최상위(depth 0)는 스페이스, 그 외는 펼침 상태에 따라 folder/folderOpen.
+export function folderIconName(depth: number, open: boolean): "space" | "folderOpen" | "folder" {
+  if (depth === 0) return "space";
+  return open ? "folderOpen" : "folder";
 }
 
 // flatten all notes with their folder path, for search

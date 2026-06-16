@@ -6,6 +6,7 @@ const P: Record<string, string> = {
   chevronDown: '<polyline points="6 9 12 15 18 9"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   folderOpen: '<path d="M3 8a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2"/><path d="M3 8v9a2 2 0 0 0 2 2h13.5a1.5 1.5 0 0 0 1.45-1.1l1.4-5A1.5 1.5 0 0 0 19.9 12H6.5a2 2 0 0 0-1.9 1.37L3 18"/>',
+  space: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><line x1="10" y1="12" x2="14" y2="12"/>',
   file: '<path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>',
   fileLines: '<path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><line x1="8.5" y1="12" x2="14" y2="12"/><line x1="8.5" y1="15.5" x2="15.5" y2="15.5"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/>',

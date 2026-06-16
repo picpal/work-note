@@ -89,7 +89,7 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
                 disabled: o.id === currentParentId,
                 onClick: () => pick(o.id),
               },
-                h("span", { className: "ic" }, h(Icon, { name: "folder" })),
+                h("span", { className: "ic" }, h(Icon, { name: o.isRoot ? "space" : "folder" })),
                 h("span", { className: "lbl" }, o.label),
                 o.id === currentParentId ? h("span", { className: "here" }, "현재 위치") : null))),
           h("div", { className: "pf-foot" },

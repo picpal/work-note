@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
-import { countNotes } from "../lib/tree";
+import { countNotes, folderIconName } from "../lib/tree";
 import { piiWarns } from "../lib/pii";
 import type { VaultTree, VaultNode, NoteNode } from "../types";
 
@@ -72,7 +72,7 @@ function Row(props: RowProps): React.ReactElement {
       + (!isFolder && (node as NoteNode).pii?.status === "exempted" ? " pii-exempt" : "") },
       React.createElement(Icon, {
         name: isFolder
-          ? ((node as { open?: boolean }).open ? "folderOpen" : "folder")
+          ? folderIconName(depth, !!(node as { open?: boolean }).open)
           : piiWarns((node as NoteNode).pii) ? "alert"
           : (node as NoteNode).pii?.status === "exempted" ? "shieldCheck"
           : "fileLines",
