@@ -14,7 +14,7 @@ const P: Record<string, string> = {
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   newNote: '<path d="M5 4h9l5 5v3"/><path d="M5 4v16h7"/><path d="M14 4v5h5"/><path d="M16.5 17.5h6M19.5 14.5v6"/>',
   folderPlus: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
-  collapseAll: '<polyline points="8 9 12 5 16 9"/><polyline points="8 15 12 19 16 15"/>',
+  collapseAll: '<polyline points="8 6 12 10 16 6"/><polyline points="8 18 12 14 16 18"/>',
   sort: '<path d="M11 5h10M11 9h7M11 13h4"/><path d="M3 8l3-3 3 3"/><path d="M6 5v14"/>',
   book: '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v15H6.5A2.5 2.5 0 0 0 4 19.5z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20v3.5"/>',
   more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',

@@ -148,13 +148,13 @@ export function Sidebar(props: SidebarProps) {
         React.createElement("div", { className: "brand-mark" }, "W"),
         React.createElement("div", { className: "brand-name" }, brand || "WorkNote")),
       React.createElement("div", { className: "sb-top-actions" },
-        React.createElement("button", { className: "icon-btn", title: "검색  ⌘K", onClick: onOpenSearch },
-          React.createElement(Icon, { name: "search" })),
         React.createElement("button", { className: "icon-btn", title: "사이드바 접기", onClick: onToggleSidebar },
           React.createElement(Icon, { name: "panelLeft" })))
     ),
     React.createElement(
       "div", { className: "sb-toolbar" },
+      React.createElement("button", { className: "icon-btn", title: "검색  ⌘K", onClick: onOpenSearch },
+        React.createElement(Icon, { name: "search" })),
       React.createElement("div", { className: "spacer" }),
       React.createElement("button", { className: "icon-btn", title: "모두 접기", onClick: onCollapseAll },
         React.createElement(Icon, { name: "collapseAll" }))
