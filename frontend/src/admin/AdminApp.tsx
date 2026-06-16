@@ -50,6 +50,13 @@ const TITLES: Record<string, [string, string]> = {
 
 export function AdminApp() {
   const [route, setRoute] = useState(() => (location.hash || "#dashboard").slice(1));
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try { return localStorage.getItem("wn.adminNavCollapsed") === "1"; } catch (e) { return false; }
+  });
+  const applyCollapsed = useCallback((next: boolean) => {
+    setNavCollapsed(next);
+    try { localStorage.setItem("wn.adminNavCollapsed", next ? "1" : "0"); } catch (e) {}
+  }, []);
   const [toastPush, toastNode] = useToast();
   const [me, setMe] = useState<Me | null>(null);
   const [data, setData] = useState<{ users: ApiUser[]; roles: ApiRole[]; teams: ApiTeam[] } | null>(null);
@@ -117,14 +124,16 @@ export function AdminApp() {
   }), [me, data, reload, toastPush]);
   const loading = !me || !data;
 
-  return h("div", { className: "admin" },
+  return h("div", { className: "admin" + (navCollapsed ? " anav-collapsed" : "") },
     // left nav
     h("aside", { className: "anav" },
       h("div", { className: "anav-top" },
         h("div", { className: "anav-brand" },
           h("div", { className: "brand-mark" }, "W"),
           h("div", { className: "name" }, "WorkNote"),
-          h("span", { className: "tag" }, "관리자"))),
+          h("span", { className: "tag" }, "관리자")),
+        h("button", { className: "icon-btn anav-collapse-btn", title: "사이드바 접기", onClick: () => applyCollapsed(true) },
+          h(Icon, { name: "panelLeft" }))),
       h("nav", { className: "anav-list" },
         NAV.map((n) => h("button", {
           key: n.id, className: "anav-item" + (route === n.id ? " active" : ""), onClick: () => go(n.id),
@@ -138,6 +147,8 @@ export function AdminApp() {
     // main
     h("div", { className: "amain" },
       h("div", { className: "atopbar" },
+        navCollapsed && h("button", { className: "icon-btn", title: "사이드바 펼치기", onClick: () => applyCollapsed(false) },
+          h(Icon, { name: "panelLeft" })),
         h("div", null,
           h("h1", null, title),
           h("div", { className: "sub" }, sub)),

@@ -9,9 +9,14 @@
   width: 252px; min-width: 252px; flex: none;
   background: var(--bg-sidebar); border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
+  transition: width .22s cubic-bezier(.4,0,.2,1), min-width .22s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
 }
-.anav-top { padding: 14px 14px 10px; }
-.anav-brand { display: flex; align-items: center; gap: 9px; }
+.admin.anav-collapsed .anav { width: 0; min-width: 0; border-right: none; }
+.admin.anav-collapsed .anav > * { opacity: 0; pointer-events: none; }
+.anav-top { padding: 14px 14px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.anav-collapse-btn { flex: none; }
+.anav-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .anav-brand .brand-mark {
   width: 24px; height: 24px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
   display: grid; place-items: center; font-weight: 800; font-size: 12px; flex: none;
