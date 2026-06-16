@@ -219,7 +219,6 @@ button { font-family: inherit; cursor: pointer; }
 /* ---- DnD 이동: 드래그 중 행 + 드롭 타깃(폴더/루트) 하이라이트 (모노톤 토큰) ---- */
 .row.dragging { opacity: .5; }
 .row.drop-target { background: var(--bg-active); box-shadow: inset 0 0 0 1.5px var(--ink); }
-.tree.root-drop { box-shadow: inset 0 0 0 2px var(--ink); border-radius: var(--radius); }
 
 /* hierarchy guide line */
 .children { position: relative; }

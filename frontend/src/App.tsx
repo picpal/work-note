@@ -67,7 +67,6 @@ export function App() {
   const [trashOpen, setTrashOpen] = useState(false);
   const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
-  const ROOT_DROP = "__ROOT__";
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingWarn, setPendingWarn] = useState<{ id: string; parentId: string | null; preview: MovePreview } | null>(null);
@@ -164,18 +163,21 @@ export function App() {
     icon: c.icon, label: c.label, onClick: () => c.run(note, { openNote, toast }),
   }));
   const onContext = (x: number, y: number, node: any) => {
+    const canCreateAtRoot = storageMode === "local" || isAdmin;
     let items;
     if (!node) {
+      if (!canCreateAtRoot) return;   // 일반 사용자: 빈 영역(루트) 우클릭 무반응
       items = [
         { icon: "newNote", label: "새 노트", onClick: () => newNoteIn(null) },
         { icon: "folderPlus", label: "새 폴더", onClick: () => newFolderIn(null) },
       ];
     } else if (node.type === "folder") {
+      const isTopFolder = findNode(tree, node.id).parentNode === null;
       items = [
         { icon: "newNote", label: "새 노트", onClick: () => newNoteIn(node.id) },
         { icon: "folderPlus", label: "새 폴더", onClick: () => newFolderIn(node.id) },
         { sep: true },
-        { icon: "move", label: "이동", onClick: () => setMoveTarget({ id: node.id, name: node.name }) },
+        ...(isTopFolder ? [] : [{ icon: "move", label: "이동", onClick: () => setMoveTarget({ id: node.id, name: node.name }) }]),
         { icon: "edit", label: "이름 변경", onClick: () => setRenamingId(node.id) },
         { icon: "trash", label: "삭제", danger: true, onClick: () => removeNode(node.id) },
       ];
@@ -219,11 +221,10 @@ export function App() {
     if (!draggingId || !canDropOn(tree, draggingId, targetId)) return;
     e.preventDefault();
     try { e.dataTransfer.dropEffect = "move"; } catch (err) {}
-    setDragOverId(targetId ?? ROOT_DROP);
+    setDragOverId(targetId);
   };
   const onNodeDragLeave = (targetId: string | null) => {
-    const token = targetId ?? ROOT_DROP;
-    setDragOverId((cur) => (cur === token ? null : cur));
+    setDragOverId((cur) => (cur === targetId ? null : cur));
   };
   const onNodeDrop = (targetId: string | null, e: React.DragEvent) => {
     e.preventDefault();
@@ -263,7 +264,6 @@ export function App() {
     createElement(Sidebar, {
       tree, brand: "WorkNote", activeId, renamingId,
       onOpenSearch: () => setSearchOpen(true),
-      onNewNote: newNoteIn, onNewFolder: newFolderIn,
       onCollapseAll: actions.collapseAll,
       onToggleSidebar: () => setCollapsed((c) => !c),
       onToggle: actions.toggle, onOpen: openNote, onContext,

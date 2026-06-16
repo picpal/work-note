@@ -57,7 +57,7 @@ function Row(props: RowProps): React.ReactElement {
         + (isFolder && dragOverId === node.id ? " drop-target" : "")
         + (draggingId === node.id ? " dragging" : ""),
       style: { paddingLeft: pad },
-      draggable: !renaming,
+      draggable: !renaming && !(isFolder && depth === 0),
       onClick: () => { if (renaming) return; isFolder ? onToggle(node.id) : onOpen(node as NoteNode); },
       onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onContext(e.clientX, e.clientY, node); },
       onDragStart: (e: React.DragEvent) => { e.stopPropagation(); onNodeDragStart(node.id, e); },
@@ -120,8 +120,6 @@ interface SidebarProps {
   onRename: (id: string) => void;
   onRenameCommit: (id: string, value: string | null) => void;
   onOpenSearch: () => void;
-  onNewNote: (folderId: string | null) => void;
-  onNewFolder: (folderId: string | null) => void;
   onCollapseAll: () => void;
   onToggleSidebar: () => void;
   showAdmin?: boolean;   // admin.html 진입 링크 노출 (local 모드 또는 http 모드 관리자)
@@ -140,7 +138,7 @@ interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { tree, brand, onOpenSearch, onNewNote, onNewFolder, onCollapseAll, onToggleSidebar } = props;
+  const { tree, brand, onOpenSearch, onCollapseAll, onToggleSidebar } = props;
 
   return React.createElement(
     "aside", { className: "sidebar" },
@@ -157,21 +155,14 @@ export function Sidebar(props: SidebarProps) {
     ),
     React.createElement(
       "div", { className: "sb-toolbar" },
-      React.createElement("button", { className: "icon-btn", title: "새 노트", onClick: () => onNewNote(null) },
-        React.createElement(Icon, { name: "newNote" })),
-      React.createElement("button", { className: "icon-btn", title: "새 폴더", onClick: () => onNewFolder(null) },
-        React.createElement(Icon, { name: "folderPlus" })),
       React.createElement("div", { className: "spacer" }),
       React.createElement("button", { className: "icon-btn", title: "모두 접기", onClick: onCollapseAll },
         React.createElement(Icon, { name: "collapseAll" }))
     ),
     React.createElement(
       "div", {
-        className: "tree" + (props.dragOverId === "__ROOT__" ? " root-drop" : ""),
+        className: "tree",
         onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); props.onContext(e.clientX, e.clientY, null); },
-        onDragOver: (e: React.DragEvent) => props.onNodeDragOver(null, e),
-        onDragLeave: () => props.onNodeDragLeave(null),
-        onDrop: (e: React.DragEvent) => props.onNodeDrop(null, e),
       },
       tree.map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0 }))
     ),
