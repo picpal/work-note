@@ -2,7 +2,7 @@
 // 셀=contenteditable(plaintext-only). 편집은 DOM 로컬, 커밋 시 문서 소스 재작성(Task 6+).
 import { EditorView, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { parseGfmTable, serializeGfmTable, insertRow, deleteRow, insertColumn, deleteColumn, setAlign } from "./gfmTable";
+import { parseGfmTable, serializeGfmTable, insertRow, deleteRow, insertColumn, deleteColumn, setAlign, renderInline } from "./gfmTable";
 import type { TableModel, Align } from "./gfmTable";
 
 // 구조 변경으로 위젯이 재생성될 때, 새 toDOM이 소비해 포커스를 복원할 좌표. r=0은 헤더행, r>=1은 본문행(r-1).
@@ -11,10 +11,10 @@ let pendingFocus: { r: number; col: number } | null = null;
 /** DOM의 .cm-cell들을 읽어 모델로 복원 → 직렬화. (핸들 셀은 .cm-cell 아님 → 무시) */
 export function serializeFromDom(dom: HTMLElement): string {
   const headerCells = Array.from(dom.querySelectorAll(".cm-header-row .cm-cell")) as HTMLElement[];
-  const header = headerCells.map((c) => c.innerText);
+  const header = headerCells.map((c) => c.dataset.raw ?? c.innerText);
   const align = headerCells.map((c) => (c.dataset.align as Align) || "none");
   const rows = (Array.from(dom.querySelectorAll(".cm-table tbody tr")) as HTMLElement[]).map((tr) =>
-    (Array.from(tr.querySelectorAll(".cm-cell")) as HTMLElement[]).map((c) => c.innerText),
+    (Array.from(tr.querySelectorAll(".cm-cell")) as HTMLElement[]).map((c) => c.dataset.raw ?? c.innerText),
   );
   return serializeGfmTable({ align, header, rows });
 }
@@ -102,10 +102,13 @@ export class TableWidget extends WidgetType {
     cell.className = "cm-cell";
     cell.dataset.align = align;
     if (align !== "none") cell.style.textAlign = align;
-    cell.setAttribute("contenteditable", "plaintext-only"); // 평문 셀 — 리치 붙여넣기 차단
-    cell.textContent = text;
-    cell.addEventListener("input", () => this.scheduleCommit(1000)); // 타이핑 디바운스
-    cell.addEventListener("blur", () => this.commit());               // 포커스 이탈 즉시 커밋
+    cell.setAttribute("contenteditable", "plaintext-only"); // 편집은 평문, 표시는 인라인 렌더
+    cell.dataset.raw = text;             // 원문 마크다운 — 직렬화 출처(렌더된 innerText 아님)
+    cell.innerHTML = renderInline(text); // 비포커스: 굵게/기울임/취소선/코드 렌더
+    // 포커스 시 원문 노출(마커가 렌더돼 있을 때만 — 평문 셀은 캐럿 유지)
+    cell.addEventListener("focus", () => { const raw = cell.dataset.raw ?? ""; if (cell.textContent !== raw) cell.textContent = raw; });
+    cell.addEventListener("input", () => { cell.dataset.raw = cell.innerText; this.scheduleCommit(1000); }); // 편집 중 원문 동기화 + 디바운스
+    cell.addEventListener("blur", () => { cell.dataset.raw = cell.innerText; cell.innerHTML = renderInline(cell.dataset.raw); this.commit(); }); // 원문 확정 → 재렌더 → 커밋
     cell.addEventListener("keydown", (e) => this.onCellKey(e, cell));
     cell.addEventListener("mousedown", (e) => this.onCellMouseDown(e, cell));
     cell.addEventListener("paste", (e) => this.onCellPaste(e, cell));

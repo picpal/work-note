@@ -992,7 +992,8 @@ button.topbar-me { font-family: var(--font-ui); }
 .pii-act:hover { background: var(--bg-active); }
 
 /* ---- 표 인라인 편집 위젯 ---- */
-.cm-table-widget { position: relative; margin: 14px 0; }
+/* margin-left = 핸들 좌측 열 너비(-22px) → 데이터 그리드 좌측이 본문/제목 라인에 정렬, 핸들은 .doc 좌측 패딩으로 오버행 */
+.cm-table-widget { position: relative; margin: 14px 0 14px -22px; }
 .cm-table-scroll { overflow-x: auto; }
 .cm-table {
   border-collapse: collapse;
@@ -1018,9 +1019,11 @@ button.topbar-me { font-family: var(--font-ui); }
 /* 드래그 셀 범위 선택 하이라이트 */
 .cm-table .cm-cell.cm-cell-selected { background: var(--sel); }
 .cm-table-widget:focus { outline: none; }
+/* 셀 내 인라인 코드 — D2Coding 모노스페이스 + 옅은 배경 */
+.cm-table .cm-cell code { font-family: var(--font-mono); background: var(--bg-elev); padding: 0 4px; border-radius: 4px; font-size: .92em; }
 
 /* 핸들 행/열 — 평소 흐릿, 위젯 hover 시 또렷 */
-.cm-handle-corner { border: none; width: 18px; padding: 0; background: transparent; }
+.cm-handle-corner { border: none; width: 22px; min-width: 22px; padding: 0; background: transparent; }
 .cm-col-handle, .cm-row-handle {
   border: none; /* border-collapse 동률 회피 — 인접 실제 셀의 solid 테두리가 이겨 상/좌 외곽선이 렌더되도록 */
   color: var(--text-3);
@@ -1034,7 +1037,7 @@ button.topbar-me { font-family: var(--font-ui); }
   padding: 2px;
 }
 .cm-col-handle { height: 16px; }
-.cm-row-handle { width: 16px; }
+.cm-row-handle { width: 22px; min-width: 22px; padding: 0; }
 .cm-table-widget:hover .cm-col-handle,
 .cm-table-widget:hover .cm-row-handle { opacity: .55; }
 .cm-col-handle:hover, .cm-row-handle:hover { opacity: 1; background: var(--bg-elev); }

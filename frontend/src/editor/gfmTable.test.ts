@@ -1,9 +1,29 @@
 import { describe, it, expect } from "vitest";
 import {
   escapeCell, unescapeCell, parseGfmTable, serializeGfmTable,
-  insertRow, deleteRow, insertColumn, deleteColumn, setAlign,
+  insertRow, deleteRow, insertColumn, deleteColumn, setAlign, renderInline,
 } from "./gfmTable";
 import type { TableModel } from "./gfmTable";
+
+describe("renderInline", () => {
+  it("굵게/기울임/취소선/인라인코드 렌더", () => {
+    expect(renderInline("**b**")).toBe("<strong>b</strong>");
+    expect(renderInline("*i*")).toBe("<em>i</em>");
+    expect(renderInline("_i_")).toBe("<em>i</em>");
+    expect(renderInline("~~s~~")).toBe("<del>s</del>");
+    expect(renderInline("`c`")).toBe("<code>c</code>");
+  });
+  it("HTML을 이스케이프해 XSS를 차단", () => {
+    expect(renderInline("<script>alert(1)</script>")).toBe("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(renderInline("a & b")).toBe("a &amp; b");
+  });
+  it("코드스팬 내부 마커는 그대로 보존", () => {
+    expect(renderInline("`**x**`")).toBe("<code>**x**</code>");
+  });
+  it("평범한 텍스트는 변형 없음", () => {
+    expect(renderInline("회의록 항목 3")).toBe("회의록 항목 3");
+  });
+});
 
 describe("escapeCell / unescapeCell", () => {
   it("파이프를 이스케이프한다", () => {
