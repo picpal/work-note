@@ -965,3 +965,78 @@ button.topbar-me { font-family: var(--font-ui); }
 .pii-banner.exempted .pii-ic { color: var(--text-3); }
 .pii-act { margin-left: auto; padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-elev); cursor: pointer; }
 .pii-act:hover { background: var(--bg-active); }
+
+/* ---- 표 인라인 편집 위젯 ---- */
+.cm-table-widget { position: relative; margin: 14px 0; }
+.cm-table-scroll { overflow-x: auto; }
+.cm-table {
+  border-collapse: collapse;
+  width: 100%;            /* 노트 폭에 맞춰 전체 채움 (열은 내용 비례 자동 분배) */
+  font-size: 14px;
+}
+.cm-table .cm-cell {
+  border: 1px solid var(--border);
+  padding: 7px 11px;
+  vertical-align: top;
+  white-space: pre-wrap;       /* 셀 내 \n(<br>) 표시 */
+  word-break: break-word;
+  min-width: 48px;
+}
+.cm-table thead .cm-cell {
+  background: var(--bg-elev);
+  font-weight: 600;
+}
+.cm-table .cm-cell:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+/* 드래그 셀 범위 선택 하이라이트 */
+.cm-table .cm-cell.cm-cell-selected { background: var(--sel); }
+.cm-table-widget:focus { outline: none; }
+
+/* 핸들 행/열 — 평소 흐릿, 위젯 hover 시 또렷 */
+.cm-handle-corner { border: none; width: 18px; padding: 0; background: transparent; }
+.cm-col-handle, .cm-row-handle {
+  border: none; /* border-collapse 동률 회피 — 인접 실제 셀의 solid 테두리가 이겨 상/좌 외곽선이 렌더되도록 */
+  color: var(--text-3);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  transition: opacity .12s ease, background .12s ease;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px;
+}
+.cm-col-handle { height: 16px; }
+.cm-row-handle { width: 16px; }
+.cm-table-widget:hover .cm-col-handle,
+.cm-table-widget:hover .cm-row-handle { opacity: .55; }
+.cm-col-handle:hover, .cm-row-handle:hover { opacity: 1; background: var(--bg-elev); }
+
+/* 메뉴 팝오버 */
+.cm-table-menu {
+  position: absolute;
+  z-index: 20;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-pop);
+  padding: 4px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+}
+.cm-table-menu button {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 9px;
+  color: var(--text);
+  cursor: pointer;
+}
+.cm-table-menu button:hover { background: var(--sel); }
+.cm-menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }

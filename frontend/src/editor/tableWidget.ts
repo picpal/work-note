@@ -23,6 +23,8 @@ export class TableWidget extends WidgetType {
   dom?: HTMLElement;
   protected view?: EditorView;
   private commitTimer?: ReturnType<typeof setTimeout>;
+  private rangeAnchor?: { r: number; col: number };
+  private selectedRect?: { r1: number; c1: number; r2: number; c2: number };
 
   constructor(public source: string) {
     super();
@@ -48,6 +50,9 @@ export class TableWidget extends WidgetType {
     const wrap = document.createElement("div");
     wrap.className = "cm-table-widget";
     wrap.contentEditable = "false";
+    wrap.tabIndex = -1; // 범위 선택 후 키보드(복사/삭제/Esc) 수신용
+    wrap.addEventListener("keydown", (e) => this.onRangeKey(e));
+    wrap.addEventListener("blur", () => this.clearRange());
 
     const scroll = document.createElement("div");
     scroll.className = "cm-table-scroll";
@@ -102,6 +107,8 @@ export class TableWidget extends WidgetType {
     cell.addEventListener("input", () => this.scheduleCommit(1000)); // 타이핑 디바운스
     cell.addEventListener("blur", () => this.commit());               // 포커스 이탈 즉시 커밋
     cell.addEventListener("keydown", (e) => this.onCellKey(e, cell));
+    cell.addEventListener("mousedown", (e) => this.onCellMouseDown(e, cell));
+    cell.addEventListener("paste", (e) => this.onCellPaste(e, cell));
     return cell;
   }
 
@@ -304,6 +311,115 @@ export class TableWidget extends WidgetType {
     document.removeEventListener("mousedown", this.onDocDown);
     this.menuEl?.remove();
     this.menuEl = undefined;
+  }
+
+  // ---- 셀 범위 선택(드래그) + 복사(TSV)/삭제 ----
+
+  /** 셀 mousedown — 드래그가 다른 셀로 넘어가면 범위 모드. 한 셀에 머물면 네이티브 텍스트 선택 유지. */
+  protected onCellMouseDown(e: MouseEvent, cell: HTMLElement): void {
+    if (e.button !== 0) return; // 좌클릭만
+    this.clearRange();
+    const anchor = this.coordOf(this.allCells().indexOf(cell));
+    this.rangeAnchor = anchor;
+    let active = false;
+    const onMove = (ev: MouseEvent) => {
+      const t = (ev.target as HTMLElement | null)?.closest?.(".cm-cell") as HTMLElement | null;
+      if (!t || !this.dom || !this.dom.contains(t)) return;
+      const cur = this.coordOf(this.allCells().indexOf(t));
+      if (cur.r === anchor.r && cur.col === anchor.col) {
+        if (active) { active = false; this.clearRangeHighlight(); this.selectedRect = undefined; } // 한 셀 복귀 → 네이티브 선택
+        return;
+      }
+      active = true;
+      ev.preventDefault();
+      window.getSelection()?.removeAllRanges();
+      this.highlightRange(anchor, cur);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      if (active) this.dom?.focus(); // 키보드 복사/삭제 수신
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  private highlightRange(a: { r: number; col: number }, b: { r: number; col: number }): void {
+    this.clearRangeHighlight();
+    const r1 = Math.min(a.r, b.r), r2 = Math.max(a.r, b.r);
+    const c1 = Math.min(a.col, b.col), c2 = Math.max(a.col, b.col);
+    this.selectedRect = { r1, c1, r2, c2 };
+    for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) this.cellAt(r, c)?.classList.add("cm-cell-selected");
+  }
+  private clearRangeHighlight(): void {
+    this.dom?.querySelectorAll(".cm-cell-selected").forEach((el) => el.classList.remove("cm-cell-selected"));
+  }
+  private clearRange(): void {
+    this.clearRangeHighlight();
+    this.selectedRect = undefined;
+    this.rangeAnchor = undefined;
+  }
+
+  protected onRangeKey(e: KeyboardEvent): void {
+    if (!this.selectedRect) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") { e.preventDefault(); this.copyRange(); }
+    else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); this.deleteRange(); }
+    else if (e.key === "Escape") { e.preventDefault(); this.clearRange(); }
+  }
+
+  /** 선택 범위를 TSV(탭 구분·행 개행)로 클립보드 복사 — 스프레드시트/셀 붙여넣기 호환. */
+  private copyRange(): void {
+    const rect = this.selectedRect;
+    if (!rect || !this.dom) return;
+    const m = parseGfmTable(serializeFromDom(this.dom));
+    if (!m) return;
+    const lines: string[] = [];
+    for (let r = rect.r1; r <= rect.r2; r++) {
+      const cells: string[] = [];
+      for (let c = rect.c1; c <= rect.c2; c++) cells.push(r === 0 ? (m.header[c] ?? "") : (m.rows[r - 1]?.[c] ?? ""));
+      lines.push(cells.join("\t"));
+    }
+    void navigator.clipboard?.writeText(lines.join("\n"));
+  }
+
+  /** 선택 범위의 셀 내용을 비움(구조 유지). */
+  private deleteRange(): void {
+    const rect = this.selectedRect;
+    if (!rect) return;
+    this.applyOp((m) => {
+      const next: TableModel = { align: m.align.slice(), header: m.header.slice(), rows: m.rows.map((r) => r.slice()) };
+      for (let r = rect.r1; r <= rect.r2; r++) {
+        for (let c = rect.c1; c <= rect.c2; c++) {
+          if (r === 0) { if (c < next.header.length) next.header[c] = ""; }
+          else if (next.rows[r - 1] && c < next.rows[r - 1].length) next.rows[r - 1][c] = "";
+        }
+      }
+      return next;
+    }, { r: rect.r1, col: rect.c1 });
+  }
+
+  /** 멀티셀(TSV) 붙여넣기 — 대상 셀부터 그리드로 분배. 행 부족 시 자동 추가, 열 초과는 클램프. */
+  protected onCellPaste(e: ClipboardEvent, cell: HTMLElement): void {
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    if (!text.includes("\t") && !text.includes("\n")) return; // 단일 셀 → 네이티브 평문 붙여넣기
+    e.preventDefault();
+    const grid = text.replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n").map((line) => line.split("\t"));
+    const start = this.coordOf(this.allCells().indexOf(cell));
+    this.applyOp((m) => {
+      const ncol = m.header.length;
+      const next: TableModel = { align: m.align.slice(), header: m.header.slice(), rows: m.rows.map((r) => r.slice()) };
+      for (let i = 0; i < grid.length; i++) {
+        const rVis = start.r + i; // r=0 헤더, r>=1 본문
+        if (rVis >= 1) while (rVis - 1 >= next.rows.length) next.rows.push(Array.from({ length: ncol }, () => ""));
+        for (let j = 0; j < grid[i].length; j++) {
+          const c = start.col + j;
+          if (c >= ncol) break; // 열 초과 클램프
+          if (rVis === 0) next.header[c] = grid[i][j];
+          else next.rows[rVis - 1][c] = grid[i][j];
+        }
+      }
+      return next;
+    }, start);
   }
 
   destroy(): void {
