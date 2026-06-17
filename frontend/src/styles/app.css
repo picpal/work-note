@@ -218,7 +218,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---- DnD 이동: 드래그 중 행 + 드롭 타깃(폴더/루트) 하이라이트 (모노톤 토큰) ---- */
 .row.dragging { opacity: .5; }
-.row.drop-target { background: var(--bg-active); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.row.drop-target { background: var(--border-strong); color: var(--ink); }
 
 /* hierarchy guide line */
 .children { position: relative; }
@@ -369,7 +369,7 @@ button.topbar-me { font-family: var(--font-ui); }
 .sh-empty { font-size: 12.5px; color: var(--text-3); padding: 4px 2px 10px; }
 
 /* ---- move modal (pf- 모달 셸 재사용, 폴더 피커 + 경고) ---- */
-.mv-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 9px; }
+.mv-list { height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 9px; }
 .mv-opt { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: none; border-top: 1px solid var(--border-soft); padding: 9px 12px; cursor: pointer; box-sizing: border-box; }
 .mv-opt:first-child { border-top: none; }
 .mv-opt:hover:not(:disabled) { background: var(--bg-hover); color: var(--ink); }
@@ -378,6 +378,12 @@ button.topbar-me { font-family: var(--font-ui); }
 .mv-opt .ic { flex: none; color: var(--text-3); display: inline-flex; }
 .mv-opt .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mv-opt .here { flex: none; font-size: 11px; font-weight: 500; color: var(--text-3); }
+/* 이동 팝업: 검색바 + 헤더 부모경로(말줄임) + 한글 제목 UI 폰트 */
+.mv-search { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; padding: 8px 11px; margin-bottom: 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; }
+.mv-search:focus { outline: none; border-color: var(--text-3); }
+.mv-search::placeholder { color: var(--text-faint); }
+.mv-modal .pf-emp { font-family: var(--font-ui); }
+.mv-modal .mv-srcpath { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mv-warn-line { font-size: 13px; color: var(--text); line-height: 1.55; padding: 6px 0; border-top: 1px solid var(--border-soft); }
 .mv-warn-line:first-child { border-top: none; }
 .pf-btn.danger { background: #b3261e; color: #fff; border-color: #b3261e; }
@@ -464,6 +470,25 @@ button.topbar-me { font-family: var(--font-ui); }
 .doc-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
 .doc { max-width: 760px; margin: 0 auto; padding: 30px 32px 40px; }
+
+/* ---- 우측 하단 수동 저장 버튼 (.main 기준 고정) ---- */
+.doc-save {
+  position: absolute; right: 28px; bottom: 24px; z-index: 6;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 15px;
+  font: inherit; font-size: 13px; font-weight: 600;
+  border-radius: 999px; cursor: pointer;
+  background: var(--bg-elev); color: var(--text-3);
+  border: 1px solid var(--border); box-shadow: var(--shadow-soft);
+  transition: background .14s ease, color .14s ease, border-color .14s ease, opacity .14s ease;
+}
+.doc-save svg { width: 15px; height: 15px; flex: none; }
+.doc-save:disabled { cursor: default; }
+.doc-save.dirty {
+  background: var(--ink); color: var(--on-ink); border-color: var(--ink);
+  box-shadow: var(--shadow-pop);
+}
+.doc-save.dirty:hover { opacity: .9; }
 
 .title-input {
   width: 100%; border: none; outline: none; background: transparent;

@@ -10,7 +10,7 @@ import { savePending, clearPending } from "./pendingStore";
 import type { VaultTree, NotePii } from "../types";
 import type { useVault } from "./useVault";
 
-const PATCH_DEBOUNCE = 1500; // 노트별 title/content/tags PATCH 디바운스 (타이핑 폭주 방지)
+const PATCH_DEBOUNCE = 60000; // 노트별 title/content/tags PATCH 디바운스 1min — 수동 저장 버튼(flush)으로 즉시 전송 가능
 
 type VaultActions = ReturnType<typeof useVault>["actions"];
 type ToastFn = (msg: string) => void;
@@ -104,8 +104,8 @@ export async function bootstrapIfEmpty(tree: VaultTree, toastFn?: ToastFn): Prom
   }
 }
 
-/** actions를 동일 시그니처로 데코레이트 — HTTP 모드에서만 서버 동기화를 얹는다. */
-export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActions {
+/** actions를 데코레이트 — HTTP 모드에서만 서버 동기화를 얹는다. flush는 pending PATCH 즉시 전송(수동 저장). */
+export function useVaultSync(actions: VaultActions, toastFn: ToastFn): { actions: VaultActions; flush: () => void } {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
   const toastRef = useRef(toastFn);
@@ -190,17 +190,20 @@ export function useVaultSync(actions: VaultActions, toastFn: ToastFn): VaultActi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // pending PATCH를 디바운스 대기 없이 즉시 발사 — 수동 저장 버튼·언마운트 공통.
+  const flush = () => {
+    for (const [id, p] of pendingRef.current) {
+      clearTimeout(p.timer);
+      fire(buildUpdateOp(id, p.patch), (res) => reflectPii(id, res));
+    }
+    pendingRef.current.clear();
+  };
+
   // 언마운트 시 pending 타이머 flush — 즉시 발사
   useEffect(() => {
-    return () => {
-      for (const [id, p] of pendingRef.current) {
-        clearTimeout(p.timer);
-        fire(buildUpdateOp(id, p.patch), (res) => reflectPii(id, res));
-      }
-      pendingRef.current.clear();
-    };
+    return () => { flush(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return storageMode === "http" ? synced : actions;
+  return { actions: storageMode === "http" ? synced : actions, flush };
 }

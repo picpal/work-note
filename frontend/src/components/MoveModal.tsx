@@ -1,4 +1,5 @@
-/* MoveModal — 이동 폴더 피커 + 노출 경고. http 모드는 move-preview로 노출 변화 경고, local 모드는 즉시 이동. */
+/* MoveModal — 이동 폴더 피커(검색) + 노출 경고. 헤더에 대상명·현재 부모 경로 표시.
+   http 모드는 move-preview로 노출 변화 경고, local 모드는 즉시 이동. */
 import { useState, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
@@ -23,14 +24,19 @@ interface MoveModalProps {
 
 export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps) {
   const [phase, setPhase] = useState<"pick" | "warn">("pick");
-  const [target, setTarget] = useState<string | null>(null); // 선택된 폴더 id, null = 루트
-  const [selected, setSelected] = useState(false);           // null 도 유효 선택이므로 별도 플래그
+  const [target, setTarget] = useState<string | null>(null); // 선택된 폴더 id
+  const [selected, setSelected] = useState(false);
   const [preview, setPreview] = useState<MovePreview | null>(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");                    // 폴더 검색어
 
-  // 현재 부모 id (루트면 null) — 같은 위치로의 이동은 무의미하므로 비활성.
-  const currentParentId = findNode(tree, node.id).parentNode?.id ?? null;
+  const found = findNode(tree, node.id);
+  const currentParentId = found.parentNode?.id ?? null;      // 현재 부모(루트면 null) — 같은 위치 이동 비활성
+  const nodeType = found.node?.type ?? "note";               // 이동 대상 타입(헤더 아이콘)
+  const parentPath = found.path.length ? found.path.join(" / ") : "루트 (최상위)"; // 헤더에 표시할 부모 디렉토리
   const options = folderOptions(tree, node.id);
+  const q = query.trim().toLowerCase();
+  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -73,10 +79,19 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
     phase === "pick"
       ? h("div", { className: "pf-sec" },
           h("div", { className: "pf-sec-label" }, "이동할 위치"),
+          h("input", {
+            className: "mv-search",
+            type: "text",
+            placeholder: "폴더 이름·경로 검색…",
+            value: query,
+            autoFocus: true,
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
+          }),
           h("div", { className: "mv-list" },
-            options.length === 0
-              ? h("div", { style: { padding: "14px", color: "var(--text-3)", fontSize: 13 } }, "이동 가능한 폴더가 없습니다")
-              : options.map((o) =>
+            filtered.length === 0
+              ? h("div", { style: { padding: "14px", color: "var(--text-3)", fontSize: 13 } },
+                  options.length === 0 ? "이동 가능한 폴더가 없습니다" : "검색 결과가 없습니다")
+              : filtered.map((o) =>
                   h("button", {
                     key: o.id,
                     className: "mv-opt" + (selected && target === o.id ? " sel" : ""),
@@ -96,12 +111,12 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
             h("button", { className: "pf-btn danger", disabled: busy, onClick: doMove }, "이동")));
 
   return h("div", { className: "pf-overlay", onMouseDown: onClose },
-    h("div", { className: "pf-card", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
+    h("div", { className: "pf-card mv-modal", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
       h("div", { className: "pf-head" },
-        h("span", { className: "pf-av" }, h(Icon, { name: "move" })),
+        h("span", { className: "pf-av" }, h(Icon, { name: nodeType === "folder" ? "folder" : "fileLines" })),
         h("div", { className: "pf-id" },
           h("div", { className: "pf-emp" }, node.name),
-          h("div", { className: "pf-role" }, "이동")),
+          h("div", { className: "pf-role mv-srcpath", title: parentPath }, parentPath)),
         h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" }))),
       h("div", { className: "pf-body" }, body)));
 }

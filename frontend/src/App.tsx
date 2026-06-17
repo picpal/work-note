@@ -56,7 +56,7 @@ const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: s
 ];
 
 export function App() {
-  const { tree, actions: rawActions, savedTick, ready, loadError } = useVault(repository);
+  const { tree, actions: rawActions, savedTick, ready, loadError, saveNow: flushLocal } = useVault(repository);
   const { settings, set } = useSettings();
   const [activeId, setActiveId] = usePersist<string | null>("wn.activeId", null);
   const [collapsed, setCollapsed] = usePersist<boolean>("wn.sbCollapsed", false);
@@ -71,6 +71,7 @@ export function App() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingWarn, setPendingWarn] = useState<{ id: string; parentId: string | null; preview: MovePreview } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string }>>([]);
+  const [dirty, setDirty] = useState(false); // 열린 노트에 미저장 편집이 있는지 — 우측 하단 저장 버튼 상태
   const { menu, openMenu, closeMenu } = useContextMenu();
   const toolbarRef = useRef<ToolbarHandlers>({} as ToolbarHandlers);
   const editorViewRef = useRef<any>(null);
@@ -109,7 +110,19 @@ export function App() {
   }, []);
 
   // ---- server sync (HTTP 모드: 액션 단위 동기화, local 모드: rawActions 그대로) ----
-  const actions = useVaultSync(rawActions, toast);
+  const { actions, flush: flushHttp } = useVaultSync(rawActions, toast);
+
+  // 수동 저장 — 디바운스 대기 없이 즉시 persist(local localStorage / http PATCH 둘 다 호출, 반대 모드는 no-op).
+  const saveNow = () => {
+    if (!dirty) return;
+    flushHttp();
+    flushLocal();
+    setDirty(false);
+    toast("저장되었습니다", "check");
+  };
+  // 전역 단축키(⌘/Ctrl+S)는 []-deps useEffect라 첫 렌더 클로저를 잡는다 → ref로 최신 saveNow 유지(stale dirty 방지).
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
 
   // 빈 서버였으면 시드 1회 업로드 (HTTP 모드 한정 — 내부 가드)
   useEffect(() => {
@@ -138,10 +151,13 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  // ---- save notification (fires when a debounced save lands) ----
+  // ---- auto-save landed: 디바운스 저장(1분)이 떨어지면 dirty만 해제(조용히). 명시적 토스트는 수동 저장에서만. ----
   useEffect(() => {
-    if (savedTick > 0) toast("저장되었습니다", "check");
+    if (savedTick > 0) setDirty(false);
   }, [savedTick]);
+
+  // 노트 전환 시 저장 상태 초기화 — 버튼은 현재 열린 노트 기준. 이전 노트의 미전송분은 각자 타이머로 전송됨.
+  useEffect(() => { setDirty(false); }, [activeId]);
 
   // ---- note ops ----
   const openNote = useCallback((note: { id: string }) => { setActiveId(note.id); }, []);
@@ -239,6 +255,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearchOpen((o) => !o); }
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setCollapsed((c) => !c); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveNowRef.current(); } // ⌘/Ctrl+S 저장 (브라우저 기본 저장 차단)
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -328,7 +345,7 @@ export function App() {
         activeNote
           ? createElement(Editor, {
               key: activeNote.id, note: activeNote, theme: settings.dark ? "dark" : "light",
-              onChange: (patch) => actions.updateNote(activeNote.id, patch),
+              onChange: (patch) => { actions.updateNote(activeNote.id, patch); setDirty(true); },
               registerToolbar: (h) => { toolbarRef.current = h; },
               onView: (v) => { editorViewRef.current = v; },
               toast, canUpload: storageMode === "http",
@@ -343,7 +360,16 @@ export function App() {
       ),
       activeNote && createElement(Outline, {
         key: "ol-" + activeNote.id, content: activeNote.content, title: activeNote.title, viewRef: editorViewRef,
-      })
+      }),
+      // 우측 하단 수동 저장 버튼 — 미저장 편집이 있을 때 활성, 저장 후/자동저장 후 '저장됨'.
+      activeNote && createElement("button", {
+        className: "doc-save" + (dirty ? " dirty" : ""),
+        title: dirty ? "지금 저장" : "저장됨",
+        disabled: !dirty,
+        onClick: saveNow,
+      },
+        createElement(Icon, { name: dirty ? "save" : "check" }),
+        createElement("span", null, dirty ? "저장" : "저장됨"))
     ),
     // overlays
     searchOpen && createElement(SearchModal, {

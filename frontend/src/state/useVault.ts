@@ -9,7 +9,7 @@ import type { VaultRepository } from "../storage/VaultRepository";
 import { storageMode } from "../storage";
 import { isBackendDown } from "./loadErrorPolicy";
 
-const SAVE_DEBOUNCE = 5000; // persist 5s after the last change (typing pause)
+const SAVE_DEBOUNCE = 60000; // persist 1min after the last change (typing pause) — 수동 저장 버튼으로 즉시 저장 가능
 
 const defaultRepo = new LocalStorageRepository();
 
@@ -100,5 +100,15 @@ export function useVault(repo: VaultRepository = defaultRepo) {
       }).catch((e) => console.warn("vault reload failed", e));
     },
   };
-  return { tree, actions, savedTick, ready, loadError };
+
+  // 수동 저장 — 디바운스 타이머를 건너뛰고 즉시 persist (local 모드 localStorage 쓰기).
+  // savedTick은 올리지 않는다(수동 저장 피드백은 App에서 직접 토스트).
+  const saveNow = () => {
+    if (!readyRef.current) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (repo instanceof LocalStorageRepository) repo.saveSync(treeRef.current);
+    else void repo.save(treeRef.current);
+  };
+
+  return { tree, actions, savedTick, ready, loadError, saveNow };
 }
