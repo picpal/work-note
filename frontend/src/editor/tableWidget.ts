@@ -1,0 +1,313 @@
+// tableWidget.ts — CodeMirror block 위젯: GFM 표를 편집 가능한 그리드로 렌더.
+// 셀=contenteditable(plaintext-only). 편집은 DOM 로컬, 커밋 시 문서 소스 재작성(Task 6+).
+import { EditorView, WidgetType } from "@codemirror/view";
+import { syntaxTree } from "@codemirror/language";
+import { parseGfmTable, serializeGfmTable, insertRow, deleteRow, insertColumn, deleteColumn, setAlign } from "./gfmTable";
+import type { TableModel, Align } from "./gfmTable";
+
+// 구조 변경으로 위젯이 재생성될 때, 새 toDOM이 소비해 포커스를 복원할 좌표. r=0은 헤더행, r>=1은 본문행(r-1).
+let pendingFocus: { r: number; col: number } | null = null;
+
+/** DOM의 .cm-cell들을 읽어 모델로 복원 → 직렬화. (핸들 셀은 .cm-cell 아님 → 무시) */
+export function serializeFromDom(dom: HTMLElement): string {
+  const headerCells = Array.from(dom.querySelectorAll(".cm-header-row .cm-cell")) as HTMLElement[];
+  const header = headerCells.map((c) => c.innerText);
+  const align = headerCells.map((c) => (c.dataset.align as Align) || "none");
+  const rows = (Array.from(dom.querySelectorAll(".cm-table tbody tr")) as HTMLElement[]).map((tr) =>
+    (Array.from(tr.querySelectorAll(".cm-cell")) as HTMLElement[]).map((c) => c.innerText),
+  );
+  return serializeGfmTable({ align, header, rows });
+}
+
+export class TableWidget extends WidgetType {
+  dom?: HTMLElement;
+  protected view?: EditorView;
+  private commitTimer?: ReturnType<typeof setTimeout>;
+
+  constructor(public source: string) {
+    super();
+  }
+
+  eq(other: TableWidget): boolean {
+    if (!this.dom) return this.source === other.source;
+    if (other.source === this.source) return true;          // 무변경 트랜잭션 → DOM 유지(포커스 보존)
+    return serializeFromDom(this.dom) === other.source;     // DOM이 이미 반영(셀편집 커밋) → 유지, 아니면 재생성
+  }
+
+  ignoreEvent(): boolean {
+    return true; // 위젯 내부 이벤트는 CM이 문서 편집으로 오인하지 않게 차단(키/메뉴는 위젯이 자체 처리)
+  }
+
+  get estimatedHeight(): number {
+    return 80;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    this.view = view;
+    const model = parseGfmTable(this.source) ?? { align: ["none"], header: [""], rows: [] };
+    const wrap = document.createElement("div");
+    wrap.className = "cm-table-widget";
+    wrap.contentEditable = "false";
+
+    const scroll = document.createElement("div");
+    scroll.className = "cm-table-scroll";
+    const table = document.createElement("table");
+    table.className = "cm-table";
+
+    const thead = document.createElement("thead");
+
+    // (1) 열 핸들 행
+    const handleRow = document.createElement("tr");
+    handleRow.className = "cm-handle-row";
+    handleRow.appendChild(this.makeHandleCorner());
+    model.header.forEach((_t, col) => handleRow.appendChild(this.makeColHandle(col)));
+    thead.appendChild(handleRow);
+
+    // (2) 헤더 셀 행 (앞에 행핸들 자리 코너)
+    const headerRow = document.createElement("tr");
+    headerRow.className = "cm-header-row";
+    headerRow.appendChild(this.makeHandleCorner());
+    model.header.forEach((text, col) => headerRow.appendChild(this.makeCell("th", text, model.align[col] ?? "none")));
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    model.rows.forEach((row, bodyIdx) => {
+      const tr = document.createElement("tr");
+      tr.appendChild(this.makeRowHandle(bodyIdx));
+      row.forEach((text, col) => tr.appendChild(this.makeCell("td", text, model.align[col] ?? "none")));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    scroll.appendChild(table);
+    wrap.appendChild(scroll);
+    if (pendingFocus) {
+      const f = pendingFocus;
+      pendingFocus = null;
+      queueMicrotask(() => this.focusCellAt(f.r, f.col));
+    }
+    this.dom = wrap;
+    return wrap;
+  }
+
+  /** 셀 엘리먼트 생성. Task 6: 편집 리스너 포함. */
+  protected makeCell(tag: "th" | "td", text: string, align: Align): HTMLElement {
+    const cell = document.createElement(tag);
+    cell.className = "cm-cell";
+    cell.dataset.align = align;
+    if (align !== "none") cell.style.textAlign = align;
+    cell.setAttribute("contenteditable", "plaintext-only"); // 평문 셀 — 리치 붙여넣기 차단
+    cell.textContent = text;
+    cell.addEventListener("input", () => this.scheduleCommit(1000)); // 타이핑 디바운스
+    cell.addEventListener("blur", () => this.commit());               // 포커스 이탈 즉시 커밋
+    cell.addEventListener("keydown", (e) => this.onCellKey(e, cell));
+    return cell;
+  }
+
+  /** 위젯의 현재 문서 범위를 syntaxTree로 재해석(위치 이동에 강함). */
+  protected currentRange(): { from: number; to: number } | null {
+    if (!this.view || !this.dom) return null;
+    const view = this.view;
+    let pos: number;
+    try {
+      pos = view.posAtDOM(this.dom);
+    } catch {
+      return null;
+    }
+    const tree = syntaxTree(view.state);
+    let node: ReturnType<typeof tree.resolveInner> | null = tree.resolveInner(pos, 1);
+    while (node && node.name !== "Table") node = node.parent;
+    if (!node) return null;
+    const doc = view.state.doc;
+    const first = doc.lineAt(node.from);
+    const last = doc.lineAt(Math.min(node.to, doc.length));
+    return { from: first.from, to: last.to };
+  }
+
+  private scheduleCommit(delay: number): void {
+    if (this.commitTimer) clearTimeout(this.commitTimer);
+    this.commitTimer = setTimeout(() => this.commit(), delay);
+  }
+
+  /** 현재 DOM을 직렬화해 문서 표 범위를 치환. 변경 없으면 skip. */
+  protected commit(): void {
+    if (this.commitTimer) { clearTimeout(this.commitTimer); this.commitTimer = undefined; }
+    if (!this.view || !this.dom) return;
+    const range = this.currentRange();
+    if (!range) return;
+    const next = serializeFromDom(this.dom);
+    if (this.view.state.sliceDoc(range.from, range.to) === next) return; // no-op
+    try {
+      this.view.dispatch({ changes: { from: range.from, to: range.to, insert: next } });
+    } catch {
+      /* 뷰가 파괴 중이면 무시 */
+    }
+  }
+
+  // ---- Task 7: 키보드 내비게이션 + 좌표/포커스 헬퍼 ----
+
+  protected colCount(): number {
+    return this.dom ? this.dom.querySelectorAll(".cm-header-row .cm-cell").length : 0;
+  }
+  protected bodyRowCount(): number {
+    return this.dom ? this.dom.querySelectorAll(".cm-table tbody tr").length : 0;
+  }
+  protected allCells(): HTMLElement[] {
+    return this.dom ? (Array.from(this.dom.querySelectorAll(".cm-cell")) as HTMLElement[]) : [];
+  }
+  /** flat .cm-cell 인덱스 → {r, col} (r=0 헤더, r>=1 본문). */
+  protected coordOf(flatIdx: number): { r: number; col: number } {
+    const ncol = this.colCount() || 1;
+    if (flatIdx < ncol) return { r: 0, col: flatIdx };
+    const b = flatIdx - ncol;
+    return { r: 1 + Math.floor(b / ncol), col: b % ncol };
+  }
+  protected cellAt(r: number, col: number): HTMLElement | undefined {
+    if (!this.dom) return undefined;
+    if (r === 0) return this.dom.querySelectorAll(".cm-header-row .cm-cell")[col] as HTMLElement | undefined;
+    const tr = this.dom.querySelectorAll(".cm-table tbody tr")[r - 1] as HTMLElement | undefined;
+    return tr?.querySelectorAll(".cm-cell")[col] as HTMLElement | undefined;
+  }
+  protected focusCellAt(r: number, col: number): void {
+    this.cellAt(r, col)?.focus();
+  }
+
+  /** 모델 변형 후 재직렬화→dispatch. 위젯 재생성 시 새 toDOM이 pendingFocus로 포커스 복원. */
+  protected applyOp(fn: (m: TableModel) => TableModel, focus: { r: number; col: number }): void {
+    if (!this.view || !this.dom) return;
+    const m = parseGfmTable(serializeFromDom(this.dom));
+    if (!m) return;
+    const next = serializeGfmTable(fn(m));
+    const range = this.currentRange();
+    if (!range) return;
+    pendingFocus = focus;
+    try {
+      this.view.dispatch({ changes: { from: range.from, to: range.to, insert: next } });
+    } catch {
+      pendingFocus = null;
+    }
+  }
+
+  protected onCellKey(e: KeyboardEvent, cell: HTMLElement): void {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const cells = this.allCells();
+      const idx = cells.indexOf(cell);
+      if (e.shiftKey) {
+        if (idx > 0) cells[idx - 1].focus();
+        return;
+      }
+      if (idx + 1 < cells.length) { cells[idx + 1].focus(); return; }
+      // 마지막 셀에서 Tab → 새 본문 행 추가 후 첫 셀
+      this.commit(); // 현재 편집분 먼저 반영
+      const newRowVisual = 1 + this.bodyRowCount();
+      this.applyOp((m) => insertRow(m, m.rows.length), { r: newRowVisual, col: 0 });
+      return;
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const cells = this.allCells();
+      const { r, col } = this.coordOf(cells.indexOf(cell));
+      const lastVisualRow = this.bodyRowCount(); // 본문 마지막 행의 visual r
+      if (r >= lastVisualRow) {
+        this.commit();
+        this.applyOp((m) => insertRow(m, m.rows.length), { r: 1 + this.bodyRowCount(), col });
+      } else {
+        this.focusCellAt(r + 1, col);
+      }
+      return;
+    }
+    // Shift+Enter: plaintext-only 기본 줄바꿈 허용(preventDefault 안 함) → innerText에 \n
+  }
+
+  // ---- Task 8: 행/열 핸들 + 메뉴 ----
+
+  private menuEl?: HTMLElement;
+  private onDocDown = (e: MouseEvent) => {
+    if (this.menuEl && !this.menuEl.contains(e.target as Node)) this.closeMenu();
+  };
+
+  private makeHandleCorner(): HTMLElement {
+    const c = document.createElement("th");
+    c.className = "cm-handle-corner";
+    c.contentEditable = "false";
+    return c;
+  }
+  private makeColHandle(col: number): HTMLElement {
+    const th = document.createElement("th");
+    th.className = "cm-col-handle";
+    th.contentEditable = "false";
+    th.textContent = "⋯";
+    th.title = "열 메뉴";
+    th.addEventListener("mousedown", (e) => e.preventDefault());
+    th.addEventListener("click", () => this.openColMenu(col, th));
+    return th;
+  }
+  private makeRowHandle(bodyIdx: number): HTMLElement {
+    const td = document.createElement("td");
+    td.className = "cm-row-handle";
+    td.contentEditable = "false";
+    td.textContent = "⋮";
+    td.title = "행 메뉴";
+    td.addEventListener("mousedown", (e) => e.preventDefault());
+    td.addEventListener("click", () => this.openRowMenu(bodyIdx, td));
+    return td;
+  }
+
+  private openColMenu(col: number, anchor: HTMLElement): void {
+    this.openMenu(anchor, [
+      { label: "← 왼쪽에 열 삽입", run: () => this.applyOp((m) => insertColumn(m, col), { r: 0, col }) },
+      { label: "→ 오른쪽에 열 삽입", run: () => this.applyOp((m) => insertColumn(m, col + 1), { r: 0, col: col + 1 }) },
+      { label: "🗑 열 삭제", run: () => this.applyOp((m) => deleteColumn(m, col), { r: 0, col: Math.max(0, col - 1) }) },
+      { sep: true },
+      { label: "⬅ 왼쪽 정렬", run: () => this.applyOp((m) => setAlign(m, col, "left"), { r: 0, col }) },
+      { label: "⬛ 가운데 정렬", run: () => this.applyOp((m) => setAlign(m, col, "center"), { r: 0, col }) },
+      { label: "➡ 오른쪽 정렬", run: () => this.applyOp((m) => setAlign(m, col, "right"), { r: 0, col }) },
+    ]);
+  }
+  private openRowMenu(bodyIdx: number, anchor: HTMLElement): void {
+    this.openMenu(anchor, [
+      { label: "↑ 위에 행 삽입", run: () => this.applyOp((m) => insertRow(m, bodyIdx), { r: bodyIdx + 1, col: 0 }) },
+      { label: "↓ 아래에 행 삽입", run: () => this.applyOp((m) => insertRow(m, bodyIdx + 1), { r: bodyIdx + 2, col: 0 }) },
+      { label: "🗑 행 삭제", run: () => this.applyOp((m) => deleteRow(m, bodyIdx), { r: Math.max(0, bodyIdx), col: 0 }) },
+    ]);
+  }
+
+  private openMenu(anchor: HTMLElement, items: ({ label: string; run: () => void } | { sep: true })[]): void {
+    this.closeMenu();
+    if (!this.dom) return;
+    const menu = document.createElement("div");
+    menu.className = "cm-table-menu";
+    menu.contentEditable = "false";
+    menu.style.left = anchor.offsetLeft + "px";
+    menu.style.top = anchor.offsetTop + anchor.offsetHeight + "px";
+    for (const it of items) {
+      if ("sep" in it) {
+        const sep = document.createElement("div");
+        sep.className = "cm-menu-sep";
+        menu.appendChild(sep);
+        continue;
+      }
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.label;
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      b.addEventListener("click", (e) => { e.preventDefault(); it.run(); this.closeMenu(); });
+      menu.appendChild(b);
+    }
+    this.dom.appendChild(menu);
+    this.menuEl = menu;
+    setTimeout(() => document.addEventListener("mousedown", this.onDocDown), 0);
+  }
+  private closeMenu(): void {
+    document.removeEventListener("mousedown", this.onDocDown);
+    this.menuEl?.remove();
+    this.menuEl = undefined;
+  }
+
+  destroy(): void {
+    this.closeMenu();
+    this.commit(); // 언마운트/노트전환 안전망 — 미커밋분 최종 반영(best-effort)
+  }
+}

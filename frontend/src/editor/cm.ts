@@ -19,6 +19,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { java } from "@codemirror/lang-java";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { renderMarkdown, enhanceMermaid } from "../lib/markdown";
+import { TableWidget } from "./tableWidget";
 
 // nested code languages used by markdown fenced blocks
 const sqlLang = sql().language;
@@ -279,10 +280,10 @@ function buildDecorations(state: EditorState) {
           if (!selTouches(nf, nt)) {
             const firstLine = state.doc.lineAt(nf), lastLine = state.doc.lineAt(Math.min(nt, state.doc.length));
             const src = state.sliceDoc(firstLine.from, lastLine.to);
-            out.push(Decoration.replace({ widget: new RenderWidget("table", src, nf), block: true }).range(firstLine.from, lastLine.to));
+            out.push(Decoration.replace({ widget: new TableWidget(src), block: true }).range(firstLine.from, lastLine.to));
             return false;
           }
-          return; // editing: show raw
+          return; // 선택이 표에 걸침 → raw
         }
         if (name === "HorizontalRule") {
           if (!lineActive(nf)) {
