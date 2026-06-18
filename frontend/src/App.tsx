@@ -30,6 +30,8 @@ import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
 import { useSettings } from "./state/useSettings";
 import { findNode, flattenNotes, crumbPath, firstNoteIn } from "./lib/tree";
+import { Backlinks } from "./components/Backlinks";
+import { buildBacklinks } from "./lib/linkIndex";
 import { setMermaidTheme } from "./lib/markdown";
 import { newId } from "./lib/id";
 import { exportCommands } from "./commands/exportCommands";
@@ -94,6 +96,17 @@ export function App() {
   const activeNote = found.node && found.node.type === "note" ? found.node : null;
   // 브레드크럼 세그먼트(조상 폴더 id+name) — 링크로 렌더해 클릭 시 해당 폴더로 이동.
   const crumbs = useMemo(() => (activeId ? crumbPath(tree, activeId) : []), [tree, activeId]);
+
+  // 백링크 역인덱스(클라 파생). 링크 후보·해석 콜백.
+  const backlinks = useMemo(() => buildBacklinks(tree), [tree]);
+  const wikiCandidates = useCallback(
+    () => flattenNotes(tree).map(({ note, path }) => ({ id: note.id, title: note.title || "제목 없음", path: path.join(" / ") })),
+    [tree],
+  );
+  const resolveLink = useCallback((id: string) => {
+    const { node } = findNode(tree, id);
+    return node && node.type === "note" ? (node.title || "제목 없음") : null;
+  }, [tree]);
 
   // open default note on first load (after ready — seed→saved replacement may change nodes)
   useEffect(() => {
@@ -391,6 +404,7 @@ export function App() {
               onView: (v) => { editorViewRef.current = v; },
               toast, canUpload: storageMode === "http",
               onSetPii: (id, pii) => actions.setNotePii(id, pii),
+              wikiCandidates, resolveLink, onNavigate: (id: string) => setActiveId(id),
             })
           : createElement(
               "div", { className: "empty-state" },
@@ -398,6 +412,11 @@ export function App() {
                 createElement("div", { className: "es-icon" }, createElement(Icon, { name: "fileLines" })),
                 createElement("h2", null, "열린 노트가 없습니다"),
                 createElement("p", null, "사이드바에서 노트를 선택하거나 ⌘K 로 검색하세요")))
+        , activeNote && createElement(Backlinks, {
+            key: "bl-" + activeNote.id,
+            items: backlinks.get(activeNote.id) || [],
+            onOpen: openNote,
+          })
       ),
       activeNote && createElement(Outline, {
         key: "ol-" + activeNote.id, content: activeNote.content, title: activeNote.title, viewRef: editorViewRef,

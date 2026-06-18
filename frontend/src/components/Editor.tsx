@@ -40,6 +40,9 @@ interface EditorProps {
   toast: (msg: string, icon?: string) => void;
   canUpload: boolean;
   onSetPii?: (id: string, pii: import("../types").NotePii) => void;
+  wikiCandidates?: () => import("../editor/wikilinkComplete").WikiCandidate[];
+  resolveLink?: (id: string) => string | null;
+  onNavigate?: (id: string) => void;
 }
 
 const TEMPLATES = {
@@ -64,6 +67,8 @@ export function Editor(props: EditorProps) {
   const onChangeRef = useRef(onChange);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   onChangeRef.current = onChange;
+  const wikiRef = useRef({ wikiCandidates: props.wikiCandidates, resolveLink: props.resolveLink, onNavigate: props.onNavigate });
+  wikiRef.current = { wikiCandidates: props.wikiCandidates, resolveLink: props.resolveLink, onNavigate: props.onNavigate };
   // 첨부영역 새로고침 트리거 — 업로드/삭제 후 bump (Editor는 note별 리마운트라 노트 전환 시 0으로 초기화).
   const [attachVersion, setAttachVersion] = useState(0);
   // 파일 드래그가 노트 영역 위에 올라온 동안 드롭존 오버레이.
@@ -113,6 +118,11 @@ export function Editor(props: EditorProps) {
     viewRef.current = cm.create(hostRef.current, {
       doc: note.content || "",
       onChange: (text) => onChangeRef.current({ content: text }),
+      wikiCandidates: () => wikiRef.current.wikiCandidates?.() ?? [],
+      wiki: {
+        resolve: (id) => wikiRef.current.resolveLink?.(id) ?? null,
+        navigate: (id) => wikiRef.current.onNavigate?.(id),
+      },
     });
     props.onView && props.onView(viewRef.current);
     // drop/paste 첨부 — paste는 CM DOM, drag/drop은 노트 전체(.doc-scroll)에 바인딩.

@@ -1113,3 +1113,30 @@ button.topbar-me { font-family: var(--font-ui); }
 .upick-empty { padding: 7px 10px; font-size: 12.5px; color: var(--text-faint); }
 .upick-msg { margin-top: 6px; font-size: 12px; color: #b3261e; }
 
+/* 위키링크 — 에디터 토큰 + 공유/미리보기 a */
+.cm-wikilink, .md a.wikilink {
+  color: var(--ink); cursor: pointer;
+  border-bottom: 1px solid var(--border-strong);
+  transition: color .12s ease, border-color .12s ease;
+}
+.cm-wikilink:hover, .md a.wikilink:hover { border-bottom-color: var(--ink); }
+.cm-wikilink.broken, .md a.wikilink.broken {
+  color: var(--text-faint); cursor: not-allowed; border-bottom-style: dotted;
+}
+
+/* 백링크 패널 */
+.backlinks { margin: 28px 0 64px; border-top: 1px solid var(--border); padding-top: 14px; }
+.backlinks .bl-head {
+  display: flex; align-items: center; gap: 6px; background: none; border: none;
+  color: var(--text-2); font-size: 13px; cursor: pointer; padding: 4px 0;
+}
+.backlinks .bl-twirl { display: inline-flex; transition: transform .12s ease; }
+.backlinks .bl-twirl.open { transform: rotate(90deg); }
+.backlinks .bl-count { color: var(--text-faint); }
+.backlinks .bl-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.backlinks .bl-item {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  background: none; border: none; cursor: pointer; color: var(--text);
+  padding: 6px 8px; border-radius: 6px; font-size: 13.5px;
+}
+.backlinks .bl-item:hover { background: var(--bg-active); }
