@@ -165,6 +165,12 @@ describe("sortTreeNodes", () => {
     const input: VaultTree = [note("a", "노트10"), note("b", "노트2"), note("c", "노트1")];
     expect(sortTreeNodes(input).map((n) => n.id)).toEqual(["c", "b", "a"]);
   });
+  it("name-desc reverses each group but keeps folders first", () => {
+    const input: VaultTree = [
+      note("n1", "Alpha"), folder("fa", "Aardvark"), note("n2", "Zebra"), folder("fb", "Beta"),
+    ];
+    expect(sortTreeNodes(input, "name-desc").map((n) => n.id)).toEqual(["fb", "fa", "n2", "n1"]);
+  });
   it("does not mutate the input array", () => {
     const input: VaultTree = [note("z", "z"), note("a", "a")];
     const before = input.map((n) => n.id);

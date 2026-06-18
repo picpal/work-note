@@ -162,12 +162,13 @@ button { font-family: inherit; cursor: pointer; }
   margin: 2px 12px 6px;
   display: flex; align-items: center; gap: 8px;
   height: 34px; padding: 0 10px;
-  background: var(--bg); border: 1px solid var(--border);
+  background: var(--bg-sunken); border: 1px solid var(--border);
   border-radius: var(--radius); color: var(--text-3);
   font-size: 13px; transition: border-color .12s, background .12s; white-space: nowrap;
 }
-.sb-search:hover { border-color: var(--border-strong); }
+.sb-search:hover { background: var(--bg); border-color: var(--border-strong); }
 .sb-search svg { width: 15px; height: 15px; flex: none; }
+.sb-search-ph { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
 .sb-search .kbd {
   margin-left: auto; font-size: 11px; color: var(--text-3);
   border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
@@ -179,6 +180,15 @@ button { font-family: inherit; cursor: pointer; }
   padding: 4px 8px 6px; border-bottom: 1px solid var(--border-soft);
 }
 .sb-toolbar .spacer { flex: 1; }
+.icon-btn.active { background: var(--bg-active); color: var(--ink); }
+/* 정렬 드롭다운 — .ctx 비주얼 재사용, fixed→absolute로 버튼에 앵커 */
+.sb-sort { position: relative; display: flex; }
+.sb-sort-menu {
+  position: absolute; top: calc(100% + 5px); right: 0; z-index: 100;
+  min-width: 150px;
+}
+.sb-sort-menu .ctx-item .chev { color: var(--text-2); display: flex; }
+.sb-sort-menu .ctx-item .chev svg { width: 15px; height: 15px; }
 .sb-section-label {
   padding: 12px 14px 4px;
   font-size: 11px; font-weight: 600; letter-spacing: .06em;

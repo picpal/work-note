@@ -2,15 +2,22 @@
 import { useState, useRef, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
-import { countNotes, folderIconName, sortTreeNodes } from "../lib/tree";
+import { countNotes, folderIconName, sortTreeNodes, type TreeSortKey } from "../lib/tree";
 import { piiWarns } from "../lib/pii";
 import type { VaultTree, VaultNode, NoteNode } from "../types";
 
 const INDENT = 16;
 
+// 사이드바 정렬 드롭다운 옵션 (옵시디언식). 표시 전용 — 새로고침 시 첫 항목으로 리셋.
+const SORT_OPTS: Array<{ key: TreeSortKey; label: string }> = [
+  { key: "name-asc", label: "이름 오름차순" },
+  { key: "name-desc", label: "이름 내림차순" },
+];
+
 interface RowProps {
   node: VaultNode;
   depth: number;
+  sortKey: TreeSortKey;
   activeId: string | null;
   renamingId: string | null;
   onToggle: (id: string) => void;
@@ -103,7 +110,7 @@ function Row(props: RowProps): React.ReactElement {
       { className: "children", style: { "--gx": (pad + 7) + "px" } as React.CSSProperties },
       ((node as { children?: VaultNode[] }).children || []).length === 0
         ? React.createElement("div", { className: "row", style: { paddingLeft: pad + INDENT, color: "var(--text-faint)", fontStyle: "italic", height: 26 } }, "비어 있음")
-        : sortTreeNodes((node as { children?: VaultNode[] }).children || []).map((c) =>
+        : sortTreeNodes((node as { children?: VaultNode[] }).children || [], props.sortKey).map((c) =>
             React.createElement(Row, { key: c.id, ...props, node: c, depth: depth + 1 }))
     )
   );
@@ -139,6 +146,24 @@ interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const { tree, brand, onOpenSearch, onCollapseAll, onToggleSidebar } = props;
+  // 정렬: 표시 전용 in-memory 상태 → 새로고침하면 기본(name-asc)으로 복귀
+  const [sortKey, setSortKey] = useState<TreeSortKey>("name-asc");
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sortOpen) return;
+    const close = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSortOpen(false); };
+    window.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [sortOpen]);
 
   return React.createElement(
     "aside", { className: "sidebar" },
@@ -152,10 +177,33 @@ export function Sidebar(props: SidebarProps) {
           React.createElement(Icon, { name: "panelLeft" })))
     ),
     React.createElement(
+      "button", { className: "sb-search", title: "검색  ⌘K", onClick: onOpenSearch },
+      React.createElement(Icon, { name: "search" }),
+      React.createElement("span", { className: "sb-search-ph" }, "검색…"),
+      React.createElement("span", { className: "kbd" }, "⌘K")),
+    React.createElement(
       "div", { className: "sb-toolbar" },
-      React.createElement("button", { className: "icon-btn", title: "검색  ⌘K", onClick: onOpenSearch },
-        React.createElement(Icon, { name: "search" })),
       React.createElement("div", { className: "spacer" }),
+      // 정렬 (접기 버튼 왼쪽) — 클릭 시 드롭다운, 선택하면 즉시 정렬
+      React.createElement(
+        "div", { className: "sb-sort", ref: sortRef },
+        React.createElement("button", {
+          className: "icon-btn" + (sortOpen ? " active" : ""),
+          title: "정렬", onClick: () => setSortOpen((v) => !v),
+        }, React.createElement(Icon, { name: "sort" })),
+        sortOpen && React.createElement(
+          "div", { className: "ctx sb-sort-menu" },
+          SORT_OPTS.map((opt) =>
+            React.createElement("div", {
+              key: opt.key,
+              className: "ctx-item",
+              onClick: () => { setSortKey(opt.key); setSortOpen(false); },
+            },
+              React.createElement("span", null, opt.label),
+              sortKey === opt.key &&
+                React.createElement("span", { className: "chev" }, React.createElement(Icon, { name: "check" }))))
+        )
+      ),
       React.createElement("button", { className: "icon-btn", title: "모두 접기", onClick: onCollapseAll },
         React.createElement(Icon, { name: "collapseAll" }))
     ),
@@ -164,7 +212,7 @@ export function Sidebar(props: SidebarProps) {
         className: "tree",
         onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); props.onContext(e.clientX, e.clientY, null); },
       },
-      sortTreeNodes(tree).map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0 }))
+      sortTreeNodes(tree, sortKey).map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0, sortKey }))
     ),
     React.createElement(
       "div", { className: "sb-footer" },

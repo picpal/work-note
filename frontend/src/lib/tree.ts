@@ -150,14 +150,19 @@ export function folderIconName(depth: number, open: boolean): "users" | "folderO
   return open ? "folderOpen" : "folder";
 }
 
-// 사이드바 표시 정렬: 폴더 먼저 → 노트, 각 그룹은 이름(폴더 name / 노트 title) 오름차순(숫자 자연순).
+// 사이드바 표시 정렬 키. 표시 전용이라 새로고침하면 기본값(name-asc)으로 돌아감.
+export type TreeSortKey = "name-asc" | "name-desc";
+
+// 사이드바 표시 정렬: 폴더 먼저 → 노트, 각 그룹은 이름(폴더 name / 노트 title) 기준(숫자 자연순).
+// key로 오름/내림만 토글 — 폴더 우선 그룹화는 방향과 무관하게 항상 유지.
 // 표시 전용 — 저장된 position은 그대로. 원본 배열 불변(복사 후 정렬).
-export function sortTreeNodes(nodes: VaultTree): VaultTree {
+export function sortTreeNodes(nodes: VaultTree, key: TreeSortKey = "name-asc"): VaultTree {
+  const dir = key === "name-desc" ? -1 : 1;
   return [...nodes].sort((a, b) => {
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
     const an = a.type === "folder" ? a.name : a.title;
     const bn = b.type === "folder" ? b.name : b.title;
-    return an.localeCompare(bn, "ko", { numeric: true, sensitivity: "base" });
+    return dir * an.localeCompare(bn, "ko", { numeric: true, sensitivity: "base" });
   });
 }
 
