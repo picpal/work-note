@@ -14,6 +14,7 @@ import { TrashModal } from "./components/TrashModal";
 import { ShareModal } from "./components/ShareModal";
 import { MoveModal } from "./components/MoveModal";
 import { MoveWarnDialog } from "./components/MoveWarnDialog";
+import { LinkWarnDialog } from "./components/LinkWarnDialog";
 import { PiiNoticeModal } from "./components/PiiNoticeModal";
 import { ConnectionLost } from "./components/ConnectionLost";
 import { canDropOn } from "./lib/dnd";
@@ -72,6 +73,7 @@ export function App() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingWarn, setPendingWarn] = useState<{ id: string; parentId: string | null; preview: MovePreview } | null>(null);
+  const [linkWarn, setLinkWarn] = useState<{ id: string; name: string; count: number } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string }>>([]);
   const [dirty, setDirty] = useState(false); // 열린 노트에 미저장 편집이 있는지 — 우측 하단 저장 버튼 상태
   const { menu, openMenu, closeMenu } = useContextMenu();
@@ -214,11 +216,17 @@ export function App() {
     if (value != null && value.trim() !== "") actions.rename(id, value.trim());
     setRenamingId(null);
   };
-  const removeNode = (id: string) => {
+  const doRemove = (id: string) => {
     actions.remove(id);
     if (id === activeId) setActiveId(null);
     const { node } = findNode(tree, id);
     toast((node && node.type === "folder" ? "폴더" : "노트") + "를 삭제했습니다", "trash");
+  };
+  const removeNode = (id: string) => {
+    const { node } = findNode(tree, id);
+    const refs = node && node.type === "note" ? (backlinks.get(id) || []) : [];
+    if (refs.length) { setLinkWarn({ id, name: node!.type === "note" ? (node!.title || "제목 없음") : "", count: refs.length }); return; }
+    doRemove(id);
   };
 
   // ---- context menu builders ----
@@ -452,6 +460,11 @@ export function App() {
       preview: pendingWarn.preview,
       onConfirm: () => { actions.move(pendingWarn.id, pendingWarn.parentId); toast("이동했습니다", "check"); setPendingWarn(null); },
       onCancel: () => setPendingWarn(null),
+    }),
+    linkWarn && createElement(LinkWarnDialog, {
+      name: linkWarn.name, count: linkWarn.count,
+      onConfirm: () => { doRemove(linkWarn.id); setLinkWarn(null); },
+      onCancel: () => setLinkWarn(null),
     }),
     storageMode === "http" && me != null && createElement(PiiNoticeModal, { key: "pii-notice-" + me.emp }),
     menu && createElement(ContextMenu, { x: menu.x, y: menu.y, items: menu.items, onClose: closeMenu }),
