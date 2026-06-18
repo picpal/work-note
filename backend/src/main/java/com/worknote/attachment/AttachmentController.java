@@ -82,6 +82,10 @@ public class AttachmentController {
             throw VaultException.notFound("첨부를 찾을 수 없습니다");
         }
         guard.requireRead(user, row.nodeId()); // 열람 = 노트 read
+        // 실제 파일 다운로드만 감사(과다 다운로드 추적). 이미지는 본문 인라인 프리뷰라 매 렌더 호출 → 노이즈 제외.
+        if (!UploadPolicy.isImage(row.ext())) {
+            audit.log(user, "attachment.download", id + " -> " + row.nodeId(), req.getRemoteAddr());
+        }
         return serve(row);
     }
 

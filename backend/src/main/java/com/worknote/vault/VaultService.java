@@ -69,7 +69,13 @@ public class VaultService {
             piiByNode.put(f.nodeId(), new PiiInfo(f.status(),
                 f.types().isEmpty() ? List.of() : Arrays.asList(f.types().split(","))));
         }
-        return assemble(null, byParent, tagsByNode, piiByNode);
+        // 수정자 라벨: 사번이 앞, 이름은 선택값이라 있을 때만 "사번(이름)" / 없으면 "사번". 미매칭은 행 자체가 없음.
+        Map<String, String> updaterByNode = new LinkedHashMap<>();
+        for (UpdaterRow u : mapper.findUpdaters()) {
+            boolean hasName = u.name() != null && !u.name().isBlank();
+            updaterByNode.put(u.nodeId(), hasName ? u.emp() + "(" + u.name() + ")" : u.emp());
+        }
+        return assemble(null, byParent, tagsByNode, piiByNode, updaterByNode);
     }
 
     @Transactional
@@ -93,9 +99,9 @@ public class VaultService {
             aclMapper.insertPublicFlag(id, "exclude");
         }
         if (isNote) {
-            return new VaultNode(id, NOTE, null, name, null, null, List.of(), toDate(updatedAt), content, null);
+            return new VaultNode(id, NOTE, null, name, null, null, List.of(), toDate(updatedAt), content, null, null);
         }
-        return new VaultNode(id, FOLDER, name, null, null, List.of(), null, null, null, null);
+        return new VaultNode(id, FOLDER, name, null, null, List.of(), null, null, null, null, null);
     }
 
     @Transactional
@@ -183,9 +189,9 @@ public class VaultService {
             if (deletedBy != null && !deletedBy.equals(row.deletedBy())) continue;
             if (NOTE.equals(row.type())) {
                 out.add(new VaultNode(row.id(), NOTE, null, row.name(), null, null,
-                    List.of(), toDate(row.updatedAt()), null, null));
+                    List.of(), toDate(row.updatedAt()), null, null, null));
             } else {
-                out.add(new VaultNode(row.id(), FOLDER, row.name(), null, null, null, null, null, null, null));
+                out.add(new VaultNode(row.id(), FOLDER, row.name(), null, null, null, null, null, null, null, null));
             }
         }
         return out;
@@ -208,16 +214,19 @@ public class VaultService {
 
     private List<VaultNode> assemble(String parentId, Map<String, List<NodeRow>> byParent,
                                      Map<String, List<String>> tagsByNode,
-                                     Map<String, PiiInfo> piiByNode) {
+                                     Map<String, PiiInfo> piiByNode,
+                                     Map<String, String> updaterByNode) {
         List<VaultNode> nodes = new ArrayList<>();
         for (NodeRow row : byParent.getOrDefault(parentId, List.of())) {
             if (NOTE.equals(row.type())) {
                 nodes.add(new VaultNode(row.id(), NOTE, null, row.name(), null, null,
                     tagsByNode.getOrDefault(row.id(), List.of()),
-                    toDate(row.updatedAt()), row.content(), piiByNode.get(row.id())));
+                    toDate(row.updatedAt()), row.content(), piiByNode.get(row.id()),
+                    updaterByNode.get(row.id())));
             } else {
                 nodes.add(new VaultNode(row.id(), FOLDER, row.name(), null, null,
-                    assemble(row.id(), byParent, tagsByNode, piiByNode), null, null, null, null));
+                    assemble(row.id(), byParent, tagsByNode, piiByNode, updaterByNode),
+                    null, null, null, null, null));
             }
         }
         return nodes;

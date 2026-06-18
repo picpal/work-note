@@ -236,8 +236,15 @@ export function Editor(props: EditorProps) {
         createElement("span", { className: "pii-msg" }, "개인정보 예외 처리됨"))
     : null;
 
+  // 최근 수정일/수정자 — 제목 바로 위, 회색조 좌측정렬. 둘 다 없으면(예: 미편집/local) 생략.
+  const metaLabel = [note.updated, note.updatedBy].filter(Boolean).join(" / ");
+  const metaLine = metaLabel
+    ? createElement("div", { className: "doc-meta" }, "최근 수정 : " + metaLabel)
+    : null;
+
   return createElement(
     "div", { className: "doc" + (dropActive ? " drop-dim" : ""), key: note.id },
+    metaLine,
     createElement("textarea", {
       className: "title-input", ref: titleRef, rows: 1, placeholder: "제목을 입력하세요",
       value: note.title,

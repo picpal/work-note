@@ -145,9 +145,20 @@ export function folderOptions(tree: VaultTree, excludeId: string): Array<{ id: s
 }
 
 // 폴더 아이콘 선택: 최상위(depth 0)는 스페이스, 그 외는 펼침 상태에 따라 folder/folderOpen.
-export function folderIconName(depth: number, open: boolean): "space" | "folderOpen" | "folder" {
-  if (depth === 0) return "space";
+export function folderIconName(depth: number, open: boolean): "users" | "folderOpen" | "folder" {
+  if (depth === 0) return "users"; // 루트 폴더 = 팀 스페이스 → 관리자 화면과 동일한 사람 아이콘
   return open ? "folderOpen" : "folder";
+}
+
+// 사이드바 표시 정렬: 폴더 먼저 → 노트, 각 그룹은 이름(폴더 name / 노트 title) 오름차순(숫자 자연순).
+// 표시 전용 — 저장된 position은 그대로. 원본 배열 불변(복사 후 정렬).
+export function sortTreeNodes(nodes: VaultTree): VaultTree {
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+    const an = a.type === "folder" ? a.name : a.title;
+    const bn = b.type === "folder" ? b.name : b.title;
+    return an.localeCompare(bn, "ko", { numeric: true, sensitivity: "base" });
+  });
 }
 
 // flatten all notes with their folder path, for search

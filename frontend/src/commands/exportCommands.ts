@@ -3,6 +3,7 @@ import type { NoteNode } from "../types";
 export interface ExportCtx {
   openNote?: (n: NoteNode) => void;
   toast?: (msg: string, icon?: string) => void;
+  logExport?: (note: NoteNode, format: "pdf" | "md" | "copy") => void; // 감사 핑(http 모드만, fire-and-forget)
 }
 
 export interface ExportCommand {
@@ -64,6 +65,7 @@ export const exportCommands: ExportCommand[] = [
     label: "PDF로 내보내기",
     icon: "pdf",
     run: (note, ctx) => {
+      ctx.logExport && ctx.logExport(note, "pdf");
       ctx.openNote && ctx.openNote(note);
       // wait for the note + diagrams to render, then print
       setTimeout(() => {
@@ -77,6 +79,7 @@ export const exportCommands: ExportCommand[] = [
     label: "Markdown(.md)으로 내보내기",
     icon: "markdown",
     run: (note, ctx) => {
+      ctx.logExport && ctx.logExport(note, "md");
       download(safeName(note.title) + ".md", buildMarkdown(note));
       ctx.toast && ctx.toast("Markdown 파일을 내려받았습니다", "markdown");
     },
@@ -86,6 +89,7 @@ export const exportCommands: ExportCommand[] = [
     label: "클립보드에 복사",
     icon: "clipboard",
     run: async (note, ctx) => {
+      ctx.logExport && ctx.logExport(note, "copy");
       const ok = await copyClipboard(buildMarkdown(note));
       ctx.toast &&
         ctx.toast(

@@ -45,6 +45,14 @@
     SELECT updated_by FROM node WHERE id = #{id}
   </select>
 
+  <!-- 활성 노트의 수정자: updated_by(사번) ↔ app_user. INNER JOIN이라 실제 사용자가 있을 때만 행 반환
+       (local 모드 'local'·탈퇴 사번은 미매칭 → 미반환 → 라벨 생략). 이름은 선택값이므로 NULL 가능. -->
+  <select id="findUpdaters" resultType="com.worknote.vault.UpdaterRow">
+    SELECT n.id AS nodeId, u.name AS name, u.emp AS emp
+    FROM node n JOIN app_user u ON u.emp = n.updated_by
+    WHERE n.type = 'note' AND n.deleted_at IS NULL AND n.updated_by IS NOT NULL
+  </select>
+
   <update id="move">
     UPDATE node SET parent_id = #{parentId}, position = #{position} WHERE id = #{id}
   </update>

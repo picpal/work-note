@@ -7,6 +7,7 @@ export interface NoteNode {
   title: string;
   tags: string[];
   updated: string; // YYYY-MM-DD
+  updatedBy?: string | null; // "사번(이름)" 라벨 — server 모드만, local/미해석 시 없음
   content: string;
   pii?: NotePii | null;
 }

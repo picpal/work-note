@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions, folderIconName } from "./tree";
+import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions, folderIconName, sortTreeNodes } from "./tree";
 import type { VaultTree, FolderNode, NoteNode } from "../types";
 
 const note = (id: string, title: string): NoteNode => ({ id, type: "note", title, tags: [], updated: "2026-06-10", content: "" });
@@ -142,15 +142,34 @@ describe("folderOptions", () => {
 });
 
 describe("folderIconName", () => {
-  it("top-level folder (depth 0) is a space, regardless of open state", () => {
-    expect(folderIconName(0, false)).toBe("space");
-    expect(folderIconName(0, true)).toBe("space");
+  it("top-level folder (depth 0) is the team-space people icon, regardless of open state", () => {
+    expect(folderIconName(0, false)).toBe("users");
+    expect(folderIconName(0, true)).toBe("users");
   });
   it("nested closed folder is folder", () => {
     expect(folderIconName(1, false)).toBe("folder");
   });
   it("nested open folder is folderOpen", () => {
     expect(folderIconName(2, true)).toBe("folderOpen");
+  });
+});
+
+describe("sortTreeNodes", () => {
+  it("folders before notes, each group by name ascending", () => {
+    const input: VaultTree = [
+      note("n1", "Zebra"), folder("fb", "Beta"), note("n2", "Alpha"), folder("fa", "Aardvark"),
+    ];
+    expect(sortTreeNodes(input).map((n) => n.id)).toEqual(["fa", "fb", "n2", "n1"]);
+  });
+  it("natural numeric order (노트2 < 노트10)", () => {
+    const input: VaultTree = [note("a", "노트10"), note("b", "노트2"), note("c", "노트1")];
+    expect(sortTreeNodes(input).map((n) => n.id)).toEqual(["c", "b", "a"]);
+  });
+  it("does not mutate the input array", () => {
+    const input: VaultTree = [note("z", "z"), note("a", "a")];
+    const before = input.map((n) => n.id);
+    sortTreeNodes(input);
+    expect(input.map((n) => n.id)).toEqual(before);
   });
 });
 

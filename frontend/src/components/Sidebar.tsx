@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
-import { countNotes, folderIconName } from "../lib/tree";
+import { countNotes, folderIconName, sortTreeNodes } from "../lib/tree";
 import { piiWarns } from "../lib/pii";
 import type { VaultTree, VaultNode, NoteNode } from "../types";
 
@@ -103,7 +103,7 @@ function Row(props: RowProps): React.ReactElement {
       { className: "children", style: { "--gx": (pad + 7) + "px" } as React.CSSProperties },
       ((node as { children?: VaultNode[] }).children || []).length === 0
         ? React.createElement("div", { className: "row", style: { paddingLeft: pad + INDENT, color: "var(--text-faint)", fontStyle: "italic", height: 26 } }, "비어 있음")
-        : ((node as { children?: VaultNode[] }).children || []).map((c) =>
+        : sortTreeNodes((node as { children?: VaultNode[] }).children || []).map((c) =>
             React.createElement(Row, { key: c.id, ...props, node: c, depth: depth + 1 }))
     )
   );
@@ -164,7 +164,7 @@ export function Sidebar(props: SidebarProps) {
         className: "tree",
         onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); props.onContext(e.clientX, e.clientY, null); },
       },
-      tree.map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0 }))
+      sortTreeNodes(tree).map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0 }))
     ),
     React.createElement(
       "div", { className: "sb-footer" },

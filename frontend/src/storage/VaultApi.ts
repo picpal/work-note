@@ -30,6 +30,9 @@ export const VaultApi = {
     req<unknown>("/nodes", { method: "POST", body: JSON.stringify(n) }),
   update: (id: string, patch: { name?: string; content?: string; tags?: string[] }) =>
     req<{ pii?: NotePii }>(`/nodes/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  // 내보내기 감사 핑(204) — fire-and-forget. 다운로드 자체는 클라에서 일어나므로 사후 통지만.
+  logExport: (id: string, format: "pdf" | "md" | "copy") =>
+    req<void>(`/nodes/${id}/export-log`, { method: "POST", body: JSON.stringify({ format }) }),
   move: (id: string, parentId: string | null) =>
     req<void>(`/nodes/${id}/move`, { method: "POST", body: JSON.stringify({ parentId }) }),
   movePreview: (id: string, parentId: string | null) =>

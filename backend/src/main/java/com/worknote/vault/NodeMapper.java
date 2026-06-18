@@ -15,6 +15,7 @@ public interface NodeMapper {
                       @Param("content") String content, @Param("updatedAt") String updatedAt,
                       @Param("updatedBy") String updatedBy);
     String findUpdatedBy(@Param("id") String id);
+    List<UpdaterRow> findUpdaters();                              // 활성 노트별 updated_by(사번)↔이름 (트리 라벨용, N+1 방지)
     void move(@Param("id") String id, @Param("parentId") String parentId, @Param("position") int position);
     void softDeleteSubtree(@Param("id") String id, @Param("deletedAt") String deletedAt, @Param("deletedBy") String deletedBy);
     void restoreSubtree(@Param("id") String id);

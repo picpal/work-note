@@ -175,8 +175,12 @@ export function App() {
   };
 
   // ---- context menu builders ----
+  // 내보내기 감사 핑 — http 모드만, fire-and-forget(실패해도 내보내기는 진행). local 모드는 백엔드 없음.
+  const logExport = storageMode === "http"
+    ? (note: any, format: "pdf" | "md" | "copy") => { void VaultApi.logExport(note.id, format).catch(() => {}); }
+    : undefined;
   const exportSub = (note: any) => exportCommands.map((c) => ({
-    icon: c.icon, label: c.label, onClick: () => c.run(note, { openNote, toast }),
+    icon: c.icon, label: c.label, onClick: () => c.run(note, { openNote, toast, logExport }),
   }));
   const onContext = (x: number, y: number, node: any) => {
     const canCreateAtRoot = storageMode === "local" || isAdmin;

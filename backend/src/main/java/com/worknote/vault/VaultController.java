@@ -8,6 +8,7 @@ import com.worknote.auth.UserRow;
 import com.worknote.pii.PiiEval;
 import com.worknote.pii.PiiService;
 import com.worknote.vault.dto.CreateNodeRequest;
+import com.worknote.vault.dto.ExportLogRequest;
 import com.worknote.vault.dto.MoveNodeRequest;
 import com.worknote.vault.dto.UpdateNodeRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,6 +73,24 @@ public class VaultController {
             resp.put("pii", Map.of("status", e.status(), "types", e.types()));
         }
         return resp;   // tags-only면 {} → 프런트는 pii 미변경으로 취급
+    }
+
+    /** 내보내기(PDF/MD/클립보드) 감사 핑 — 본문 다운로드는 클라이언트에서 일어나므로 프런트가 사후 통지.
+        read 권한 필요(열람 가능 노트만 집계). local 모드는 audit.log(null) no-op. */
+    @PostMapping("/nodes/{id}/export-log")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void exportLog(@PathVariable String id, @RequestBody(required = false) ExportLogRequest body, HttpServletRequest req) {
+        UserRow user = user(req);
+        guard.requireRead(user, id);
+        String raw = body == null ? null : body.format();
+        // 화이트리스트 정규화 — 자유 문자열이 감사 target에 섞이는 것 차단
+        String fmt = switch (raw == null ? "" : raw) {
+            case "pdf" -> "pdf";
+            case "md" -> "md";
+            case "copy" -> "copy";
+            default -> "기타";
+        };
+        audit.log(user, "note.export", id + " (" + fmt + ")", req.getRemoteAddr());
     }
 
     /** 이동 미리보기 — 실제 이동 없이 노출(접근 집합/공개/스페이스) 델타만 계산. move와 동일 가드·검증으로 동일 오류(404/422). */
