@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions, folderIconName, sortTreeNodes } from "./tree";
+import { walkTree, findNode, updateNode, insertChild, removeNode, flattenNotes, countNotes, dedupeIds, moveNode, isSelfOrDescendant, folderOptions, folderIconName, sortTreeNodes, crumbPath, firstNoteIn } from "./tree";
 import type { VaultTree, FolderNode, NoteNode } from "../types";
 
 const note = (id: string, title: string): NoteNode => ({ id, type: "note", title, tags: [], updated: "2026-06-10", content: "" });
@@ -193,6 +193,41 @@ describe("sortTreeNodes", () => {
     const before = input.map((n) => n.id);
     sortTreeNodes(input);
     expect(input.map((n) => n.id)).toEqual(before);
+  });
+});
+
+describe("crumbPath", () => {
+  it("returns ancestor folders root-first with id+name", () => {
+    const c = crumbPath(make(), "n2");
+    expect(c.map((s) => s.id)).toEqual(["f1", "f2"]);
+    expect(c.map((s) => s.name)).toEqual(["A", "B"]);
+  });
+  it("root-level node → empty chain (자기 자신 제외)", () => {
+    expect(crumbPath(make(), "n3")).toEqual([]);
+  });
+  it("folder node → its own ancestors only, not itself", () => {
+    expect(crumbPath(make(), "f2").map((s) => s.id)).toEqual(["f1"]);
+  });
+  it("missing id → empty chain", () => {
+    expect(crumbPath(make(), "zz")).toEqual([]);
+  });
+});
+
+describe("firstNoteIn", () => {
+  it("returns the first direct child note", () => {
+    const f = findNode(make(), "f1").node as FolderNode;
+    expect(firstNoteIn(f)?.id).toBe("n1");
+  });
+  it("descends into subfolders when no direct note", () => {
+    const f = folder("fx", "X", [folder("fy", "Y", [note("nz", "z")])]);
+    expect(firstNoteIn(f)?.id).toBe("nz");
+  });
+  it("prefers a direct note over a subfolder note", () => {
+    const f = folder("fx", "X", [folder("fy", "Y", [note("nsub", "sub")]), note("ndirect", "direct")]);
+    expect(firstNoteIn(f)?.id).toBe("ndirect");
+  });
+  it("empty folder → null", () => {
+    expect(firstNoteIn(folder("fe", "E", []))).toBeNull();
   });
 });
 

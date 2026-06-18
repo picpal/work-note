@@ -43,6 +43,36 @@ export function findNode(
   return { node: found, parentArr, parentNode, path };
 }
 
+// 브레드크럼용 조상 폴더 체인(루트→부모 순). 각 세그먼트의 id를 함께 반환 — 링크 네비게이션용.
+// 노트/폴더 자신은 제외, 조상 폴더만. 루트 직속이거나 못 찾으면 빈 배열.
+export function crumbPath(tree: VaultTree, id: string): Array<{ id: string; name: string }> {
+  let chain: Array<{ id: string; name: string }> = [];
+  const dfs = (nodes: VaultTree, trail: Array<{ id: string; name: string }>): boolean => {
+    for (const n of nodes) {
+      if (n.id === id) { chain = trail; return true; }
+      if (n.type === "folder" && dfs(n.children, trail.concat({ id: n.id, name: n.name }))) return true;
+    }
+    return false;
+  };
+  dfs(tree, []);
+  return chain;
+}
+
+// 폴더 내 '첫 번째' 노트 — 직속 노트 우선, 없으면 하위 폴더를 순서대로 깊이우선.
+// 브레드크럼에서 폴더 세그먼트 클릭 시 열어줄 노트. 노트가 전혀 없으면 null.
+export function firstNoteIn(folder: FolderNode): NoteNode | null {
+  const kids = folder.children || [];
+  const direct = kids.find((n) => n.type === "note");
+  if (direct) return direct as NoteNode;
+  for (const k of kids) {
+    if (k.type === "folder") {
+      const hit = firstNoteIn(k);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 // --- structural sharing helpers ---
 
 // Walks nodes, copying only the path to the target id. Returns null if id not found.

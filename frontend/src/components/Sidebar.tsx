@@ -43,10 +43,17 @@ function Row(props: RowProps): React.ReactElement {
   const isActive = node.id === activeId;
   const renaming = node.id === renamingId;
   const inputRef = useRef<HTMLInputElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (renaming && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
   }, [renaming]);
+
+  // 활성 노트로 진입(검색·브레드크럼·복원)하면 조상 폴더가 펼쳐지며 이 행이 마운트된다 — 그때 보이도록 스크롤.
+  // isActive 변화 시에만 — 본문 편집 등 다른 리렌더에서는 스크롤하지 않는다.
+  useEffect(() => {
+    if (isActive) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isActive]);
 
   const pad = 6 + depth * INDENT;
 
@@ -62,6 +69,7 @@ function Row(props: RowProps): React.ReactElement {
   const rowEl = React.createElement(
     "div",
     {
+      ref: rowRef,
       className: "row" + (isActive ? " active" : "")
         + (isFolder && dragOverId === node.id ? " drop-target" : "")
         + (draggingId === node.id ? " dragging" : ""),
