@@ -6,6 +6,33 @@ import DOMPurify from "dompurify";
 // ---- marked config ----
 marked.setOptions({ gfm: true, breaks: true });
 
+// ---- 위키링크 인라인 확장 ([[id:X|label]]) ----
+// href 없는 a로 렌더(클릭 네비게이션·접근불가 판정은 소비측 책임). 라벨은 escape.
+function escWiki(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+marked.use({
+  extensions: [{
+    name: "wikilink",
+    level: "inline",
+    start(src: string) { return src.indexOf("[[id:"); },
+    tokenizer(src: string) {
+      const m = /^\[\[id:([^\]|\s]+)(?:\|([^\]]*))?\]\]/.exec(src);
+      if (!m) return undefined;
+      return { type: "wikilink", raw: m[0], id: m[1], label: m[2] || "" };
+    },
+    renderer(token: any) {
+      const text = token.label ? escWiki(token.label) : "🔗 노트";
+      return `<a class="wikilink" data-note-id="${escWiki(token.id)}">${text}</a>`;
+    },
+  }],
+});
+
+// 테스트 전용 — marked 싱글턴으로 인라인만 렌더한 HTML 문자열.
+export function renderWikiInline(src: string): string {
+  return marked.parse(src) as string;
+}
+
 let mermaidReady = false;
 function initMermaid(isDark: boolean): void {
   const v = isDark
