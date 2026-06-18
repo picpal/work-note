@@ -162,28 +162,28 @@ const uid = () => "n" + (++_id);
 
 export const SEED: VaultTree = [
   {
-    id: uid(), type: "folder", name: "시작하기", open: true, children: [
-      { id: uid(), type: "note", title: "온보딩 가이드", tags: ["가이드"], updated: "2026-06-02", content: ONBOARD },
+    id: uid(), type: "folder", name: "시작하기", open: true, created: "2026-06-01T09:00:00", children: [
+      { id: uid(), type: "note", title: "온보딩 가이드", tags: ["가이드"], updated: "2026-06-02", created: "2026-06-02T10:00:00", content: ONBOARD },
     ]
   },
   {
-    id: uid(), type: "folder", name: "아키텍처", open: true, children: [
-      { id: uid(), type: "note", title: "결제 파이프라인", tags: ["설계", "flow"], updated: "2026-06-07", content: PIPELINE },
-      { id: uid(), type: "note", title: "승인 연동 시퀀스", tags: ["설계", "카드사"], updated: "2026-06-06", content: APPROVAL },
+    id: uid(), type: "folder", name: "아키텍처", open: true, created: "2026-06-05T09:00:00", children: [
+      { id: uid(), type: "note", title: "결제 파이프라인", tags: ["설계", "flow"], updated: "2026-06-07", created: "2026-06-07T11:00:00", content: PIPELINE },
+      { id: uid(), type: "note", title: "승인 연동 시퀀스", tags: ["설계", "카드사"], updated: "2026-06-06", created: "2026-06-06T14:00:00", content: APPROVAL },
     ]
   },
   {
-    id: uid(), type: "folder", name: "운영 가이드", open: false, children: [
-      { id: uid(), type: "note", title: "응답코드", tags: ["운영", "레퍼런스"], updated: "2026-06-08", content: CODES },
-      { id: uid(), type: "folder", name: "장애 대응", open: false, children: [] },
+    id: uid(), type: "folder", name: "운영 가이드", open: false, created: "2026-06-08T09:00:00", children: [
+      { id: uid(), type: "note", title: "응답코드", tags: ["운영", "레퍼런스"], updated: "2026-06-08", created: "2026-06-08T15:00:00", content: CODES },
+      { id: uid(), type: "folder", name: "장애 대응", open: false, created: "2026-06-08T16:00:00", children: [] },
     ]
   },
   {
-    id: uid(), type: "folder", name: "회의록", open: false, children: [
-      { id: uid(), type: "note", title: "2026-06-08 주간 회의", tags: ["회의록"], updated: "2026-06-08", content: MEETING },
+    id: uid(), type: "folder", name: "회의록", open: false, created: "2026-06-08T18:00:00", children: [
+      { id: uid(), type: "note", title: "2026-06-08 주간 회의", tags: ["회의록"], updated: "2026-06-08", created: "2026-06-08T18:30:00", content: MEETING },
     ]
   },
-  { id: uid(), type: "note", title: "README", tags: [], updated: "2026-06-09", content: README },
+  { id: uid(), type: "note", title: "README", tags: [], updated: "2026-06-09", created: "2026-06-09T08:00:00", content: README },
 ];
 
 // id of note opened by default (most-recently viewed)

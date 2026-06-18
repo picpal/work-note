@@ -171,6 +171,23 @@ describe("sortTreeNodes", () => {
     ];
     expect(sortTreeNodes(input, "name-desc").map((n) => n.id)).toEqual(["fb", "fa", "n2", "n1"]);
   });
+  it("created-asc/desc sorts by ISO created, folders still first", () => {
+    const input: VaultTree = [
+      { id: "n1", type: "note", title: "B", tags: [], updated: "", created: "2026-06-10T00:00:00", content: "" },
+      { id: "fa", type: "folder", name: "F-old", open: true, created: "2026-01-01T00:00:00", children: [] },
+      { id: "n2", type: "note", title: "A", tags: [], updated: "", created: "2026-06-01T00:00:00", content: "" },
+      { id: "fb", type: "folder", name: "F-new", open: true, created: "2026-05-01T00:00:00", children: [] },
+    ];
+    expect(sortTreeNodes(input, "created-asc").map((n) => n.id)).toEqual(["fa", "fb", "n2", "n1"]);
+    expect(sortTreeNodes(input, "created-desc").map((n) => n.id)).toEqual(["fb", "fa", "n1", "n2"]);
+  });
+  it("created tie-break by name ascending (방향 무관)", () => {
+    const input: VaultTree = [
+      { id: "n1", type: "note", title: "Zebra", tags: [], updated: "", created: "2026-06-10T00:00:00", content: "" },
+      { id: "n2", type: "note", title: "Alpha", tags: [], updated: "", created: "2026-06-10T00:00:00", content: "" },
+    ];
+    expect(sortTreeNodes(input, "created-desc").map((n) => n.id)).toEqual(["n2", "n1"]);
+  });
   it("does not mutate the input array", () => {
     const input: VaultTree = [note("z", "z"), note("a", "a")];
     const before = input.map((n) => n.id);

@@ -2,9 +2,11 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.worknote.vault.NodeMapper">
 
+  <!-- created_at은 NodeRow에 없음(35개 호출처 보존) → SQL에서 채움: 노트는 updatedAt(=생성시각), 폴더(updatedAt NULL)는 현재 로컬시각 -->
   <insert id="insert">
-    INSERT INTO node (id, parent_id, type, name, position, content, updated_at, deleted_at, deleted_by)
-    VALUES (#{id}, #{parentId}, #{type}, #{name}, #{position}, #{content}, #{updatedAt}, #{deletedAt}, #{deletedBy})
+    INSERT INTO node (id, parent_id, type, name, position, content, updated_at, created_at, deleted_at, deleted_by)
+    VALUES (#{id}, #{parentId}, #{type}, #{name}, #{position}, #{content}, #{updatedAt},
+            COALESCE(#{updatedAt}, strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')), #{deletedAt}, #{deletedBy})
   </insert>
 
   <select id="findById" resultType="com.worknote.vault.NodeRow">
@@ -43,6 +45,11 @@
 
   <select id="findUpdatedBy" resultType="string">
     SELECT updated_by FROM node WHERE id = #{id}
+  </select>
+
+  <!-- 활성 노드별 생성일(폴더·노트 공통) — 트리 정렬용. NodeRow 무변경 유지를 위해 별도 조회 후 맵핑. -->
+  <select id="findCreated" resultType="com.worknote.vault.CreatedRow">
+    SELECT id AS nodeId, created_at AS created FROM node WHERE deleted_at IS NULL
   </select>
 
   <!-- 활성 노트의 수정자: updated_by(사번) ↔ app_user. INNER JOIN이라 실제 사용자가 있을 때만 행 반환

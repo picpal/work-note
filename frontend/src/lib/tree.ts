@@ -151,18 +151,27 @@ export function folderIconName(depth: number, open: boolean): "users" | "folderO
 }
 
 // 사이드바 표시 정렬 키. 표시 전용이라 새로고침하면 기본값(name-asc)으로 돌아감.
-export type TreeSortKey = "name-asc" | "name-desc";
+export type TreeSortKey = "name-asc" | "name-desc" | "created-asc" | "created-desc";
 
-// 사이드바 표시 정렬: 폴더 먼저 → 노트, 각 그룹은 이름(폴더 name / 노트 title) 기준(숫자 자연순).
-// key로 오름/내림만 토글 — 폴더 우선 그룹화는 방향과 무관하게 항상 유지.
-// 표시 전용 — 저장된 position은 그대로. 원본 배열 불변(복사 후 정렬).
+function nodeName(n: VaultNode): string {
+  return n.type === "folder" ? n.name : n.title;
+}
+
+// 사이드바 표시 정렬: 폴더 먼저 → 노트, 각 그룹은 선택 키 기준.
+// 이름은 숫자 자연순(ko), 생성일은 ISO 문자열 사전순. 동일 생성일은 이름으로 안정 정렬.
+// 폴더 우선 그룹화는 방향·키와 무관하게 항상 유지. 표시 전용 — 원본 배열 불변(복사 후 정렬).
 export function sortTreeNodes(nodes: VaultTree, key: TreeSortKey = "name-asc"): VaultTree {
-  const dir = key === "name-desc" ? -1 : 1;
+  const dir = key.endsWith("-desc") ? -1 : 1;
+  const byCreated = key.startsWith("created");
   return [...nodes].sort((a, b) => {
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-    const an = a.type === "folder" ? a.name : a.title;
-    const bn = b.type === "folder" ? b.name : b.title;
-    return dir * an.localeCompare(bn, "ko", { numeric: true, sensitivity: "base" });
+    if (byCreated) {
+      const ac = a.created || "", bc = b.created || "";
+      if (ac !== bc) return dir * ac.localeCompare(bc);   // ISO 문자열 비교
+      // 동일 생성일시 → 이름 오름차순 tie-break(방향과 무관하게 안정적)
+      return nodeName(a).localeCompare(nodeName(b), "ko", { numeric: true, sensitivity: "base" });
+    }
+    return dir * nodeName(a).localeCompare(nodeName(b), "ko", { numeric: true, sensitivity: "base" });
   });
 }
 

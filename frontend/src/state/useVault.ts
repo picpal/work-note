@@ -84,12 +84,13 @@ export function useVault(repo: VaultRepository = defaultRepo) {
     updateNote: (id: string, patch: Partial<NoteNode>) => dispatch({ type: "updateNote", id, patch }),
     setNotePii: (id: string, pii: NotePii | null) => dispatch({ type: "setNotePii", id, pii }),
     addNote: (folderId: string | null) => {
-      const node = { id: newId(), type: "note" as const, title: "제목 없는 노트", tags: [] as string[], updated: new Date().toISOString().slice(0, 10), content: "" };
+      const now = new Date().toISOString();
+      const node = { id: newId(), type: "note" as const, title: "제목 없는 노트", tags: [] as string[], updated: now.slice(0, 10), created: now, content: "" };
       dispatch({ type: "insert", folderId, node });
       return node;
     },
     addFolder: (folderId: string | null) => {
-      const node = { id: newId(), type: "folder" as const, name: "새 폴더", open: true, children: [] as VaultTree };
+      const node = { id: newId(), type: "folder" as const, name: "새 폴더", open: true, created: new Date().toISOString(), children: [] as VaultTree };
       dispatch({ type: "insert", folderId, node });
       return node;
     },

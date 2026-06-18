@@ -10,5 +10,6 @@ public record VaultNode(
     Integer position, List<VaultNode> children,           // folder만 children
     List<String> tags, String updated, String content,    // note만
     PiiInfo pii,                                           // note만(플래그 있을 때) — null이면 직렬화 생략
-    String updatedBy                                       // note만: "사번(이름)" 라벨 — 미해석 시 null(직렬화 생략)
+    String updatedBy,                                      // note만: "사번(이름)" 라벨 — 미해석 시 null(직렬화 생략)
+    String created                                         // 폴더·노트 공통: ISO 생성일시 — 트리 정렬용(미설정 시 직렬화 생략)
 ) {}

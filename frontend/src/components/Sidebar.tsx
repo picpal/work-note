@@ -12,6 +12,8 @@ const INDENT = 16;
 const SORT_OPTS: Array<{ key: TreeSortKey; label: string }> = [
   { key: "name-asc", label: "이름 오름차순" },
   { key: "name-desc", label: "이름 내림차순" },
+  { key: "created-asc", label: "생성일 오름차순" },
+  { key: "created-desc", label: "생성일 내림차순" },
 ];
 
 interface RowProps {
