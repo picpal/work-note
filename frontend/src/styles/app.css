@@ -181,11 +181,12 @@ button { font-family: inherit; cursor: pointer; }
 }
 .sb-toolbar .spacer { flex: 1; }
 .icon-btn.active { background: var(--bg-active); color: var(--ink); }
-/* 정렬 드롭다운 — .ctx 비주얼 재사용, fixed→absolute로 버튼에 앵커 */
+/* 정렬 드롭다운 — .ctx 비주얼 재사용. .ctx{position:fixed}가 파일 뒤쪽이라 동일 명시도로는 덮이므로
+   .sb-sort 하위 선택자(명시도 ↑)로 absolute 앵커를 강제. */
 .sb-sort { position: relative; display: flex; }
-.sb-sort-menu {
-  position: absolute; top: calc(100% + 5px); right: 0; z-index: 100;
-  min-width: 150px;
+.sb-sort .sb-sort-menu {
+  position: absolute; top: calc(100% + 5px); right: 0; z-index: 1000;
+  min-width: 160px; left: auto; bottom: auto;
 }
 .sb-sort-menu .ctx-item .chev { color: var(--text-2); display: flex; }
 .sb-sort-menu .ctx-item .chev svg { width: 15px; height: 15px; }
