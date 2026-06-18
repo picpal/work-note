@@ -5,6 +5,9 @@ import { Icon } from "./Icon";
 import { ShareApi, shareUrl } from "../api/share";
 import type { ShareLink, CreateShareBody } from "../api/share";
 import { ApiError } from "../api/http";
+import { UserPicker } from "./UserPicker";
+import { UserApi } from "../api/users";
+import type { DirectoryUser } from "../api/users";
 
 const h = React.createElement;
 
@@ -32,7 +35,9 @@ export function ShareModal({ note, onClose, toast }: ShareModalProps) {
   const [links, setLinks] = useState<ShareLink[] | null>(null); // null = 로딩 중
   const [days, setDays] = useState("7");
   const [maxViews, setMaxViews] = useState("");
-  const [pins, setPins] = useState("");
+  const [pinEmps, setPinEmps] = useState<string[]>([]);
+  const [directory, setDirectory] = useState<DirectoryUser[] | null>(null);
+  const [dirError, setDirError] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
@@ -44,6 +49,14 @@ export function ShareModal({ note, onClose, toast }: ShareModalProps) {
     }
   }, [note.id, toast]);
   useEffect(() => { void reload(); }, [reload]);
+
+  useEffect(() => {
+    let alive = true;
+    UserApi.directory()
+      .then((d) => { if (alive) setDirectory(d); })
+      .catch(() => { if (alive) { setDirectory([]); setDirError(true); } });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -78,8 +91,7 @@ export function ShareModal({ note, onClose, toast }: ShareModalProps) {
     const body: CreateShareBody = {};
     if (days.trim() !== "") body.days = Number(days);
     if (maxViews.trim() !== "") body.maxViews = Number(maxViews);
-    const emps = pins.split(",").map((s) => s.trim()).filter(Boolean);
-    if (emps.length) body.pinEmps = emps;
+    if (pinEmps.length) body.pinEmps = pinEmps;
     void run(async () => {
       const res = await ShareApi.create(note.id, body);
       // 클립보드 복사는 best-effort — 실패(보안 컨텍스트 미포커스/권한 거부)해도
@@ -126,9 +138,8 @@ export function ShareModal({ note, onClose, toast }: ShareModalProps) {
             h("input", { className: "pf-input", type: "number", min: 1, value: maxViews, placeholder: "비우면 무제한",
               onChange: (e: React.ChangeEvent<HTMLInputElement>) => setMaxViews(e.target.value) })),
           h("div", { className: "pf-field" },
-            h("label", null, "대상 사번 (콤마 구분)"),
-            h("input", { className: "pf-input", value: pins, placeholder: "비우면 전 직원",
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPins(e.target.value) })),
+            h("label", null, "대상 (비우면 전 직원)"),
+            h(UserPicker, { value: pinEmps, onChange: setPinEmps, directory, loadError: dirError })),
           h("div", { className: "pf-msg ok" }, "링크는 로그인한 직원만 열 수 있으며 read 전용입니다."),
           h("div", { className: "pf-foot" },
             h("button", { className: "pf-btn primary", disabled: busy, onClick: create }, "링크 만들기"))))));
