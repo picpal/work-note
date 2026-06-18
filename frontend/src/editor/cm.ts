@@ -20,6 +20,10 @@ import { java } from "@codemirror/lang-java";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { renderMarkdown, enhanceMermaid } from "../lib/markdown";
 import { TableWidget } from "./tableWidget";
+import { wikiConfigFacet, wikilinkDecorations } from "./wikilinkWidget";
+import { wikilinkCompletion, type WikiCandidate } from "./wikilinkComplete";
+import { startCompletion } from "@codemirror/autocomplete";
+import type { WikiConfig } from "./wikilinkWidget";
 
 // nested code languages used by markdown fenced blocks
 const sqlLang = sql().language;
@@ -363,6 +367,7 @@ function buildDecorations(state: EditorState) {
         }
       },
   });
+  for (const r of wikilinkDecorations(state, lineActive)) out.push(r);
   return Decoration.set(out, true);
 }
 
@@ -418,10 +423,12 @@ export interface CreateOpts {
   placeholder?: string;
   onChange?: (value: string) => void;
   onFocusEditable?: () => void;
+  wiki?: WikiConfig;                       // 링크 해석·네비게이션
+  wikiCandidates?: () => WikiCandidate[];  // [[ 자동완성 후보
 }
 
 export function create(parent: Element, opts?: CreateOpts): EditorView {
-  const { doc = "", onChange, onFocusEditable } = opts || {}; // onFocusEditable: reserved: read-only 모드용 (프로토타입 계승)
+  const { doc = "", onChange, onFocusEditable, wiki, wikiCandidates } = opts || {}; // onFocusEditable: reserved: read-only 모드용 (프로토타입 계승)
   const state = EditorState.create({
     doc,
     extensions: [
@@ -429,17 +436,25 @@ export function create(parent: Element, opts?: CreateOpts): EditorView {
       keymap.of([...completionKeymap, { key: "Tab", run: tabInCode, shift: shiftTabInCode }, ...defaultKeymap, ...historyKeymap]),
       markdown({ base: markdownLanguage, extensions: GFM, addKeymap: true, codeLanguages: codeLanguageFor }),
       syntaxHighlighting(codeHighlight),
-      autocompletion({ override: [fenceCompletion], activateOnTyping: true, icons: false }),
+      autocompletion({
+        override: wikiCandidates ? [fenceCompletion, wikilinkCompletion(wikiCandidates)] : [fenceCompletion],
+        activateOnTyping: true, icons: false,
+      }),
       EditorView.lineWrapping,
       codeFenceInput,
       focusField,
       decoField,
       atomicRanges,
+      ...(wiki ? [wikiConfigFacet.of(wiki)] : []),
       baseTheme,
       cmPlaceholder((opts && opts.placeholder) || "내용을 입력하세요…  (Enter: 다음 줄 · Shift+Enter: 단락 내 줄바꿈)"),
       EditorView.updateListener.of((u) => {
         if (u.focusChanged) u.view.dispatch({ effects: setFocus.of(u.view.hasFocus) });
         if (u.docChanged && onChange) onChange(u.state.doc.toString());
+        if (u.docChanged && wikiCandidates) {
+          const pos = u.state.selection.main.head;
+          if (u.state.sliceDoc(Math.max(0, pos - 2), pos) === "[[") startCompletion(u.view);
+        }
       }),
     ],
   });
