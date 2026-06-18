@@ -19,6 +19,10 @@
     SELECT * FROM app_user ORDER BY emp
   </select>
 
+  <select id="findActiveDirectory" resultType="com.worknote.auth.DirectoryUser">
+    SELECT emp, name FROM app_user WHERE status = 'active' ORDER BY emp
+  </select>
+
   <update id="update">
     UPDATE app_user SET name = #{name}, email = #{email}, role_id = #{roleId}, status = #{status}
     WHERE id = #{id}

@@ -11,6 +11,7 @@ public interface UserMapper {
     UserRow findById(@Param("id") String id);
     UserRow findByEmp(@Param("emp") String emp);
     List<UserRow> findAll();
+    List<DirectoryUser> findActiveDirectory();                    // 공유 대상 선택용 — active emp+name
     void update(UserRow row);
     int updateCredential(CredentialRow row);
     int countUsers();
