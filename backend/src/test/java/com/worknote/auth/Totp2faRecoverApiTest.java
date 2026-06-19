@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:memdb-recapi?mode=memory&cache=shared",
+    "worknote.mode=server","worknote.admin-password=x",
     "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 @AutoConfigureMockMvc
@@ -67,5 +68,32 @@ class Totp2faRecoverApiTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.emp").value("10001"))
             .andExpect(jsonPath("$.totp.enabled").value(false));   // 복구 = 2FA 폐기(재등록 강제)
+    }
+
+    /**
+     * 부분 인증(pending) 세션에서 복구 → 승격 후 보호 API 통과 검증.
+     * recoverVerify가 기존 pending 세션의 SESSION_2FA_PENDING을 제거하지 않으면 이후 요청이 401로 막힌다.
+     */
+    @Test void verifyFromPendingSession_promotesAndAllowsProtectedApi() throws Exception {
+        MockHttpSession s = new MockHttpSession();
+        // 로그인 → 2FA 활성 사용자라 부분 인증(pending) 세션 생성
+        mvc.perform(post("/api/auth/login").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\",\"password\":\"pw-1234\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("2fa_required"));
+        // pending 상태에선 보호 API 차단
+        mvc.perform(get("/api/auth/me").session(s)).andExpect(status().isUnauthorized());
+        // 복구 코드 요청·검증 (같은 pending 세션 재사용)
+        mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\"}"));
+        String code = BODY.get().replaceAll("[^0-9]","").substring(0,8);
+        mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\",\"code\":\""+code+"\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totp.enabled").value(false));
+        // 승격 후 보호 API 통과 — pending 마커가 제거됐어야 함
+        mvc.perform(get("/api/auth/me").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.emp").value("10001"));
     }
 }

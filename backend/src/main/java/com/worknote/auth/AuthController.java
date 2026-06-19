@@ -131,14 +131,16 @@ public class AuthController {
             audit.logRaw(req.emp(), "2fa.recover.fail", null, http.getRemoteAddr());
             throw AuthException.unauthorized("복구 코드가 올바르지 않거나 만료되었습니다");
         }
-        // 복구 성공: 기존 시드 즉시 폐기(재등록 강제)
-        totpService.disable(userId);
-        // 완전 인증 세션 발급
-        HttpSession session = http.getSession(true);
-        http.changeSessionId();
+        // user/cred 존재를 disable 전에 확인 — 실패 시 시드만 폐기돼 사용자가 잠기는 것 방지
         UserRow user = users.findById(userId);
         CredentialRow cred = users.findCredential(userId);
         if (user == null || cred == null) throw AuthException.unauthorized("자격 정보가 유효하지 않습니다");
+        // 복구 성공: 기존 시드 즉시 폐기(재등록 강제)
+        totpService.disable(userId);
+        // 완전 인증 세션 발급 — 기존 pending 세션이 재사용될 수 있으므로 pending 마커 명시 제거
+        HttpSession session = http.getSession(true);
+        http.changeSessionId();
+        session.removeAttribute(SESSION_2FA_PENDING);
         session.setAttribute(SESSION_USER, userId);
         session.setAttribute(SESSION_CRED, cred.salt());
         audit.logRaw(user.emp(), "2fa.recover.success", null, http.getRemoteAddr());

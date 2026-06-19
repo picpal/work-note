@@ -80,6 +80,7 @@ public class Me2faController {
         UserRow u = me(http);
         boolean isAdmin = roleCaps.of(u.roleId()).containsAll(AclResolver.ADMIN_CAPS);
         if (isAdmin && totp.isEnabled(u.id())) {
+            audit.log(u, "2fa.disable.blocked", null, http.getRemoteAddr());
             throw AuthException.forbidden("관리자는 2FA를 비활성화할 수 없습니다");
         }
         totp.disable(u.id());
