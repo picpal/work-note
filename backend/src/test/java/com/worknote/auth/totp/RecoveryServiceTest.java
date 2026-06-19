@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.*;
 import org.springframework.jdbc.core.JdbcTemplate;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.*;
 
@@ -58,6 +59,17 @@ class RecoveryServiceTest {
     @Test void verifyRejectsWrongCode() {
         recovery.request("10001");
         assertThat(recovery.verify("10001", "00000000")).isNull();
+    }
+
+    @Test void verifyRejectsExpiredCode() {
+        // 과거 만료·미사용 복구 코드를 직접 INSERT — 만료 게이트 검증(Clock 오버라이드 불필요)
+        String code = "12345678";
+        String salt = PasswordHasher.newSalt();
+        jdbc.update("INSERT INTO totp_recovery(id,user_id,salt,code_hash,expires_at,used,created_at) "
+                + "VALUES(?,?,?,?,?,0,?)",
+            "rc-" + UUID.randomUUID(), "u1", salt, PasswordHasher.hash(code, salt),
+            "2020-01-01T00:00:00", "2020-01-01T00:00:00");
+        assertThat(recovery.verify("10001", code)).isNull();
     }
 
     private static String extractCode(String body) {

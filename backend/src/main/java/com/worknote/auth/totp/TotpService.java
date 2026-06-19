@@ -65,13 +65,17 @@ public class TotpService {
         return true;
     }
 
+    @Transactional(readOnly = true)
     public boolean isEnabled(String userId) {
         TotpRow row = mapper.find(userId);
         return row != null && row.enabled() == 1;
     }
 
     @Transactional
-    public void disable(String userId) { mapper.delete(userId); }
+    public void disable(String userId) {
+        mapper.delete(userId);
+        mapper.invalidateRecovery(userId);
+    }
 
     @Transactional
     public void reset(String userId) {
@@ -83,6 +87,7 @@ public class TotpService {
      * 이미 등록된 row의 otpauth URI를 재건 — QR 재발급 엔드포인트(Task 13)용.
      * row 없으면 422.
      */
+    @Transactional(readOnly = true)
     public String otpauthUriForExisting(String userId, String emp) {
         TotpRow row = mapper.find(userId);
         if (row == null) throw VaultException.invalid("2FA 등록 정보가 없습니다");
