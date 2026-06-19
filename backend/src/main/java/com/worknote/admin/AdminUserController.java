@@ -3,9 +3,11 @@ package com.worknote.admin;
 import com.worknote.admin.dto.CreateUserRequest;
 import com.worknote.admin.dto.ResetPasswordRequest;
 import com.worknote.admin.dto.UpdateUserRequest;
+import com.worknote.admin.dto.UserListResponse;
 import com.worknote.audit.AuditService;
 import com.worknote.auth.AuthFilter;
 import com.worknote.auth.UserRow;
+import com.worknote.auth.totp.TotpService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -28,11 +30,13 @@ public class AdminUserController {
     private final AdminGuard guard;
     private final UserAdminService svc;
     private final AuditService audit;
+    private final TotpService totpService;
 
-    public AdminUserController(AdminGuard guard, UserAdminService svc, AuditService audit) {
+    public AdminUserController(AdminGuard guard, UserAdminService svc, AuditService audit, TotpService totpService) {
         this.guard = guard;
         this.svc = svc;
         this.audit = audit;
+        this.totpService = totpService;
     }
 
     private static UserRow user(HttpServletRequest req) {
@@ -40,9 +44,11 @@ public class AdminUserController {
     }
 
     @GetMapping
-    public List<UserRow> list(HttpServletRequest req) {
+    public List<UserListResponse> list(HttpServletRequest req) {
         guard.requireAdmin(user(req));
-        return svc.list();
+        return svc.list().stream()
+            .map(row -> UserListResponse.of(row, totpService.isEnabled(row.id())))
+            .toList();
     }
 
     @PostMapping
@@ -80,5 +86,14 @@ public class AdminUserController {
         guard.requireAdmin(actor);
         UserRow target = svc.resetPassword(id, body.password());
         audit.log(actor, "user.reset", target.emp(), req.getRemoteAddr());
+    }
+
+    @PostMapping("/{id}/2fa/reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reset2fa(@PathVariable String id, HttpServletRequest req) {
+        UserRow actor = user(req);
+        guard.requireAdmin(actor);
+        totpService.reset(id);
+        audit.log(actor, "2fa.admin.reset", id, req.getRemoteAddr());
     }
 }
