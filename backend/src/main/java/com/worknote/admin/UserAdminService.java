@@ -34,6 +34,11 @@ public class UserAdminService {
         return users.findAll();
     }
 
+    /** 단건 조회 — 없으면 null (감사 로그 target 보강 등 비필수 경로용). */
+    public UserRow findById(String id) {
+        return users.findById(id);
+    }
+
     @Transactional
     public UserRow create(String emp, String name, String email, String roleId, String password) {
         if (users.findByEmp(emp) != null) {

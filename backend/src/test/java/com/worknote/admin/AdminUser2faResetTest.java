@@ -85,8 +85,9 @@ class AdminUser2faResetTest {
         mvc.perform(post("/api/admin/users/u2/2fa/reset").session(admin))
             .andExpect(status().isNoContent());
 
+        // 감사 target은 사번(emp)으로 기록 — 다른 admin 액션과 일관
         assertThat(jdbc.queryForObject(
-            "SELECT COUNT(*) FROM audit_log WHERE act = '2fa.admin.reset' AND target = 'u2'",
+            "SELECT COUNT(*) FROM audit_log WHERE act = '2fa.admin.reset' AND target = '20002'",
             Integer.class)).isEqualTo(1);
     }
 

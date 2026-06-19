@@ -93,7 +93,9 @@ public class AdminUserController {
     public void reset2fa(@PathVariable String id, HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
+        UserRow target = svc.findById(id);
         totpService.reset(id);
-        audit.log(actor, "2fa.admin.reset", id, req.getRemoteAddr());
+        // 감사 target은 다른 액션과 동일하게 사번(emp) 기록 — 대상 없으면 id로 폴백
+        audit.log(actor, "2fa.admin.reset", target != null ? target.emp() : id, req.getRemoteAddr());
     }
 }
