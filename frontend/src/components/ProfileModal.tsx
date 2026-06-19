@@ -1,14 +1,15 @@
-/* ProfileModal — user profile modal: edit name/email + change password. */
+/* ProfileModal — user profile modal: edit name/email + change password + 2FA security. */
 import { useState } from "react";
 import React from "react";
 import { Icon } from "./Icon";
 import { AuthApi } from "../api/auth";
-import type { Me } from "../api/auth";
+import type { Me, TotpInfo } from "../api/auth";
 import { storageMode } from "../storage";
 import { ApiError } from "../api/http";
 import { validatePasswordChange } from "./passwordValidation";
 import { validateProfile } from "./profileValidation";
 import { MIN_PASSWORD_LENGTH } from "../lib/passwordPolicy";
+import { SecurityTab } from "../account/SecurityTab";
 
 const h = React.createElement;
 
@@ -23,12 +24,14 @@ interface ProfileModalProps {
   role?: string;
   name?: string; // http 모드 세션 사용자 이름 — 있으면 localStorage mock보다 우선
   email?: string | null; // http 모드 세션 이메일 — 있으면 localStorage mock보다 우선
+  totp?: TotpInfo; // http 모드 2FA 상태 — 있으면 보안 탭 표시
   onClose: () => void;
   onSaved?: (me: Me) => void; // http 모드 프로필 저장 성공 시 세션(me) 갱신
+  onRefreshMe?: () => void; // 2FA 상태 변경 후 me 재조회
   toast?: (message: string, icon: string) => void;
 }
 
-export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail, onClose, onSaved, toast }: ProfileModalProps) {
+export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail, totp, onClose, onSaved, onRefreshMe, toast }: ProfileModalProps) {
   const init = loadProfile(emp);
   const [name, setName] = useState(sessionName || init.name);
   const [email, setEmail] = useState(storageMode === "http" ? (sessionEmail ?? "") : init.email);
@@ -121,5 +124,8 @@ export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail
               onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setNewPw2(e.target.value); setPwMsg(null); } })),
           pwMsg && h("div", { className: "pf-msg " + pwMsg.type }, pwMsg.text),
           h("div", { className: "pf-foot" },
-            h("button", { className: "pf-btn primary", onClick: changePw }, "비밀번호 변경"))))));
+            h("button", { className: "pf-btn primary", onClick: changePw }, "비밀번호 변경"))),
+        // 2FA 보안 탭 — http 모드 + totp 정보 있을 때만
+        storageMode === "http" && totp != null && h("div", { className: "pf-sec" },
+          h(SecurityTab, { totp, onChanged: onRefreshMe ?? (() => {}), toast })))));
 }

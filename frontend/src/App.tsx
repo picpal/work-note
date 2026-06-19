@@ -22,6 +22,7 @@ import { VaultApi } from "./storage/VaultApi";
 import type { MovePreview } from "./storage/VaultApi";
 import { shouldWarn } from "./components/moveWarning";
 import { ApiError } from "./api/http";
+import { AuthApi } from "./api/auth";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { loadPending, clearAllPending } from "./state/pendingStore";
@@ -447,7 +448,9 @@ export function App() {
     }),
     profileOpen && createElement(ProfileModal, {
       emp: me ? me.emp : currentEmp, role: me ? me.roleId : "운영자", name: me?.name, email: me?.email,
+      totp: me?.totp,
       onSaved: setMe,
+      onRefreshMe: () => { AuthApi.me().then(setMe).catch(() => {}); },
       onClose: () => setProfileOpen(false),
       toast,
     }),
