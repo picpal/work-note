@@ -296,6 +296,9 @@
 /* ---- modal ---- */
 .modal-ov { position: fixed; inset: 0; z-index: 2000; background: var(--overlay); display: grid; place-items: center; backdrop-filter: blur(2px); padding: 20px; }
 .modal { width: min(440px, 94vw); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-pop); overflow: hidden; }
+/* 폼 모달(권한 2열 그리드 등): 폭을 넓히고, 확인 다이얼로그용 본문 들여쓰기(67px)를 정상 패딩으로 되돌려 줄바꿈·우측 여백 문제 해소. */
+.modal.modal-wide { width: min(560px, 94vw); }
+.modal.modal-wide .modal-body { padding-left: 20px; }
 .modal-head { padding: 18px 20px 4px; display: flex; align-items: center; gap: 11px; }
 .modal-head .micon { width: 36px; height: 36px; border-radius: 9px; background: var(--bg-sunken); display: grid; place-items: center; color: var(--text); flex: none; }
 .modal-head .micon.warn { background: rgba(179,38,30,.08); color: #b3261e; }

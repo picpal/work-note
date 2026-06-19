@@ -18,7 +18,7 @@ export function RoleBadge({ role }: { role: string }) {
 }
 
 // ---- Modal ----
-export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDanger, onConfirm, onClose }: {
+export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDanger, onConfirm, onClose, wide }: {
   icon?: string;
   iconWarn?: boolean;
   title: string;
@@ -27,6 +27,7 @@ export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDa
   confirmDanger?: boolean;
   onConfirm?: () => void;
   onClose: () => void;
+  wide?: boolean; // 폼 모달(권한 그리드 등) — 폭↑ + 본문 좌패딩 정상화. 확인 다이얼로그는 기본(좁고 들여쓰기).
 }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -34,7 +35,7 @@ export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDa
     return () => document.removeEventListener("keydown", k);
   }, []);
   return h("div", { className: "modal-ov", onMouseDown: onClose },
-    h("div", { className: "modal", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
+    h("div", { className: "modal" + (wide ? " modal-wide" : ""), onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
       h("div", { className: "modal-head" },
         h("div", { className: "micon" + (iconWarn ? " warn" : "") }, h(Icon, { name: icon || "alert" })),
         h("h3", null, title)),
