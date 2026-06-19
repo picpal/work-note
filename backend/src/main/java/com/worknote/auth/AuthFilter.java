@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.worknote.acl.AclResolver;
 import com.worknote.auth.totp.Totp2faPolicy;
 import com.worknote.auth.totp.TotpService;
-import com.worknote.setting.SettingMapper;
+import com.worknote.setting.SettingService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,17 +43,17 @@ public class AuthFilter extends OncePerRequestFilter {
     private final ObjectMapper json;
     private final TotpService totpService;
     private final RoleCaps roleCaps;
-    private final SettingMapper settingMapper;
+    private final SettingService settings;
     private final Clock clock;
 
     public AuthFilter(UserMapper users, ObjectMapper json,
                       TotpService totpService, RoleCaps roleCaps,
-                      SettingMapper settingMapper, Clock clock) {
+                      SettingService settings, Clock clock) {
         this.users = users;
         this.json = json;
         this.totpService = totpService;
         this.roleCaps = roleCaps;
-        this.settingMapper = settingMapper;
+        this.settings = settings;
         this.clock = clock;
     }
 
@@ -96,14 +96,13 @@ public class AuthFilter extends OncePerRequestFilter {
         }
 
         // admin 2FA 강제 블록 — grace 만료 후 ENFORCE_ALLOWLIST 외 경로 차단 (403, on401 로그아웃 방지)
-        Set<String> caps = roleCaps.of(user.roleId());
-        boolean isAdmin = caps.containsAll(AclResolver.ADMIN_CAPS);
-        boolean totpEnabled = totpService.isEnabled(user.id());
-        if (Totp2faPolicy.enforced(isAdmin, totpEnabled)) {
+        // isAdmin 먼저 판정해 비관리자는 isEnabled/grace 조회를 단락(short-circuit) — 불필요한 DB 조회 회피
+        boolean isAdmin = roleCaps.of(user.roleId()).containsAll(AclResolver.ADMIN_CAPS);
+        if (isAdmin && !totpService.isEnabled(user.id())) {   // enforced(true, false) 후보만
             String graceStart = users.findGraceStart(user.id());
             boolean expired = Totp2faPolicy.graceExpired(
                 graceStart == null ? null : LocalDateTime.parse(graceStart),
-                graceDays(), LocalDateTime.now(clock));
+                settings.graceDays(), LocalDateTime.now(clock));
             if (expired && !ENFORCE_ALLOWLIST.contains(path)) {
                 res.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 res.setContentType("application/json;charset=UTF-8");
@@ -120,10 +119,5 @@ public class AuthFilter extends OncePerRequestFilter {
     private boolean credChanged(HttpSession session, String userId) {
         CredentialRow cred = users.findCredential(userId);
         return cred == null || !cred.salt().equals(session.getAttribute(AuthController.SESSION_CRED));
-    }
-
-    private int graceDays() {
-        String v = settingMapper.get("2fa.grace_days");
-        return v == null ? 7 : Integer.parseInt(v.trim());
     }
 }

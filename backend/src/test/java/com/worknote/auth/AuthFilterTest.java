@@ -1,5 +1,7 @@
 package com.worknote.auth;
 
+import com.worknote.auth.totp.Totp;
+import com.worknote.auth.totp.TotpService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +10,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -18,18 +22,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:phase2mem?mode=memory&cache=shared",
     "worknote.mode=server",
-    "worknote.admin-password=boot-pass-1"
+    "worknote.admin-password=boot-pass-1",
+    "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="   // 2FA enable 테스트용 (SecretCipher 활성화)
 })
 @AutoConfigureMockMvc
 class AuthFilterTest {
     @Autowired MockMvc mvc;
     @Autowired UserMapper users;
+    @Autowired TotpService totp;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
     void clean() {
         // u-admin 제외 — Task 7 AdminBootstrap이 시드할 admin 보존 (현재는 무해)
         jdbc.update("DELETE FROM audit_log");   // 공유 인메모리 DB — 다른 테스트 클래스 감사 행 오염 방지
+        jdbc.update("DELETE FROM user_totp");
         jdbc.update("DELETE FROM user_credential WHERE user_id <> 'u-admin'");
         jdbc.update("DELETE FROM app_user WHERE id <> 'u-admin'");
         users.insert(new UserRow("u1", "10001", null, "홍길동", "operator", "active", null));
@@ -88,5 +95,30 @@ class AuthFilterTest {
         jdbc.update("UPDATE app_user SET status = 'disabled' WHERE id = 'u1'");
         mvc.perform(get("/api/tree").session(session))
             .andExpect(status().isUnauthorized());   // 세션 살아있어도 비활성화 즉시 차단
+    }
+
+    @Test
+    void pendingSessionIsBlockedFromProtectedApi() throws Exception {
+        enable2fa("u1", "10001");
+        // 2FA 사용자는 로그인 시 부분 인증(pending)에 그침 — 일반 API 접근 시 401 + 2fa_required
+        MockHttpSession session = login("10001", "pw-1234");   // 200 {status:2fa_required}
+        mvc.perform(get("/api/tree").session(session))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").value("2fa_required"));
+    }
+
+    @Test
+    void pendingSessionCanLogout() throws Exception {
+        enable2fa("u1", "10001");
+        MockHttpSession session = login("10001", "pw-1234");   // pending
+        mvc.perform(post("/api/auth/logout").session(session))
+            .andExpect(status().isNoContent());                 // pending이어도 로그아웃 허용
+    }
+
+    /** 2FA enable — setup 후 현재 step 코드로 confirm. */
+    private void enable2fa(String id, String emp) {
+        totp.setup(id, emp);
+        String secret = totp.currentSecretForTest(id);
+        totp.confirm(id, Totp.codeAt(secret, Instant.now().getEpochSecond()));
     }
 }

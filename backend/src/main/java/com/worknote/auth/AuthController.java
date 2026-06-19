@@ -39,20 +39,20 @@ public class AuthController {
     private final AuditService audit;
     private final TotpService totpService;
     private final UserMapper users;
-    private final com.worknote.setting.SettingMapper settingMapper;
+    private final com.worknote.setting.SettingService settings;
     private final Clock clock;
     private final boolean serverMode;
 
     public AuthController(AuthService auth, RoleCaps roleCaps, AuditService audit,
                           TotpService totpService, UserMapper users,
-                          com.worknote.setting.SettingMapper settingMapper, Clock clock,
+                          com.worknote.setting.SettingService settings, Clock clock,
                           @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
         this.roleCaps = roleCaps;
         this.audit = audit;
         this.totpService = totpService;
         this.users = users;
-        this.settingMapper = settingMapper;
+        this.settings = settings;
         this.clock = clock;
         this.serverMode = "server".equals(mode);
     }
@@ -76,6 +76,7 @@ public class AuthController {
                 && !totpService.isEnabled(result.user().id())) {
             users.setGraceStart(result.user().id(),
                 LocalDateTime.now(clock).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            audit.logRaw(result.user().emp(), "2fa.grace_start", null, http.getRemoteAddr());
         }
 
         if (totpService.isEnabled(result.user().id())) {
@@ -106,6 +107,10 @@ public class AuthController {
     private MeResponse completePending(HttpSession session, String userId, HttpServletRequest http, String act) {
         UserRow user = users.findById(userId);
         CredentialRow cred = users.findCredential(userId);
+        if (user == null || cred == null) {
+            throw AuthException.unauthorized("자격 정보가 유효하지 않습니다");
+        }
+        http.changeSessionId();   // 권한 상승 시점 세션 재발급 (defense-in-depth, OWASP 세션 고정 방어)
         session.removeAttribute(SESSION_2FA_PENDING);
         session.setAttribute(SESSION_CRED, cred.salt());
         audit.logRaw(user.emp(), act, null, http.getRemoteAddr());
@@ -189,14 +194,9 @@ public class AuthController {
         String graceStart = users.findGraceStart(user.id());
         boolean graceExpired = enforced && Totp2faPolicy.graceExpired(
             graceStart == null ? null : LocalDateTime.parse(graceStart),
-            graceDays(), LocalDateTime.now(clock));
+            settings.graceDays(), LocalDateTime.now(clock));
         boolean emailPresent = user.email() != null && !user.email().isBlank();
         return new MeResponse(user.id(), user.emp(), user.name(), user.email(), user.roleId(), caps,
             new MeResponse.TotpInfo(enabled, enforced, graceExpired, emailPresent));
-    }
-
-    private int graceDays() {
-        String v = settingMapper.get("2fa.grace_days");
-        return v == null ? 7 : Integer.parseInt(v.trim());
     }
 }
