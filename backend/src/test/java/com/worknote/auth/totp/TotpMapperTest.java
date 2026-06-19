@@ -47,6 +47,13 @@ class TotpMapperTest {
         assertThat(latest.id()).isEqualTo("rc1");
         totp.markRecoveryUsed("rc1");
         assertThat(totp.findLatestRecovery("u1").used()).isEqualTo(1);
+
+        // 새 미사용 복구코드 — invalidateRecovery가 미사용분도 used=1로 만드는지 검증
+        // (created_at을 뒤로 둬 findLatestRecovery가 이 행을 반환하게 함 → markUsed된 rc1에 가려지지 않음)
+        totp.insertRecovery(new RecoveryRow("rc2","u1","s2","h2","2026-06-19T00:20:00",0,"2026-06-19T00:01:00"));
+        assertThat(totp.findLatestRecovery("u1").id()).isEqualTo("rc2");
+        assertThat(totp.findLatestRecovery("u1").used()).isZero();
         totp.invalidateRecovery("u1");   // 미사용분 전부 used=1
+        assertThat(totp.findLatestRecovery("u1").used()).isEqualTo(1);
     }
 }

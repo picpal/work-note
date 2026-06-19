@@ -23,7 +23,7 @@
     VALUES (#{id}, #{userId}, #{salt}, #{codeHash}, #{expiresAt}, #{used}, #{createdAt})
   </insert>
   <select id="findLatestRecovery" resultType="com.worknote.auth.totp.RecoveryRow">
-    SELECT * FROM totp_recovery WHERE user_id = #{userId} ORDER BY created_at DESC LIMIT 1
+    SELECT * FROM totp_recovery WHERE user_id = #{userId} ORDER BY created_at DESC, id DESC LIMIT 1
   </select>
   <update id="markRecoveryUsed">
     UPDATE totp_recovery SET used = 1 WHERE id = #{id}
