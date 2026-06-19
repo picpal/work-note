@@ -61,6 +61,19 @@ class SchemaMigrationTest {
     }
 
     @Test
+    void v9_addsTotpTables() {
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='user_totp'", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='totp_recovery'", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+            "SELECT value FROM app_setting WHERE key='2fa.grace_days'", String.class)).isEqualTo("7");
+        // app_user.totp_grace_start 컬럼 존재 (PRAGMA)
+        assertThat(jdbc.queryForList("PRAGMA table_info(app_user)").stream()
+            .anyMatch(r -> "totp_grace_start".equals(r.get("name")))).isTrue();
+    }
+
+    @Test
     void seedRoleCaps_allKnownToWhitelist() throws Exception {
         // 시드 드리프트 가드: 새 cap을 시드에 추가하고 RoleAdminService.KNOWN_CAPS 갱신을 빠뜨리면 즉시 검출
         var json = new com.fasterxml.jackson.databind.ObjectMapper();
