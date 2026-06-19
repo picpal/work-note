@@ -25,7 +25,7 @@ export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDa
   children?: React.ReactNode;
   confirmLabel?: string;
   confirmDanger?: boolean;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -40,8 +40,8 @@ export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDa
         h("h3", null, title)),
       h("div", { className: "modal-body" }, children),
       h("div", { className: "modal-foot" },
-        h("button", { className: "btn", onClick: onClose }, "취소"),
-        h("button", { className: "btn " + (confirmDanger ? "danger" : "primary"), onClick: onConfirm }, confirmLabel || "확인"))));
+        h("button", { className: "btn", onClick: onClose }, onConfirm ? "취소" : "닫기"),
+        onConfirm && h("button", { className: "btn " + (confirmDanger ? "danger" : "primary"), onClick: onConfirm }, confirmLabel || "확인"))));
 }
 
 // ---- Empty / Loading ----

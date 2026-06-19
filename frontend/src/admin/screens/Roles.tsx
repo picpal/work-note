@@ -5,6 +5,7 @@ import { capLabel, KNOWN_CAPS } from "../mappers";
 import { ApiError } from "../../api/http";
 import { useAdminData } from "../useAdminData";
 import { SecHead, Modal } from "../common";
+import { roleMode, roleActionLabel, roleActionIcon } from "../roleActions";
 import { Icon } from "../../components/Icon";
 
 const { useState } = React;
@@ -20,6 +21,7 @@ const SYSTEM_TIP = "시스템 역할은 변경할 수 없습니다";
 type ModalState =
   | { kind: "create" }
   | { kind: "edit"; role: ApiRole }
+  | { kind: "view"; role: ApiRole }
   | { kind: "delete"; role: ApiRole }
   | null;
 
@@ -59,6 +61,8 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
 
   const openCreate = () => { setForm({ id: "", name: "", caps: [] }); setModal({ kind: "create" }); };
   const openEdit = (r: ApiRole) => { setForm({ id: r.id, name: r.name, caps: [...r.caps] }); setModal({ kind: "edit", role: r }); };
+  const openView = (r: ApiRole) => { setForm({ id: r.id, name: r.name, caps: [...r.caps] }); setModal({ kind: "view", role: r }); };
+  const openAction = (r: ApiRole) => (roleMode(r) === "view" ? openView(r) : openEdit(r));
 
   const orderedCaps = () => KNOWN_CAPS.filter((c) => form.caps.includes(c));
 
@@ -81,18 +85,18 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
   const toggleCap = (c: string) =>
     setForm((f) => ({ ...f, caps: f.caps.includes(c) ? f.caps.filter((x) => x !== c) : [...f.caps, c] }));
 
-  const capSection = (label: string, keys: string[]) =>
+  const capSection = (label: string, keys: string[], readOnly = false) =>
     h("div", { className: "field" },
       h("label", { className: "flabel" }, label),
       h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px 14px" } },
-        keys.map((c) => h("label", { key: c, style: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text)", cursor: "pointer" } },
-          h("input", { type: "checkbox", style: { accentColor: "var(--ink)" }, checked: form.caps.includes(c), onChange: () => toggleCap(c) }),
+        keys.map((c) => h("label", { key: c, style: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text)", cursor: readOnly ? "default" : "pointer" } },
+          h("input", { type: "checkbox", style: { accentColor: "var(--ink)" }, checked: form.caps.includes(c), disabled: readOnly, onChange: () => { if (!readOnly) toggleCap(c); } }),
           h("span", null, capLabel(c)),
           h("span", { className: "mono", style: { fontSize: 11, color: "var(--text-3)" } }, c)))));
 
-  const nameField = h("div", { className: "field" },
+  const nameField = (readOnly = false) => h("div", { className: "field" },
     h("label", { className: "flabel" }, "역할 이름"),
-    h("input", { className: "tinput", value: form.name, placeholder: "예: 검토자",
+    h("input", { className: "tinput", value: form.name, placeholder: "예: 검토자", disabled: readOnly,
       onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value })) }));
 
   return h("div", { className: "apage" },
@@ -106,8 +110,8 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
           r.system && h("span", { className: "badge role" }, "시스템"),
           h("span", { className: "badge role" }, r.userCount + "명"),
           h("span", { style: { marginLeft: "auto", display: "flex", gap: 8 } },
-            h("button", { className: "btn sm", disabled: busy || r.system, title: r.system ? SYSTEM_TIP : undefined,
-              onClick: () => openEdit(r) }, h(Icon, { name: "edit" }), "편집"),
+            h("button", { className: "btn sm", disabled: busy,
+              onClick: () => openAction(r) }, h(Icon, { name: roleActionIcon(roleMode(r)) }), roleActionLabel(roleMode(r))),
             h("button", { className: "btn sm danger", disabled: busy || r.system, title: r.system ? SYSTEM_TIP : undefined,
               onClick: () => setModal({ kind: "delete", role: r }) }, "삭제"))),
         h("div", { className: "rc-desc" }, capSummary(r)),
@@ -122,7 +126,7 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
           onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, id: e.target.value })) }),
         h("div", { style: { fontSize: 12, color: "var(--text-3)", marginTop: 5 } },
           "소문자로 시작, 소문자·숫자·하이픈(-)만 사용. 생성 후 변경할 수 없습니다.")),
-      nameField,
+      nameField(),
       capSection("관리 권한 (admin.*)", ADMIN_CAPS),
       capSection("리소스 권한 (res.*)", RES_CAPS)),
     modal?.kind === "edit" && h(Modal, {
@@ -132,9 +136,20 @@ export function Roles({ toast }: { toast: (msg: string, icon?: string) => void }
       h("div", { className: "field" },
         h("label", { className: "flabel" }, "역할 ID"),
         h("input", { className: "tinput mono", value: form.id, disabled: true })),
-      nameField,
+      nameField(),
       capSection("관리 권한 (admin.*)", ADMIN_CAPS),
       capSection("리소스 권한 (res.*)", RES_CAPS)),
+    modal?.kind === "view" && h(Modal, {
+      icon: "roles", title: "역할 보기", onClose: () => setModal(null),
+    },
+      h("div", { className: "field" },
+        h("label", { className: "flabel" }, "역할 ID"),
+        h("input", { className: "tinput mono", value: form.id, disabled: true })),
+      h("div", { style: { fontSize: 12, color: "var(--text-3)", marginTop: -4, marginBottom: 4 } },
+        "시스템 역할은 변경할 수 없습니다 — 부여된 권한만 확인할 수 있습니다."),
+      nameField(true),
+      capSection("관리 권한 (admin.*)", ADMIN_CAPS, true),
+      capSection("리소스 권한 (res.*)", RES_CAPS, true)),
     modal?.kind === "delete" && h(Modal, {
       icon: "roles", iconWarn: true, title: "역할 삭제", confirmLabel: "삭제", confirmDanger: true,
       onConfirm: () => void applyDelete(modal.role), onClose: () => setModal(null),
