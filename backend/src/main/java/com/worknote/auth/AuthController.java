@@ -5,7 +5,10 @@ import com.worknote.auth.dto.ChangePasswordRequest;
 import com.worknote.auth.dto.LoginRequest;
 import com.worknote.auth.dto.MeResponse;
 import com.worknote.auth.dto.SignupRequest;
+import com.worknote.auth.dto.TotpVerifyRequest;
 import com.worknote.auth.dto.UpdateProfileRequest;
+import com.worknote.auth.totp.Totp2faPolicy;
+import com.worknote.auth.totp.TotpService;
 import com.worknote.vault.VaultException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -14,6 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,22 +31,34 @@ public class AuthController {
     public static final String SESSION_USER = "worknote.userId";
     /** 로그인 시점 credential salt — AuthFilter가 매 요청 현재 DB salt와 비교해 리셋된 세션을 즉시 무효화. */
     public static final String SESSION_CRED = "worknote.credSalt";
+    /** 부분 인증 세션 마커 — 비밀번호 OK but 2FA 미완. 완전 인증 전까지 API 차단. */
+    public static final String SESSION_2FA_PENDING = "worknote.2faPending";
 
     private final AuthService auth;
     private final RoleCaps roleCaps;
     private final AuditService audit;
+    private final TotpService totpService;
+    private final UserMapper users;
+    private final com.worknote.setting.SettingMapper settingMapper;
+    private final Clock clock;
     private final boolean serverMode;
 
     public AuthController(AuthService auth, RoleCaps roleCaps, AuditService audit,
+                          TotpService totpService, UserMapper users,
+                          com.worknote.setting.SettingMapper settingMapper, Clock clock,
                           @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
         this.roleCaps = roleCaps;
         this.audit = audit;
+        this.totpService = totpService;
+        this.users = users;
+        this.settingMapper = settingMapper;
+        this.clock = clock;
         this.serverMode = "server".equals(mode);
     }
 
     @PostMapping("/login")
-    public MeResponse login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
+    public Object login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         AuthService.AuthUser result;
         try {
             result = auth.login(req.emp(), req.password());
@@ -51,9 +69,47 @@ public class AuthController {
         HttpSession session = http.getSession(true);
         http.changeSessionId();   // 세션 고정 방어 — 공용 PC 교대 로그인 시 세션 id 재사용 방지 (내용 유지, id만 교체)
         session.setAttribute(SESSION_USER, result.user().id());
+
+        // admin grace_start 보장 — 최초 로그인 시 기록 (2FA 강제 유예 시작 시점)
+        boolean isAdmin = result.caps().containsAll(com.worknote.acl.AclResolver.ADMIN_CAPS);
+        if (isAdmin && users.findGraceStart(result.user().id()) == null
+                && !totpService.isEnabled(result.user().id())) {
+            users.setGraceStart(result.user().id(),
+                LocalDateTime.now(clock).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+
+        if (totpService.isEnabled(result.user().id())) {
+            session.setAttribute(SESSION_2FA_PENDING, Boolean.TRUE);   // 부분 인증 — SESSION_CRED 미설정
+            audit.logRaw(result.user().emp(), "2fa.challenge", null, http.getRemoteAddr());
+            return Map.of("status", "2fa_required");
+        }
         session.setAttribute(SESSION_CRED, result.credSalt());
         audit.logRaw(result.user().emp(), "login.success", null, http.getRemoteAddr());
         return toMe(result.user(), result.caps());
+    }
+
+    @PostMapping("/2fa/verify")
+    public MeResponse verify2fa(@Valid @RequestBody TotpVerifyRequest req, HttpServletRequest http) {
+        HttpSession session = http.getSession(false);
+        String userId = session != null ? (String) session.getAttribute(SESSION_USER) : null;
+        if (userId == null || !Boolean.TRUE.equals(session.getAttribute(SESSION_2FA_PENDING))) {
+            throw AuthException.unauthorized("2FA 인증 대기 상태가 아닙니다");
+        }
+        if (!totpService.verifyLogin(userId, req.code())) {
+            audit.logRaw(userId, "2fa.verify.fail", null, http.getRemoteAddr());
+            throw AuthException.unauthorized("인증 코드가 올바르지 않습니다");
+        }
+        return completePending(session, userId, http, "2fa.verify.success");
+    }
+
+    /** 부분 인증 → 완전 인증 승격 (TOTP verify 및 복구 경로 공용). */
+    private MeResponse completePending(HttpSession session, String userId, HttpServletRequest http, String act) {
+        UserRow user = users.findById(userId);
+        CredentialRow cred = users.findCredential(userId);
+        session.removeAttribute(SESSION_2FA_PENDING);
+        session.setAttribute(SESSION_CRED, cred.salt());
+        audit.logRaw(user.emp(), act, null, http.getRemoteAddr());
+        return toMe(user, auth.caps(user));
     }
 
     @PostMapping("/signup")
@@ -121,10 +177,26 @@ public class AuthController {
             throw AuthException.unauthorized("인증이 필요합니다");
         }
         // 1단계 호환 — caps도 실제 admin 시드로 채움 (프런트 caps 기반 UI 가드가 모드 무관하게 동작)
-        return new MeResponse("local", "local", "local", null, "admin", roleCaps.of("admin"));
+        // local 모드는 2FA 무관 — TotpInfo 전부 false
+        return new MeResponse("local", "local", "local", null, "admin", roleCaps.of("admin"),
+            new MeResponse.TotpInfo(false, false, false, false));
     }
 
-    private static MeResponse toMe(UserRow user, Set<String> caps) {
-        return new MeResponse(user.id(), user.emp(), user.name(), user.email(), user.roleId(), caps);
+    private MeResponse toMe(UserRow user, Set<String> caps) {
+        boolean enabled = totpService.isEnabled(user.id());
+        boolean isAdmin = caps.containsAll(com.worknote.acl.AclResolver.ADMIN_CAPS);
+        boolean enforced = Totp2faPolicy.enforced(isAdmin, enabled);
+        String graceStart = users.findGraceStart(user.id());
+        boolean graceExpired = enforced && Totp2faPolicy.graceExpired(
+            graceStart == null ? null : LocalDateTime.parse(graceStart),
+            graceDays(), LocalDateTime.now(clock));
+        boolean emailPresent = user.email() != null && !user.email().isBlank();
+        return new MeResponse(user.id(), user.emp(), user.name(), user.email(), user.roleId(), caps,
+            new MeResponse.TotpInfo(enabled, enforced, graceExpired, emailPresent));
+    }
+
+    private int graceDays() {
+        String v = settingMapper.get("2fa.grace_days");
+        return v == null ? 7 : Integer.parseInt(v.trim());
     }
 }
