@@ -85,7 +85,8 @@ export function App() {
   const currentEmp = (function () { try { return sessionStorage.getItem("wn.session") || "S2019-0007"; } catch (e) { return "S2019-0007"; } })();
 
   // ---- session (http 모드 전용 — local 모드는 me=null 고정, 기존 mock 표시 유지) ----
-  const { me, setMe, isAdmin, logout } = useSession();
+  const { me, setMe, meReady, isAdmin, logout } = useSession();
+  const [profileSection, setProfileSection] = useState<"security" | undefined>(undefined);
   const meLabel = me ? me.name + " (" + me.emp + ")" : currentEmp;
 
   // ---- theme ----
@@ -337,36 +338,40 @@ export function App() {
 
   if (loadError) return createElement(ConnectionLost, { onRetry: () => location.reload() });
   if (!ready) return null;
+  // http 모드에서 me 로딩이 끝나기 전엔 본체를 렌더하지 않는다 — 강제 게이트가 떠야 하는 사용자에게
+  // 앱 본체가 잠깐 보였다 게이트로 전환되는 flash-of-content 방지. (서버 다운은 위 loadError로 이미 차단;
+  // me fetch 실패는 meReady=true·me=null로 settle돼 기존 무세션 흐름을 그대로 탄다.)
+  if (storageMode === "http" && !meReady) return null;
 
   // ---- 2FA 강제 등록 게이트 (server 모드 + me.totp 존재 시) ----
   // local 모드는 me=null이므로 게이트 진입 없음.
   if (storageMode === "http" && me?.totp && mustEnrollNow(me.totp)) {
-    const h2 = React.createElement;
-    return h2("div", { className: "totp-gate", style: {
+    return createElement("div", { className: "totp-gate", style: {
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       minHeight: "100vh", gap: 24, padding: 32, background: "var(--bg-0)",
     } },
-      h2("div", { className: "totp-gate-box", style: {
+      createElement("div", { className: "totp-gate-box", style: {
         maxWidth: 480, width: "100%", background: "var(--bg-1)", borderRadius: 12,
         boxShadow: "0 2px 16px rgba(0,0,0,.12)", padding: 32,
       } },
-        h2("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } },
-          h2(Icon, { name: "shield" }),
-          h2("h2", { style: { margin: 0, fontSize: 18, fontWeight: 600 } }, "2단계 인증 등록 필요")),
-        h2("p", { style: { margin: "0 0 20px", color: "var(--text-2)", lineHeight: 1.6, fontSize: 14 } },
+        createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } },
+          createElement(Icon, { name: "shield" }),
+          createElement("h2", { style: { margin: 0, fontSize: 18, fontWeight: 600 } }, "2단계 인증 등록 필요")),
+        createElement("p", { style: { margin: "0 0 20px", color: "var(--text-2)", lineHeight: 1.6, fontSize: 14 } },
           "관리자 계정은 보안 정책에 따라 2FA(TOTP) 등록을 완료해야 계속 사용할 수 있습니다. 인증 앱을 준비하고 아래 절차를 따라 등록을 완료하세요."),
-        h2(SecurityTab, {
+        createElement(SecurityTab, {
           totp: me.totp,
           onChanged: () => { AuthApi.me().then(setMe).catch(() => {}); },
           toast: (msg, icon) => toast(msg, icon),
         }),
-        h2("div", { style: { marginTop: 20, borderTop: "1px solid var(--bd)", paddingTop: 16 } },
-          h2("button", { className: "btn sm", onClick: logout }, "로그아웃")))
+        createElement("div", { style: { marginTop: 20, borderTop: "1px solid var(--bd)", paddingTop: 16 } },
+          createElement("button", { className: "btn sm", onClick: logout }, "로그아웃")))
     );
   }
 
   // ---- 2FA 등록 권고 배너 (유예 기간 내, 강제 미만료) ----
   const showNudge = storageMode === "http" && me?.totp && shouldNudge(me.totp);
+  const openSecurityProfile = () => { setProfileSection("security"); setProfileOpen(true); };
 
   return createElement(
     "div", { className: appClass, style: appStyle },
@@ -425,9 +430,9 @@ export function App() {
         color: "var(--text-1)",
       } },
         createElement(Icon, { name: "shield" }),
-        createElement("span", null, "관리자 계정은 2FA(TOTP) 등록을 완료하세요 — 유예 기간 내입니다."),
+        createElement("span", null, "관리자 계정은 2FA(TOTP) 등록을 완료하세요 — 유예 기간 내입니다. (프로필 > 보안)"),
         createElement("button", { className: "lact", style: { marginLeft: "auto" },
-          onClick: () => setProfileOpen(true) }, "지금 등록")),
+          onClick: openSecurityProfile }, "지금 등록")),
       // editor toolbar
       activeNote && createElement(
         "div", { className: "etoolbar" },
@@ -491,9 +496,10 @@ export function App() {
     profileOpen && createElement(ProfileModal, {
       emp: me ? me.emp : currentEmp, role: me ? me.roleId : "운영자", name: me?.name, email: me?.email,
       totp: me?.totp,
+      initialSection: profileSection,
       onSaved: setMe,
       onRefreshMe: () => { AuthApi.me().then(setMe).catch(() => {}); },
-      onClose: () => setProfileOpen(false),
+      onClose: () => { setProfileOpen(false); setProfileSection(undefined); },
       toast,
     }),
     settingsOpen && createElement(SettingsModal, { settings, onSet: set, onClose: () => setSettingsOpen(false) }),

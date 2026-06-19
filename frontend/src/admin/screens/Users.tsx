@@ -75,7 +75,7 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
     if (await run(() => AdminApi.resetPassword(u.id, pw), "비밀번호를 초기화했습니다 — 해당 사용자의 기존 세션은 무효화됩니다", "refresh")) setModal(null);
   };
   const applyResetTotp = async (u: ApiUser) => {
-    if (await run(() => AdminApi.resetTotp(u.id), u.emp + " 의 2FA가 초기화되었습니다 — 재등록이 필요합니다", "refresh")) setModal(null);
+    if (await run(() => AdminApi.resetTotp(u.id), u.emp + "의 2FA가 초기화되었습니다 — 재등록이 필요합니다", "refresh")) setModal(null);
   };
   const applyCreate = async () => {
     if (!form.emp.trim() || !form.name.trim()) { toast("사번과 이름을 입력하세요"); return; }
