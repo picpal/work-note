@@ -3,6 +3,7 @@ package com.worknote.auth.totp;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /** RFC 6238 TOTP: HMAC-SHA1, 30초 step, 6자리. Google Authenticator 호환. 순수 함수. */
@@ -27,7 +28,7 @@ public final class Totp {
         long current = epochSeconds / PERIOD;
         for (long s = current - WINDOW; s <= current + WINDOW; s++) {
             if (s <= lastStep) continue;                       // 재생 방지: 이미 쓴 step 이하 거부
-            if (MessageDigest.isEqual(codeForStep(key, s).getBytes(), code.getBytes())) return s;
+            if (MessageDigest.isEqual(codeForStep(key, s).getBytes(StandardCharsets.UTF_8), code.getBytes(StandardCharsets.UTF_8))) return s;
         }
         return -1L;
     }

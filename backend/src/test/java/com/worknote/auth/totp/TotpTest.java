@@ -28,6 +28,12 @@ class TotpTest {
         assertThat(Totp.verify(SECRET, prevCode, 1111111109L, 0L)).isEqualTo(step - 1);
     }
 
+    @Test void verify_acceptsNextWindow() {
+        long step = 1111111109L / 30;
+        String nextCode = Totp.codeAt(SECRET, (step + 1) * 30);
+        assertThat(Totp.verify(SECRET, nextCode, 1111111109L, 0L)).isEqualTo(step + 1);
+    }
+
     @Test void verify_rejectsWrongCode() {
         assertThat(Totp.verify(SECRET, "000000", 1111111109L, 0L)).isEqualTo(-1L);
     }
