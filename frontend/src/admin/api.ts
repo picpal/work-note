@@ -1,7 +1,7 @@
 /* 관리자 API 클라이언트 — /api/admin 하위 전체 엔드포인트. 공유 fetch 코어(req) 사용. */
 import { req } from "../api/http";
 
-export interface ApiUser { id: string; emp: string; email: string | null; name: string; roleId: string; status: "pending" | "active" | "disabled"; lastLogin: string | null; }
+export interface ApiUser { id: string; emp: string; email: string | null; name: string; roleId: string; status: "pending" | "active" | "disabled"; lastLogin: string | null; totpEnabled: boolean; }
 export interface ApiRole { id: string; name: string; system: boolean; caps: string[]; userCount: number; }
 export interface ApiTeam { id: string; name: string; members: ApiUser[]; }
 export interface ApiSpace { nodeId: string; teamId: string | null; }
@@ -46,6 +46,7 @@ export const AdminApi = {
   approveUser: (id: string) => req<ApiUser>(`/admin/users/${id}/approve`, { method: "POST" }),
   resetPassword: (id: string, password: string) =>
     req<void>(`/admin/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ password }) }),
+  resetTotp: (id: string) => req<void>(`/admin/users/${id}/2fa/reset`, { method: "POST" }),
 
   roles: () => req<ApiRole[]>("/admin/roles"),
   createRole: (b: { id: string; name: string; caps: string[] }) =>

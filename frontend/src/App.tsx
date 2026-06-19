@@ -39,6 +39,8 @@ import { newId } from "./lib/id";
 import { exportCommands } from "./commands/exportCommands";
 import { SEED_DEFAULT_TITLE } from "./seed";
 import type { ToolbarHandlers } from "./components/Editor";
+import { mustEnrollNow, shouldNudge } from "./lib/totp2fa";
+import { SecurityTab } from "./account/SecurityTab";
 
 // editor toolbar definition (velog base + diagrams/table/checklist)
 const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: string; fn: (h: ToolbarHandlers) => void }>> = [
@@ -336,6 +338,36 @@ export function App() {
   if (loadError) return createElement(ConnectionLost, { onRetry: () => location.reload() });
   if (!ready) return null;
 
+  // ---- 2FA 강제 등록 게이트 (server 모드 + me.totp 존재 시) ----
+  // local 모드는 me=null이므로 게이트 진입 없음.
+  if (storageMode === "http" && me?.totp && mustEnrollNow(me.totp)) {
+    const h2 = React.createElement;
+    return h2("div", { className: "totp-gate", style: {
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      minHeight: "100vh", gap: 24, padding: 32, background: "var(--bg-0)",
+    } },
+      h2("div", { className: "totp-gate-box", style: {
+        maxWidth: 480, width: "100%", background: "var(--bg-1)", borderRadius: 12,
+        boxShadow: "0 2px 16px rgba(0,0,0,.12)", padding: 32,
+      } },
+        h2("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } },
+          h2(Icon, { name: "shield" }),
+          h2("h2", { style: { margin: 0, fontSize: 18, fontWeight: 600 } }, "2단계 인증 등록 필요")),
+        h2("p", { style: { margin: "0 0 20px", color: "var(--text-2)", lineHeight: 1.6, fontSize: 14 } },
+          "관리자 계정은 보안 정책에 따라 2FA(TOTP) 등록을 완료해야 계속 사용할 수 있습니다. 인증 앱을 준비하고 아래 절차를 따라 등록을 완료하세요."),
+        h2(SecurityTab, {
+          totp: me.totp,
+          onChanged: () => { AuthApi.me().then(setMe).catch(() => {}); },
+          toast: (msg, icon) => toast(msg, icon),
+        }),
+        h2("div", { style: { marginTop: 20, borderTop: "1px solid var(--bd)", paddingTop: 16 } },
+          h2("button", { className: "btn sm", onClick: logout }, "로그아웃")))
+    );
+  }
+
+  // ---- 2FA 등록 권고 배너 (유예 기간 내, 강제 미만료) ----
+  const showNudge = storageMode === "http" && me?.totp && shouldNudge(me.totp);
+
   return createElement(
     "div", { className: appClass, style: appStyle },
     createElement(Sidebar, {
@@ -386,6 +418,16 @@ export function App() {
           }, createElement(Icon, { name: "export" }))
         )
       ),
+      // 2FA 등록 권고 배너 (유예 기간 내)
+      showNudge && createElement("div", { className: "totp-nudge-banner", style: {
+        background: "var(--warn-bg, #fff8e1)", borderBottom: "1px solid var(--warn-bd, #ffe082)",
+        padding: "8px 20px", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
+        color: "var(--text-1)",
+      } },
+        createElement(Icon, { name: "shield" }),
+        createElement("span", null, "관리자 계정은 2FA(TOTP) 등록을 완료하세요 — 유예 기간 내입니다."),
+        createElement("button", { className: "lact", style: { marginLeft: "auto" },
+          onClick: () => setProfileOpen(true) }, "지금 등록")),
       // editor toolbar
       activeNote && createElement(
         "div", { className: "etoolbar" },
