@@ -7,6 +7,9 @@ import com.worknote.auth.dto.MeResponse;
 import com.worknote.auth.dto.SignupRequest;
 import com.worknote.auth.dto.TotpVerifyRequest;
 import com.worknote.auth.dto.UpdateProfileRequest;
+import com.worknote.auth.dto.RecoverRequest;
+import com.worknote.auth.dto.RecoverVerifyRequest;
+import com.worknote.auth.totp.RecoveryService;
 import com.worknote.auth.totp.Totp2faPolicy;
 import com.worknote.auth.totp.TotpService;
 import com.worknote.vault.VaultException;
@@ -38,19 +41,22 @@ public class AuthController {
     private final RoleCaps roleCaps;
     private final AuditService audit;
     private final TotpService totpService;
+    private final RecoveryService recoveryService;
     private final UserMapper users;
     private final com.worknote.setting.SettingService settings;
     private final Clock clock;
     private final boolean serverMode;
 
     public AuthController(AuthService auth, RoleCaps roleCaps, AuditService audit,
-                          TotpService totpService, UserMapper users,
+                          TotpService totpService, RecoveryService recoveryService,
+                          UserMapper users,
                           com.worknote.setting.SettingService settings, Clock clock,
                           @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
         this.roleCaps = roleCaps;
         this.audit = audit;
         this.totpService = totpService;
+        this.recoveryService = recoveryService;
         this.users = users;
         this.settings = settings;
         this.clock = clock;
@@ -101,6 +107,42 @@ public class AuthController {
             throw AuthException.unauthorized("인증 코드가 올바르지 않습니다");
         }
         return completePending(session, userId, http, "2fa.verify.success");
+    }
+
+    /**
+     * 이메일 복구 코드 요청 — 항상 204 반환 (계정 존재 여부 노출 금지).
+     * 조건 충족 시 RecoveryService가 발송; 미충족(계정없음/이메일없음/2FA미사용)이면 조용히 skip.
+     */
+    @PostMapping("/2fa/recover/request")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void recoverRequest(@Valid @RequestBody RecoverRequest req, HttpServletRequest http) {
+        recoveryService.request(req.emp());   // 내부에서 조건 미충족 시 skip — 균등 응답
+        audit.logRaw(req.emp(), "2fa.recover.request", null, http.getRemoteAddr());
+    }
+
+    /**
+     * 이메일 복구 코드 검증 — 성공 시 기존 TOTP 시드 폐기 + 완전 인증 세션 승격 + MeResponse 반환.
+     * 실패(코드 오류/만료/계정없음) 시 401.
+     */
+    @PostMapping("/2fa/recover/verify")
+    public MeResponse recoverVerify(@Valid @RequestBody RecoverVerifyRequest req, HttpServletRequest http) {
+        String userId = recoveryService.verify(req.emp(), req.code());
+        if (userId == null) {
+            audit.logRaw(req.emp(), "2fa.recover.fail", null, http.getRemoteAddr());
+            throw AuthException.unauthorized("복구 코드가 올바르지 않거나 만료되었습니다");
+        }
+        // 복구 성공: 기존 시드 즉시 폐기(재등록 강제)
+        totpService.disable(userId);
+        // 완전 인증 세션 발급
+        HttpSession session = http.getSession(true);
+        http.changeSessionId();
+        UserRow user = users.findById(userId);
+        CredentialRow cred = users.findCredential(userId);
+        if (user == null || cred == null) throw AuthException.unauthorized("자격 정보가 유효하지 않습니다");
+        session.setAttribute(SESSION_USER, userId);
+        session.setAttribute(SESSION_CRED, cred.salt());
+        audit.logRaw(user.emp(), "2fa.recover.success", null, http.getRemoteAddr());
+        return toMe(user, auth.caps(user));
     }
 
     /** 부분 인증 → 완전 인증 승격 (TOTP verify 및 복구 경로 공용). */
