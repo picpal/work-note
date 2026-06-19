@@ -1,6 +1,6 @@
 /* loginLogic — LoginPage의 검증·제출 로직 분리 (api 주입으로 테스트 가능) */
 import { ApiError } from "../api/http";
-import type { AuthApi as AuthApiType, SignupForm } from "../api/auth";
+import type { AuthApi as AuthApiType, SignupForm, LoginResult } from "../api/auth";
 import { MIN_PASSWORD_LENGTH } from "../lib/passwordPolicy";
 
 export interface SignupInput extends SignupForm {
@@ -42,5 +42,49 @@ export async function submitSignup(
     return { done: true, error: null };
   } catch (e) {
     return { done: false, error: e instanceof ApiError ? e.message : "서버에 연결할 수 없습니다" };
+  }
+}
+
+// ---- 2FA 로그인 상태머신 ----
+
+export type LoginOutcome =
+  | { kind: "ok" }                      // 완전 인증 — index.html로
+  | { kind: "2fa" }                     // OTP 입력 단계로
+  | { kind: "error"; message: string };
+
+export async function submitLogin2fa(
+  api: { login: (emp: string, pw: string) => Promise<LoginResult> },
+  emp: string, password: string,
+): Promise<LoginOutcome> {
+  try {
+    const r = await api.login(emp.trim(), password);
+    if (r && (r as any).status === "2fa_required") return { kind: "2fa" };
+    return { kind: "ok" };
+  } catch (e) {
+    return { kind: "error", message: e instanceof ApiError ? e.message : "서버에 연결할 수 없습니다" };
+  }
+}
+
+export async function submitVerify2fa(
+  api: { verify2fa: (code: string) => Promise<unknown> },
+  code: string,
+): Promise<string | null> {
+  try {
+    await api.verify2fa(code.trim());
+    return null;
+  } catch (e) {
+    return e instanceof ApiError ? e.message : "서버에 연결할 수 없습니다";
+  }
+}
+
+export async function submitRecover(
+  api: { recoverRequest: (emp: string) => Promise<unknown>; recoverVerify: (emp: string, code: string) => Promise<unknown> },
+  emp: string, code: string,
+): Promise<string | null> {
+  try {
+    await api.recoverVerify(emp.trim(), code.trim());
+    return null;
+  } catch (e) {
+    return e instanceof ApiError ? e.message : "서버에 연결할 수 없습니다";
   }
 }
