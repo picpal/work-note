@@ -83,6 +83,11 @@ describe("submitVerify2fa", () => {
     const api = { verify2fa: vi.fn().mockResolvedValue({ id: "u1" }) };
     expect(await submitVerify2fa(api as any, "123456")).toBeNull();
   });
+  it("공백 포함 코드는 trim 후 호출", async () => {
+    const api = { verify2fa: vi.fn().mockResolvedValue({ id: "u1" }) };
+    expect(await submitVerify2fa(api as any, " 123456 ")).toBeNull();
+    expect(api.verify2fa).toHaveBeenCalledWith("123456");
+  });
   it("실패면 에러 메시지", async () => {
     const api = { verify2fa: vi.fn().mockRejectedValue(new ApiError("인증 코드가 올바르지 않습니다", 401)) };
     expect(await submitVerify2fa(api as any, "000000")).toBe("인증 코드가 올바르지 않습니다");
@@ -91,12 +96,11 @@ describe("submitVerify2fa", () => {
 
 describe("submitRecover", () => {
   it("recoverVerify 성공이면 null", async () => {
-    const api = { recoverRequest: vi.fn().mockResolvedValue(undefined), recoverVerify: vi.fn().mockResolvedValue({ id: "u1" }) };
+    const api = { recoverVerify: vi.fn().mockResolvedValue({ id: "u1" }) };
     expect(await submitRecover(api as any, "10001", "12345678")).toBeNull();
   });
   it("recoverVerify 실패면 에러 메시지", async () => {
     const api = {
-      recoverRequest: vi.fn().mockResolvedValue(undefined),
       recoverVerify: vi.fn().mockRejectedValue(new ApiError("복구 코드가 올바르지 않거나 만료되었습니다", 401)),
     };
     expect(await submitRecover(api as any, "10001", "00000000")).toContain("복구");

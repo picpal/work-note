@@ -22,6 +22,7 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
   const [enrollStep, setEnrollStep] = useState<EnrollStep>("idle");
   const [otpauthUri, setOtpauthUri] = useState<string>("");
   const [confirmCode, setConfirmCode] = useState("");
+  const [qrFailed, setQrFailed] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,6 +35,7 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
       const { otpauthUri: uri } = await AuthApi.totpSetup();
       setOtpauthUri(uri);
       setConfirmCode("");
+      setQrFailed(false);
       setEnrollStep("setup");
     } catch (e) {
       setMsg({ type: "err", text: e instanceof ApiError ? e.message : "2FA 등록을 시작할 수 없습니다." });
@@ -91,7 +93,10 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
       h("div", { className: "pf-sec-label" }, "2단계 인증 등록"),
       h("p", { className: "sec-desc" }, "인증 앱(Google Authenticator 등)으로 QR을 스캔하거나 아래 키를 수동 입력하세요."),
       h("div", { className: "sec-qr-wrap" },
-        h("img", { src: "/api/me/2fa/qr", alt: "TOTP QR 코드", className: "sec-qr", width: 180, height: 180 })),
+        qrFailed
+          ? h("div", { className: "sec-qr-fail" }, "QR을 불러올 수 없습니다 — 아래 키를 인증 앱에 직접 입력하세요.")
+          : h("img", { src: "/api/me/2fa/qr", alt: "TOTP QR 코드", className: "sec-qr", width: 180, height: 180,
+              onError: () => setQrFailed(true) })),
       secretDisplay && h("div", { className: "sec-secret" },
         h("label", null, "수동 입력 키:"),
         h("code", { className: "sec-secret-code" }, secretDisplay)),
@@ -106,6 +111,13 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
           h("button", { className: "pf-btn primary", type: "submit", disabled: busy }, "등록 확인"),
           h("button", { className: "pf-btn", type: "button", disabled: busy,
             onClick: () => { setEnrollStep("idle"); setMsg(null); setConfirmCode(""); } }, "취소"))));
+  }
+
+  // ---- 등록 완료 직후 (onChanged→me 재조회로 totp.enabled 갱신 전 과도기) ----
+  if (enrollStep === "done" && !totp.enabled) {
+    return h("div", { className: "sec-tab" },
+      h("div", { className: "pf-sec-label" }, "2단계 인증 (TOTP)"),
+      h("div", { className: "pf-msg ok" }, "2FA 등록이 완료되었습니다 — 잠시 후 상태가 갱신됩니다."));
   }
 
   // ---- 등록됨 상태 ----

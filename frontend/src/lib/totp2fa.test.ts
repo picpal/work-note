@@ -10,6 +10,9 @@ describe("totp2fa 화면 판정", () => {
   it("이메일 있으면 등록 가능", () => {
     expect(canEnroll({ enabled: false, enforced: false, graceExpired: false, emailPresent: true })).toBe(true);
   });
+  it("이메일 있으면 차단 사유 없음(null)", () => {
+    expect(enrollBlockReason({ enabled: false, enforced: false, graceExpired: false, emailPresent: true })).toBeNull();
+  });
   it("enforced+graceExpired면 강제 등록 화면", () => {
     expect(mustEnrollNow({ enabled: false, enforced: true, graceExpired: true, emailPresent: true })).toBe(true);
     expect(mustEnrollNow({ enabled: false, enforced: true, graceExpired: false, emailPresent: true })).toBe(false);

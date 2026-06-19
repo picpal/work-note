@@ -58,7 +58,7 @@ export async function submitLogin2fa(
 ): Promise<LoginOutcome> {
   try {
     const r = await api.login(emp.trim(), password);
-    if (r && (r as any).status === "2fa_required") return { kind: "2fa" };
+    if (r && "status" in r && r.status === "2fa_required") return { kind: "2fa" };
     return { kind: "ok" };
   } catch (e) {
     return { kind: "error", message: e instanceof ApiError ? e.message : "서버에 연결할 수 없습니다" };
@@ -78,7 +78,7 @@ export async function submitVerify2fa(
 }
 
 export async function submitRecover(
-  api: { recoverRequest: (emp: string) => Promise<unknown>; recoverVerify: (emp: string, code: string) => Promise<unknown> },
+  api: { recoverVerify: (emp: string, code: string) => Promise<unknown> },
   emp: string, code: string,
 ): Promise<string | null> {
   try {
