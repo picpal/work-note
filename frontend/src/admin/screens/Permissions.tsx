@@ -7,6 +7,7 @@ import { ApiError } from "../../api/http";
 import { useAdminData } from "../useAdminData";
 import { directPublicMode, effectivePublic, inheritedEntries } from "../aclView";
 import { SecHead, Empty, SkeletonTable } from "../common";
+import { folderIconName } from "../../lib/tree";
 import { Icon } from "../../components/Icon";
 
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -47,7 +48,7 @@ function TreeRow({ node, depth, selId, pubIds, onSelect }: {
       isFolder
         ? h("span", { className: "tw" + (open ? " open" : ""), onClick: (e: React.MouseEvent) => { e.stopPropagation(); setOpen(!open); } }, h(Icon, { name: "chevron" }))
         : h("span", { className: "tw" }),
-      h("span", { className: "ic" }, h(Icon, { name: isFolder ? (open ? "folderOpen" : "folder") : "fileLines" })),
+      h("span", { className: "ic" }, h(Icon, { name: isFolder ? folderIconName(depth, open) : "fileLines" })),
       h("span", { className: "nm" }, nodeLabel(node)),
       pubIds.has(node.id) && h("span", { className: "tagm" }, "공개")),
     isFolder && open && node.children.map((c) =>
