@@ -454,6 +454,9 @@ button.topbar-me { font-family: var(--font-ui); }
 }
 .share-btn:hover { opacity: .9; }
 
+/* 2FA 등록 권고 배너 — Icon은 CSS로 크기 지정(미지정 시 svg가 부모를 채워 거대해짐) */
+.totp-nudge-banner svg { width: 16px; height: 16px; flex: none; }
+
 /* editor toolbar — floating, centered (no filled background band) */
 .etoolbar {
   flex: none; display: flex; align-items: center; gap: 2px;
