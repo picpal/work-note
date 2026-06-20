@@ -342,15 +342,16 @@ button.topbar-me { font-family: var(--font-ui); }
 
 /* ---- profile modal ---- */
 .pf-overlay { position: fixed; inset: 0; z-index: 2100; background: var(--overlay); display: grid; place-items: center; padding: 20px; backdrop-filter: blur(2px); }
-.pf-card { width: min(440px, 94vw); max-height: 90vh; overflow-y: auto; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-pop); }
-.pf-head { display: flex; align-items: center; gap: 12px; padding: 20px 22px 16px; border-bottom: 1px solid var(--border-soft); }
+/* 카드는 라운드 클립 전담(overflow:hidden), 스크롤은 .pf-body로 — 스크롤바가 모서리 라운드를 넘던 문제 해결. 헤더는 상단 고정. */
+.pf-card { width: min(440px, 94vw); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-pop); }
+.pf-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 20px 22px 16px; border-bottom: 1px solid var(--border-soft); }
 .pf-head .pf-av { width: 44px; height: 44px; border-radius: 50%; background: var(--bg-active); color: var(--ink); display: grid; place-items: center; flex: none; }
 .pf-head .pf-av svg { width: 22px; height: 22px; }
 .pf-head .pf-id { min-width: 0; }
 .pf-head .pf-emp { font-size: 15px; font-weight: 700; color: var(--ink); font-family: var(--font-mono); }
 .pf-head .pf-role { font-size: 12px; color: var(--text-3); margin-top: 2px; }
 .pf-head .pf-x { margin-left: auto; }
-.pf-body { padding: 18px 22px; }
+.pf-body { padding: 18px 22px; overflow-y: auto; flex: 1; min-height: 0; }
 .pf-sec-label { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin: 4px 0 12px; }
 .pf-sec + .pf-sec { margin-top: 8px; padding-top: 18px; border-top: 1px solid var(--border-soft); }
 .pf-field { margin-bottom: 13px; }
