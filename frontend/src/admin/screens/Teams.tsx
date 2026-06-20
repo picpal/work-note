@@ -1,6 +1,6 @@
 /* Admin screen 6: 팀·스페이스 — 팀(컨텍스트 teams + reload) / 스페이스(자체 로드: spaces + tree) */
 import React from "react";
-import { AdminApi, ApiSpace, ApiTeam, ApiUser } from "../api";
+import { AdminApi, ApiSpace, ApiTeam, ApiUserBase } from "../api";
 import { VaultApi } from "../../storage/VaultApi";
 import type { FolderNode, VaultTree } from "../../types";
 import { ApiError } from "../../api/http";
@@ -15,7 +15,7 @@ type ModalState =
   | { kind: "createTeam" }
   | { kind: "renameTeam"; team: ApiTeam }
   | { kind: "deleteTeam"; team: ApiTeam }
-  | { kind: "removeMember"; team: ApiTeam; user: ApiUser }
+  | { kind: "removeMember"; team: ApiTeam; user: ApiUserBase }
   | { kind: "unsetSpace"; nodeId: string }
   | null;
 
@@ -101,7 +101,7 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
     if (!addUid) return;
     if (await run(() => AdminApi.addMember(t.id, addUid), "멤버를 추가했습니다", "userCheck")) setAddUid("");
   };
-  const applyRemoveMember = async (t: ApiTeam, u: ApiUser) => {
+  const applyRemoveMember = async (t: ApiTeam, u: ApiUserBase) => {
     if (await run(() => AdminApi.removeMember(t.id, u.id), u.emp + " 을(를) 팀에서 제거했습니다", "check")) setModal(null);
   };
 

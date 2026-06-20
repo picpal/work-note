@@ -1,9 +1,12 @@
 /* 관리자 API 클라이언트 — /api/admin 하위 전체 엔드포인트. 공유 fetch 코어(req) 사용. */
 import { req } from "../api/http";
 
-export interface ApiUser { id: string; emp: string; email: string | null; name: string; roleId: string; status: "pending" | "active" | "disabled"; lastLogin: string | null; }
+/** 백엔드 UserRow 그대로 — create/update/approve 응답과 팀 멤버는 이 형태(2FA 상태 미포함). */
+export interface ApiUserBase { id: string; emp: string; email: string | null; name: string; roleId: string; status: "pending" | "active" | "disabled"; lastLogin: string | null; }
+/** GET /admin/users 목록 행 — UserListResponse(UserRow + totpEnabled). totpEnabled는 목록 응답에만 보장. */
+export interface ApiUser extends ApiUserBase { totpEnabled: boolean; }
 export interface ApiRole { id: string; name: string; system: boolean; caps: string[]; userCount: number; }
-export interface ApiTeam { id: string; name: string; members: ApiUser[]; }
+export interface ApiTeam { id: string; name: string; members: ApiUserBase[]; }
 export interface ApiSpace { nodeId: string; teamId: string | null; }
 export interface ApiAclEntry { principalType: "user" | "team" | "all"; principalId: string; grantType: "read" | "edit" | "deny"; }
 export interface ApiAclRow extends ApiAclEntry { nodeId: string; }
@@ -39,13 +42,15 @@ function qs(params: Record<string, string | number | undefined>): string {
 
 export const AdminApi = {
   users: () => req<ApiUser[]>("/admin/users"),
+  // create/update/approve는 백엔드가 UserRow(totpEnabled 없음)를 반환 — 호출부는 반환값을 직접 쓰지 않고 reload로 목록을 다시 받는다.
   createUser: (b: { emp: string; name: string; email?: string; roleId: string; password: string }) =>
-    req<ApiUser>("/admin/users", { method: "POST", body: JSON.stringify(b) }),
+    req<ApiUserBase>("/admin/users", { method: "POST", body: JSON.stringify(b) }),
   updateUser: (id: string, patch: { name?: string; email?: string; roleId?: string; status?: "active" | "disabled" }) =>
-    req<ApiUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  approveUser: (id: string) => req<ApiUser>(`/admin/users/${id}/approve`, { method: "POST" }),
+    req<ApiUserBase>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  approveUser: (id: string) => req<ApiUserBase>(`/admin/users/${id}/approve`, { method: "POST" }),
   resetPassword: (id: string, password: string) =>
     req<void>(`/admin/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ password }) }),
+  resetTotp: (id: string) => req<void>(`/admin/users/${id}/2fa/reset`, { method: "POST" }),
 
   roles: () => req<ApiRole[]>("/admin/roles"),
   createRole: (b: { id: string; name: string; caps: string[] }) =>

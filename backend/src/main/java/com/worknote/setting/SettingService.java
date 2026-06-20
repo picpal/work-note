@@ -7,17 +7,33 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** app_setting 기반 런타임 설정. 현재는 업로드 정책만. */
+/** app_setting 기반 런타임 설정. 업로드 정책 + 2FA 유예 일수. */
 @Service
 public class SettingService {
     static final String KEY_EXT = "upload.allowed_ext";
     static final String KEY_MAX = "upload.max_bytes";
+    static final String KEY_GRACE_DAYS = "2fa.grace_days";
     private static final long DEFAULT_MAX = 26214400L; // seed 누락 시 안전망
+    private static final int DEFAULT_GRACE_DAYS = 7;   // seed 누락/손상 시 안전망
 
     private final SettingMapper mapper;
 
     public SettingService(SettingMapper mapper) {
         this.mapper = mapper;
+    }
+
+    /** admin 2FA 강제 유예 일수 — 값이 null이거나 숫자가 아니면 기본 7. */
+    @Transactional(readOnly = true)
+    public int graceDays() {
+        String v = mapper.get(KEY_GRACE_DAYS);
+        if (v == null || v.isBlank()) {
+            return DEFAULT_GRACE_DAYS;
+        }
+        try {
+            return Integer.parseInt(v.trim());
+        } catch (NumberFormatException e) {
+            return DEFAULT_GRACE_DAYS;
+        }
     }
 
     @Transactional(readOnly = true)

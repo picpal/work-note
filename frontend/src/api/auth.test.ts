@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AuthApi } from "./auth";
+import type { Me } from "./auth";
 
 describe("AuthApi", () => {
   beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
@@ -10,7 +11,7 @@ describe("AuthApi", () => {
       ok: true, status: 201,
       json: () => Promise.resolve({ id: "u1", emp: "S1", name: "n", roleId: "admin", caps: ["admin.users"] }),
     });
-    const me = await AuthApi.login("S1", "pw123456");
+    const me = await AuthApi.login("S1", "pw123456") as Me;
     expect(me.roleId).toBe("admin");
     expect(fetch).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({
       method: "POST", body: JSON.stringify({ emp: "S1", password: "pw123456" }),

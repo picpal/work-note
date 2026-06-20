@@ -49,4 +49,12 @@
     VALUES (#{userId}, #{salt}, #{passwordHash})
   </insert>
 
+  <select id="findGraceStart" resultType="string">
+    SELECT totp_grace_start FROM app_user WHERE id = #{id}
+  </select>
+
+  <update id="setGraceStart">
+    UPDATE app_user SET totp_grace_start = #{at} WHERE id = #{id}
+  </update>
+
 </mapper>

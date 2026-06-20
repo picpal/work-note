@@ -17,10 +17,11 @@ describe("AdminApi", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
   // ── users ──
-  it("users는 GET /api/admin/users", async () => {
-    mockJson([{ id: "u1", emp: "S1", email: null, name: "n", roleId: "admin", status: "active", lastLogin: null }]);
+  it("users는 GET /api/admin/users (목록 행은 totpEnabled 포함)", async () => {
+    mockJson([{ id: "u1", emp: "S1", email: null, name: "n", roleId: "admin", status: "active", lastLogin: null, totpEnabled: true }]);
     const out = await AdminApi.users();
     expect(out[0].id).toBe("u1");
+    expect(out[0].totpEnabled).toBe(true);
     expect(fetch).toHaveBeenCalledWith("/api/admin/users", expect.anything());
   });
 
@@ -55,6 +56,12 @@ describe("AdminApi", () => {
     expect(fetch).toHaveBeenCalledWith("/api/admin/users/u1/reset-password", expect.objectContaining({
       method: "POST", body: JSON.stringify({ password: "newpw1234" }),
     }));
+  });
+
+  it("resetTotp는 POST /api/admin/users/{id}/2fa/reset (204)", async () => {
+    mock204();
+    await expect(AdminApi.resetTotp("u1")).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith("/api/admin/users/u1/2fa/reset", expect.objectContaining({ method: "POST" }));
   });
 
   // ── roles ──

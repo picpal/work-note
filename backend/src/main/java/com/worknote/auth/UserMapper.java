@@ -18,4 +18,6 @@ public interface UserMapper {
     void stampLastLogin(@Param("id") String id, @Param("at") String at);
     CredentialRow findCredential(@Param("userId") String userId);
     void insertCredential(CredentialRow row);
+    String findGraceStart(@Param("id") String id);
+    void setGraceStart(@Param("id") String id, @Param("at") String at);
 }
