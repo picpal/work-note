@@ -246,3 +246,87 @@ export function buildAuditReport(i: ReportInput): string {
 
   return L.join("\n") + "\n";
 }
+
+// ---- PDF용 HTML 변환 ----
+// 리포트 마크다운은 이 모듈이 직접 생성하는 한정된 부분집합(#/## 헤딩·- 불릿·| 표·**굵게**·_본문_·---)만
+// 쓰므로 범용 마크다운 엔진을 끌어오지 않고 그 부분집합만 변환한다(번들 경량·동작 예측 가능).
+const PH = " "; // 셀 내 이스케이프된 \| 임시 치환자
+
+function splitTableRow(line: string): string[] {
+  return line.replace(/\\\|/g, PH).trim().replace(/^\||\|$/g, "").split("|")
+    .map((c) => c.split(PH).join("|").trim());
+}
+// 구분선(| --- | ---: |)에서 열 정렬 추출: 양끝 콜론=center, 우측 콜론=right, 그 외 left.
+function alignsFromSeparator(sep: string): string[] {
+  return splitTableRow(sep).map((c) => {
+    const l = c.startsWith(":"), r = c.endsWith(":");
+    return l && r ? "c" : r ? "r" : "";
+  });
+}
+
+/** 리포트 마크다운(이 모듈 출력) → HTML 본문 문자열. */
+export function reportMarkdownToHtml(md: string): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const lines = md.split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.startsWith("# ")) { out.push(`<h1>${inline(line.slice(2))}</h1>`); i++; continue; }
+    if (line.startsWith("## ")) { out.push(`<h2>${inline(line.slice(3))}</h2>`); i++; continue; }
+    if (/^---\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+    if (line.trim() === "") { i++; continue; }
+    // 표 블록: | 로 시작 + 다음 줄이 구분선
+    if (line.startsWith("|") && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1])) {
+      const header = splitTableRow(line);
+      const aligns = alignsFromSeparator(lines[i + 1]);
+      const cls = (k: number) => (aligns[k] ? ` class="${aligns[k]}"` : "");
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].startsWith("|")) { rows.push(splitTableRow(lines[i])); i++; }
+      const thead = `<tr>${header.map((c, k) => `<th${cls(k)}>${inline(c)}</th>`).join("")}</tr>`;
+      const tbody = rows.map((r) => `<tr>${r.map((c, k) => `<td${cls(k)}>${inline(c)}</td>`).join("")}</tr>`).join("");
+      out.push(`<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`);
+      continue;
+    }
+    if (/^\s*-\s/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*-\s/.test(lines[i])) {
+        const sub = /^\s+-\s/.test(lines[i]);
+        items.push(`<li${sub ? ' class="sub"' : ""}>${inline(lines[i].replace(/^\s*-\s/, ""))}</li>`);
+        i++;
+      }
+      out.push(`<ul>${items.join("")}</ul>`);
+      continue;
+    }
+    if (/^_.*_$/.test(line)) { out.push(`<p class="muted">${inline(line.replace(/^_/, "").replace(/_$/, ""))}</p>`); i++; continue; }
+    out.push(`<p>${inline(line)}</p>`); i++;
+  }
+  return out.join("\n");
+}
+
+const REPORT_PRINT_CSS = `
+*{box-sizing:border-box}
+body{font-family:'Pretendard',system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;color:#1a1a1a;margin:28px;font-size:13px;line-height:1.6}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:15px;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd}
+ul{margin:6px 0;padding-left:18px}
+li{margin:2px 0}
+li.sub{list-style:none;margin-left:6px;color:#555}
+table{border-collapse:collapse;width:100%;margin:8px 0 14px;font-size:12px}
+th,td{border:1px solid #ccc;padding:5px 8px;text-align:left;vertical-align:top}
+th{background:#f3f3f3;font-weight:600}
+td.r,th.r{text-align:right}
+td.c,th.c{text-align:center}
+.muted{color:#888;font-size:11.5px}
+hr{border:none;border-top:1px solid #ddd;margin:18px 0}
+strong{font-weight:600}
+@page{margin:14mm}
+@media print{body{margin:0}table{page-break-inside:auto}tr{page-break-inside:avoid}}
+`;
+
+/** 인쇄(PDF 저장)용 완성 HTML 문서 — 새 창에 써넣고 print() 호출. */
+export function buildReportHtmlDoc(title: string, md: string): string {
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title><style>${REPORT_PRINT_CSS}</style></head><body>${reportMarkdownToHtml(md)}</body></html>`;
+}

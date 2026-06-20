@@ -1,7 +1,7 @@
 /* Admin screen 6: Audit log — 실 API(AdminApi.audit) 배선. 필터는 서버 단일 경로(who/act 정확 일치 + from/to 사전순). */
 import React from "react";
 import { AdminApi, ApiAudit } from "../api";
-import { buildAuditReport, monthBounds } from "../auditReport";
+import { buildAuditReport, buildReportHtmlDoc, monthBounds } from "../auditReport";
 import { actLabel, actType, KNOWN_ACTS } from "../mappers";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, SkeletonTable } from "../common";
@@ -78,27 +78,42 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
     toast && toast(rows.length + "건을 CSV로 내보냈습니다", "download");
   };
 
-  /** 월간 감사 리포트 — 선택 월(1일~말일) 전건을 페이지네이션으로 수집 + 명부/역할을 받아 5분류 .md 생성. */
-  const generateReport = async () => {
+  /** 선택 월(1일~말일) 전건을 페이지네이션으로 수집 + 명부/역할을 받아 5분류 마크다운 생성. */
+  const buildMonthReport = async (): Promise<{ md: string; mm: string; count: number }> => {
+    const { from, to } = monthBounds(ry, rm);
+    const all: ApiAudit[] = [];
+    let off = 0, totalN = Infinity;
+    while (all.length < totalN) {
+      const res = await AdminApi.audit({ who: "", act: "", from, to, limit: 200, offset: off });
+      totalN = res.total;
+      if (res.rows.length === 0) break;
+      all.push(...res.rows);
+      off += res.rows.length;
+      if (off > 100000) break;   // 폭주 안전장치
+    }
+    const [us, rs] = await Promise.all([AdminApi.users(), AdminApi.roles()]);
+    const md = buildAuditReport({ year: ry, month: rm, rows: all, users: us, roles: rs, generatedAt: stamp() });
+    return { md, mm: String(rm).padStart(2, "0"), count: all.length };
+  };
+
+  /** 월간 감사 리포트 생성 — md=파일 다운로드, pdf=인쇄 창(브라우저 'PDF로 저장')으로 노트 내보내기와 동일 패턴. */
+  const generateReport = async (format: "md" | "pdf") => {
     if (reportBusy) return;
     setReportBusy(true);
     try {
-      const { from, to } = monthBounds(ry, rm);
-      const all: ApiAudit[] = [];
-      let off = 0, totalN = Infinity;
-      while (all.length < totalN) {
-        const res = await AdminApi.audit({ who: "", act: "", from, to, limit: 200, offset: off });
-        totalN = res.total;
-        if (res.rows.length === 0) break;
-        all.push(...res.rows);
-        off += res.rows.length;
-        if (off > 100000) break;   // 폭주 안전장치
+      const { md, mm, count } = await buildMonthReport();
+      if (format === "md") {
+        adminDownload("audit-report_" + ry + "-" + mm + ".md", md, "text/markdown");
+        toast(ry + "-" + mm + " 감사 리포트를 내려받았습니다 (" + count + "건)", "check");
+      } else {
+        const w = window.open("", "_blank");
+        if (!w) { toast("팝업이 차단되어 PDF를 열 수 없습니다 — 팝업을 허용해주세요"); return; }
+        w.document.write(buildReportHtmlDoc("WorkNote 감사 리포트 " + ry + "-" + mm, md));
+        w.document.close();
+        w.focus();
+        setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
+        toast("인쇄 대화상자에서 'PDF로 저장'을 선택하세요", "pdf");
       }
-      const [us, rs] = await Promise.all([AdminApi.users(), AdminApi.roles()]);
-      const md = buildAuditReport({ year: ry, month: rm, rows: all, users: us, roles: rs, generatedAt: stamp() });
-      const mm = String(rm).padStart(2, "0");
-      adminDownload("audit-report_" + ry + "-" + mm + ".md", md, "text/markdown");
-      toast(ry + "-" + mm + " 감사 리포트를 내려받았습니다 (" + all.length + "건)", "check");
       setReportOpen(false);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "리포트 생성 실패");
@@ -169,7 +184,9 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
               MONTHS.map((m) => h("option", { key: m, value: m }, m + "월"))))),
         h("div", { className: "modal-foot" },
           h("button", { className: "btn", disabled: reportBusy, onClick: () => setReportOpen(false) }, "취소"),
-          h("button", { className: "btn primary", disabled: reportBusy, onClick: () => void generateReport() },
-            reportBusy ? "생성 중…" : "리포트 생성"))))
+          h("button", { className: "btn", disabled: reportBusy, onClick: () => void generateReport("md") },
+            h(Icon, { name: "markdown" }), "Markdown"),
+          h("button", { className: "btn primary", disabled: reportBusy, onClick: () => void generateReport("pdf") },
+            h(Icon, { name: "pdf" }), reportBusy ? "생성 중…" : "PDF"))))
   );
 }

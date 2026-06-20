@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   lastDayOf, monthBounds, isOffHours, adminRoleIds, isAdminAction, buildAuditReport,
+  reportMarkdownToHtml, buildReportHtmlDoc,
 } from "./auditReport";
 import type { ApiAudit, ApiUser, ApiRole } from "./api";
 
@@ -104,6 +105,12 @@ describe("buildAuditReport — 5분류 마크다운", () => {
     expect(md).toContain("다운로드(첨부+내보내기): 총 1건");
     expect(md).toContain("업무시간 외(평일 08–19시 외·주말) 조회/다운로드: 2건");
   });
+  it("PDF용 HTML로도 변환된다", () => {
+    const doc = buildReportHtmlDoc("리포트", md);
+    expect(doc).toContain("<h1>WorkNote 월간 감사 리포트 — 2026-06</h1>");
+    expect(doc).toContain("<h2>5. 조회/다운로드 이력</h2>");
+    expect(doc).toContain("<strong>1개</strong>"); // 관리자 계정 수
+  });
   it("관리자 4명 이상이면 소명 경고", () => {
     const manyAdmin = [
       role({ id: "r-admin", name: "관리자", caps: ["admin.users"] }),
@@ -113,5 +120,36 @@ describe("buildAuditReport — 5분류 마크다운", () => {
     const out = buildAuditReport({ year: 2026, month: 6, rows: [], users: adminUsers, roles: manyAdmin, generatedAt: "2026-06-20 23:00:00" });
     expect(out).toContain("관리자 계정 수: **4개**");
     expect(out).toContain("소명 및 부서장 승인 이력이 필요");
+  });
+});
+
+describe("reportMarkdownToHtml — PDF용 부분집합 변환", () => {
+  it("헤딩 #/##", () => {
+    expect(reportMarkdownToHtml("# 제목")).toContain("<h1>제목</h1>");
+    expect(reportMarkdownToHtml("## 절")).toContain("<h2>절</h2>");
+  });
+  it("불릿 + 들여쓰기는 sub", () => {
+    expect(reportMarkdownToHtml("- 상위\n  - 하위"))
+      .toContain('<ul><li>상위</li><li class="sub">하위</li></ul>');
+  });
+  it("표 — 헤더 + 우측정렬(---:)", () => {
+    const html = reportMarkdownToHtml("| 사용자 | 조회수 |\n| --- | ---: |\n| 김 | 5 |");
+    expect(html).toContain("<th>사용자</th>");
+    expect(html).toContain('<th class="r">조회수</th>');
+    expect(html).toContain('<td class="r">5</td>');
+  });
+  it("굵게 + HTML 이스케이프", () => {
+    expect(reportMarkdownToHtml("- 계정 수: **3개**")).toContain("<strong>3개</strong>");
+    expect(reportMarkdownToHtml("- a<b>&c")).toContain("a&lt;b&gt;&amp;c");
+  });
+  it("셀 내 이스케이프된 파이프(\\|) 복원", () => {
+    expect(reportMarkdownToHtml("| 대상 | x |\n| --- | --- |\n| a\\|b | 1 |"))
+      .toContain("<td>a|b</td>");
+  });
+  it("buildReportHtmlDoc — doctype·title·본문 포함", () => {
+    const doc = buildReportHtmlDoc("리포트", "# 제목");
+    expect(doc.startsWith("<!doctype html>")).toBe(true);
+    expect(doc).toContain("<title>리포트</title>");
+    expect(doc).toContain("<h1>제목</h1>");
   });
 });
