@@ -7,6 +7,7 @@ import { ApiError } from "../../api/http";
 import { useAdminData } from "../useAdminData";
 import { SecHead, Empty, Modal, SkeletonTable } from "../common";
 import { Icon } from "../../components/Icon";
+import { searchMembers, MEMBER_RESULT_LIMIT } from "../memberSearch";
 
 const { useState, useEffect, useMemo, useCallback } = React;
 const h = React.createElement;
@@ -27,7 +28,9 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
   const [modal, setModal] = useState<ModalState>(null);
   const [busy, setBusy] = useState(false);
   const [tname, setTname] = useState("");                    // 팀 생성/이름 변경 입력
-  const [addUid, setAddUid] = useState("");                  // 멤버 추가 셀렉트
+  const [addUid, setAddUid] = useState("");                  // 멤버 추가 — 선택된 사용자 id
+  const [addQuery, setAddQuery] = useState("");              // 멤버 추가 — 이름/사번 검색어
+  const [addOpen, setAddOpen] = useState(false);             // 멤버 추가 — 검색 드롭다운 열림
   const [spNode, setSpNode] = useState("");                  // 스페이스 지정 — 폴더
   const [spOwner, setSpOwner] = useState("");                // 스페이스 지정 — 소유("" = 공용)
 
@@ -78,6 +81,11 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
   const addables = useMemo(
     () => (sel ? users.filter((u) => u.status === "active" && !sel.members.some((m) => m.id === u.id)) : []),
     [users, sel]);
+  const memberResults = useMemo(() => searchMembers(addables, addQuery), [addables, addQuery]);
+  const addSel = useMemo(() => addables.find((u) => u.id === addUid) ?? null, [addables, addUid]);
+  // 선택하면 칩으로 고정 — input은 언마운트돼 실수 편집을 차단한다.
+  const pickMember = (u: ApiUserBase) => { setAddUid(u.id); setAddQuery(""); setAddOpen(false); };
+  const clearMember = () => { setAddUid(""); setAddQuery(""); setAddOpen(false); };
 
   // ---- 팀 변이 ----
   const applyCreateTeam = async () => {
@@ -99,7 +107,9 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
   };
   const applyAddMember = async (t: ApiTeam) => {
     if (!addUid) return;
-    if (await run(() => AdminApi.addMember(t.id, addUid), "멤버를 추가했습니다", "userCheck")) setAddUid("");
+    if (await run(() => AdminApi.addMember(t.id, addUid), "멤버를 추가했습니다", "userCheck")) {
+      setAddUid(""); setAddQuery(""); setAddOpen(false);
+    }
   };
   const applyRemoveMember = async (t: ApiTeam, u: ApiUserBase) => {
     if (await run(() => AdminApi.removeMember(t.id, u.id), u.emp + " 을(를) 팀에서 제거했습니다", "check")) setModal(null);
@@ -123,7 +133,7 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
     if (await run(() => AdminApi.unsetSpace(nodeId), "스페이스 지정을 해제했습니다", "check", afterSpace)) setModal(null);
   };
 
-  const selectTeam = (id: string) => { setSelId(id); setAddUid(""); };
+  const selectTeam = (id: string) => { setSelId(id); setAddUid(""); setAddQuery(""); setAddOpen(false); };
 
   const fld = (label: string, input: React.ReactNode) =>
     h("div", { style: { marginBottom: 10 } }, h("label", { className: "flabel" }, label), input);
@@ -177,10 +187,34 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
                       h("button", { className: "lact danger", disabled: busy,
                         onClick: () => setModal({ kind: "removeMember", team: sel, user: m }) }, "제거")))))),
           h("div", { className: "btn-row", style: { marginTop: 12 } },
-            h("select", { className: "aselect", style: { flex: 1 }, value: addUid, disabled: busy || addables.length === 0,
-              onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setAddUid(e.target.value) },
-              h("option", { value: "" }, addables.length === 0 ? "추가할 수 있는 사용자가 없습니다" : "사용자 선택…"),
-              addables.map((u) => h("option", { key: u.id, value: u.id }, u.emp + " (" + u.name + ")"))),
+            h("div", { className: "member-search" },
+              // 선택 후엔 칩으로 고정 — input을 언마운트해 실수 편집(→ 선택 해제) 자체를 차단.
+              addSel
+                ? h("div", { className: "member-chip" },
+                    h("span", { className: "name" }, addSel.name),
+                    h("span", { className: "emp mono" }, addSel.emp),
+                    h("button", { className: "member-chip-x", type: "button", title: "선택 해제",
+                      disabled: busy, onClick: clearMember }, h(Icon, { name: "x" })))
+                : h(React.Fragment, null,
+                    h("input", {
+                      className: "member-search-input", type: "text", value: addQuery, autoFocus: true,
+                      disabled: busy || addables.length === 0,
+                      placeholder: addables.length === 0 ? "추가할 수 있는 사용자가 없습니다" : "이름 또는 사번으로 검색…",
+                      onFocus: () => setAddOpen(true),
+                      onBlur: () => setAddOpen(false),
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setAddQuery(e.target.value); setAddOpen(true); },
+                    }),
+                    // 결과는 onMouseDown(preventDefault)로 선택 — input blur가 클릭을 가로채지 못하게.
+                    addOpen && addables.length > 0 && h("ul", { className: "member-search-list" },
+                      memberResults.matches.length === 0
+                        ? h("li", { className: "member-search-empty" }, "검색 결과가 없습니다")
+                        : memberResults.shown.map((u) => h("li", {
+                            key: u.id, className: "member-search-item",
+                            onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); pickMember(u); },
+                          }, h("span", { className: "name" }, u.name), h("span", { className: "emp mono" }, u.emp))),
+                      memberResults.matches.length > 0 && memberResults.truncated &&
+                        h("li", { key: "__more", className: "member-search-empty" },
+                          "처음 " + MEMBER_RESULT_LIMIT + "명만 표시 — 검색어를 더 좁혀보세요")))),
             h("button", { className: "btn sm", disabled: busy || !addUid, onClick: () => void applyAddMember(sel) },
               h(Icon, { name: "plus" }), "추가")),
           hintLine("멤버 제거 즉시 해당 사용자는 이 팀 경유 권한을 잃습니다.")))),

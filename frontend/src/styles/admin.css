@@ -138,6 +138,9 @@
 .btn.danger:hover { background: rgba(179,38,30,.07); border-color: currentColor; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-row { display: flex; gap: 8px; align-items: center; }
+/* select·검색입력과 같은 줄에 놓인 버튼은 높이(34px)를 맞춘다 — 멤버 추가/스페이스 지정 행 */
+.btn-row .aselect ~ .btn,
+.btn-row .member-search ~ .btn { height: 34px; }
 
 /* link-style row action */
 .lact {
@@ -161,6 +164,47 @@
   height: 34px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text);
   font: inherit; font-size: 13px; padding: 0 10px; cursor: pointer;
 }
+
+/* ---- 멤버 검색 콤보박스 (이름/사번) ---- */
+.member-search { position: relative; flex: 1; }
+.member-search-input {
+  width: 100%; height: 34px; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text);
+  font: inherit; font-size: 13px; padding: 0 11px;
+}
+.member-search-input::placeholder { color: var(--text-3); }
+.member-search-input:focus { outline: none; border-color: var(--border-strong); }
+.member-search-input:disabled { opacity: .55; cursor: default; }
+.member-search-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+  margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.member-search-item {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 9px; border-radius: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.member-search-item:hover, .member-search-item.sel { background: var(--bg-hover); }
+.member-search-item .name { color: var(--ink); font-weight: 550; }
+.member-search-item .emp { color: var(--text-3); font-size: 12px; margin-left: auto; }
+.member-search-empty { padding: 8px 9px; font-size: 12.5px; color: var(--text-3); }
+/* 선택된 사용자 칩 — 편집 불가, ✕로 해제. 높이는 입력/버튼과 동일(34px). */
+.member-chip {
+  display: flex; align-items: center; gap: 8px; height: 34px; box-sizing: border-box;
+  padding: 0 6px 0 11px; border: 1px solid var(--border-strong); border-radius: 7px;
+  background: var(--bg-hover); color: var(--text); font-size: 13px;
+}
+.member-chip .name { color: var(--ink); font-weight: 600; }
+.member-chip .emp { color: var(--text-3); font-size: 12px; }
+.member-chip-x {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border: none; border-radius: 5px; background: none;
+  color: var(--text-3); cursor: pointer;
+}
+.member-chip-x:hover { background: var(--bg); color: var(--ink); }
+.member-chip-x svg { width: 14px; height: 14px; }
+.member-chip-x:disabled { opacity: .45; cursor: default; }
 
 /* ---- cards / panels ---- */
 .panel { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elev); }
