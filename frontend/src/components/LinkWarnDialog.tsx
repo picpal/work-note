@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon } from "./Icon";
+import { useEscClose } from "../state/useEscClose";
 
 const h = React.createElement;
 
@@ -12,6 +13,7 @@ interface LinkWarnDialogProps {
 
 // 백링크가 있는 노트 삭제 전 정보성 확인 — MoveWarnDialog와 동일 오버레이/카드 마크업.
 export function LinkWarnDialog({ name, count, onConfirm, onCancel }: LinkWarnDialogProps) {
+  useEscClose(onCancel);
   return h("div", { className: "pf-overlay", onMouseDown: onCancel },
     h("div", { className: "pf-card", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
       h("div", { className: "pf-head" },

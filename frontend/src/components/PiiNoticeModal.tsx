@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import React from "react";
 import { PiiApi, type PiiNotice } from "../storage/PiiApi";
 import { Icon } from "./Icon";
+import { useEscClose } from "../state/useEscClose";
 
 const h = React.createElement;
 
@@ -22,12 +23,14 @@ export function PiiNoticeModal() {
     return () => { alive = false; };
   }, []);
 
-  if (!notices || notices.length === 0) return null;
-
   const close = () => {
     void PiiApi.ackNotices().catch(() => {});
     setNotices(null);
   };
+  // 항상 마운트되는 모달 — 표시 중일 때만 ESC 부착(닫혀 있을 땐 ESC가 ack 트리거하지 않도록).
+  useEscClose(close, !!(notices && notices.length));
+
+  if (!notices || notices.length === 0) return null;
 
   const groups: Record<string, PiiNotice[]> = {};
   for (const n of notices) (groups[n.kind] ||= []).push(n);

@@ -10,6 +10,7 @@ import { validatePasswordChange } from "./passwordValidation";
 import { validateProfile } from "./profileValidation";
 import { MIN_PASSWORD_LENGTH } from "../lib/passwordPolicy";
 import { SecurityTab } from "../account/SecurityTab";
+import { useEscClose } from "../state/useEscClose";
 
 const h = React.createElement;
 
@@ -35,6 +36,7 @@ interface ProfileModalProps {
 export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail, totp, initialSection, onClose, onSaved, onRefreshMe, toast }: ProfileModalProps) {
   const init = loadProfile(emp);
   const securityRef = useRef<HTMLDivElement>(null);
+  useEscClose(onClose);
 
   // 배너 "지금 등록" 진입 — 열리자마자 보안 섹션으로 스크롤(2FA 섹션이 보일 때만).
   useEffect(() => {

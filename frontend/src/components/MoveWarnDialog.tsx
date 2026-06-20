@@ -3,6 +3,7 @@ import React from "react";
 import { Icon } from "./Icon";
 import type { MovePreview } from "../storage/VaultApi";
 import { shouldWarn } from "./moveWarning";
+import { useEscClose } from "../state/useEscClose";
 
 const h = React.createElement;
 
@@ -25,6 +26,7 @@ interface MoveWarnDialogProps {
 
 /** 독립 오버레이 경고 다이얼로그 — DnD 드롭 경로용. */
 export function MoveWarnDialog({ name, preview, onConfirm, onCancel }: MoveWarnDialogProps) {
+  useEscClose(onCancel);
   return h("div", { className: "pf-overlay", onMouseDown: onCancel },
     h("div", { className: "pf-card", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
       h("div", { className: "pf-head" },
