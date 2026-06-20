@@ -7,11 +7,11 @@
 ```
 work-note/
   frontend/                    Vite 6 + TypeScript + React 18 (구현 완료)
-                               백엔드 연동 완료(로그인·가입 + admin 10스크린 실 API, mock 제거)
+                               백엔드 연동 완료(로그인·가입 + admin 10스크린 실 API, mock 제거) + 프로필 2FA 보안 탭(SecurityTab)
                                drag&drop/paste/📎 파일 첨부 + 이미지 인라인 미리보기(src 내부 첨부로 제한)
                                엔트리 4개: index / login / admin / share(공유 노트 read-only 열람)
   backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite
-                               1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API + 5단계(30일 purge·공유 링크 §6) + 6단계(이동 노출 경고 §7) 구현 완료
+                               1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API + 5단계(30일 purge·공유 링크 §6) + 6단계(이동 노출 경고 §7) + 관리자 2FA(TOTP, opt-in·admin 유예강제·폐쇄망 오프라인 검증) 구현 완료
                                파일 첨부: 디스크 저장(WORKNOTE_UPLOAD_DIR, DB는 메타·경로만) · 노트 종속(read/write 상속) · 공유 토큰 스코프 서빙 · 관리자 업로드 정책(확장자·용량, app_setting) · purge 시 파일 정리
                                worknote.mode로 스위치(기본 local=무인증)
                                server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar ...
@@ -28,11 +28,13 @@ work-note/
 
 프로토타입(`docs/design-handoff/prototype/CLAUDE.md`) 계승:
 
+- **JSX 미사용**: 모든 컴포넌트는 `React.createElement`로 작성(관례상 `const h = React.createElement`) — `.tsx`지만 JSX 문법 없음
 - 컴포넌트화: 기능 단위로 분리, props 인터페이스 명시
 - reducer 패턴: 상태 변경은 vault reducer 단일 경로
 - 커스텀 훅: 컴포넌트에서 로직 분리
 - 커맨드 패턴: 에디터 툴바 액션은 `commands/`에 집중
 - 모노톤 디자인: Pretendard(UI) + D2Coding(코드), CSS 변수 기반
+- 테스트 관례: React 렌더/e2e 없이 결정 로직을 순수 함수로 추출해 vitest 유닛 테스트(실화면 회귀는 별도 QA). `pnpm test` = `vitest run`(1회)
 
 ## 명령어
 
