@@ -16,11 +16,12 @@ describe("mappers", () => {
     expect(KNOWN_CAPS).toHaveLength(11);
     for (const c of KNOWN_CAPS) expect(capLabel(c), c + " 라벨 누락").not.toBe(c);
   });
-  it("KNOWN_ACTS는 34종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
-    expect(KNOWN_ACTS).toHaveLength(34);
+  it("KNOWN_ACTS는 35종이고 전부 ACTS 라벨이 존재(드리프트 가드)", () => {
+    expect(KNOWN_ACTS).toHaveLength(35);
     for (const a of KNOWN_ACTS) expect(actLabel(a), a + " 라벨 누락").not.toBe(a);
   });
-  it("다운로드/내보내기 감사 라벨", () => {
+  it("조회/다운로드/내보내기 감사 라벨", () => {
+    expect(actLabel("note.view")).toBe("노트 조회");
     expect(actLabel("note.export")).toBe("내보내기");
     expect(actLabel("attachment.download")).toBe("첨부 다운로드");
   });

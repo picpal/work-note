@@ -29,12 +29,12 @@ const ACTS: Record<string, string> = {
   "space.set": "스페이스 지정", "space.unset": "스페이스 해제",
   "node.create": "노드 생성", "node.move": "노드 이동", "node.trash": "휴지통 이동",
   "node.restore": "복구", "node.purge": "영구 삭제",
-  "note.export": "내보내기", "attachment.download": "첨부 다운로드",
+  "note.view": "노트 조회", "note.export": "내보내기", "attachment.download": "첨부 다운로드",
   "share.create": "공유 링크 생성", "share.view": "공유 링크 열람", "share.revoke": "공유 링크 취소",
 };
 export function actLabel(act: string): string { return ACTS[act] ?? act; }
 
-/** 감사 필터 드롭다운용 act 34종 — canonical 순서(인증 → user → role → team → acl/public/space → node → 다운로드 → share). ACTS 라벨 맵과 정합은 테스트로 가드. */
+/** 감사 필터 드롭다운용 act 35종 — canonical 순서(인증 → user → role → team → acl/public/space → node → 조회/다운로드 → share). ACTS 라벨 맵과 정합은 테스트로 가드. */
 export const KNOWN_ACTS: string[] = [
   "login.success", "login.fail", "logout", "signup", "signup.fail", "auth.password.change", "auth.profile.update",
   "user.create", "user.update", "user.approve", "user.reset",
@@ -42,7 +42,7 @@ export const KNOWN_ACTS: string[] = [
   "team.create", "team.update", "team.delete", "team.member.add", "team.member.remove",
   "acl.set", "public.set", "public.unset", "space.set", "space.unset",
   "node.create", "node.move", "node.trash", "node.restore", "node.purge",
-  "note.export", "attachment.download",
+  "note.view", "note.export", "attachment.download",
   "share.create", "share.view", "share.revoke",
 ];
 

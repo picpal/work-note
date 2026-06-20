@@ -33,6 +33,9 @@ export const VaultApi = {
   // 내보내기 감사 핑(204) — fire-and-forget. 다운로드 자체는 클라에서 일어나므로 사후 통지만.
   logExport: (id: string, format: "pdf" | "md" | "copy") =>
     req<void>(`/nodes/${id}/export-log`, { method: "POST", body: JSON.stringify({ format }) }),
+  // 조회 감사 핑(204) — fire-and-forget. /tree가 본문까지 줘 열람은 클라 동작이라 노트를 열 때 사후 통지. title=조회 시점 페이지명.
+  logView: (id: string, title: string) =>
+    req<void>(`/nodes/${id}/view-log`, { method: "POST", body: JSON.stringify({ title }) }),
   move: (id: string, parentId: string | null) =>
     req<void>(`/nodes/${id}/move`, { method: "POST", body: JSON.stringify({ parentId }) }),
   movePreview: (id: string, parentId: string | null) =>

@@ -1,6 +1,7 @@
 /* Admin screen 6: Audit log — 실 API(AdminApi.audit) 배선. 필터는 서버 단일 경로(who/act 정확 일치 + from/to 사전순). */
 import React from "react";
 import { AdminApi, ApiAudit } from "../api";
+import { buildAuditReport, monthBounds } from "../auditReport";
 import { actLabel, actType, KNOWN_ACTS } from "../mappers";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, SkeletonTable } from "../common";
@@ -31,6 +32,16 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // 월간 리포트 모달 — 년/월 선택 후 그 달 전건을 집계해 .md 생성.
+  const nowY = new Date().getFullYear();
+  const nowM = new Date().getMonth() + 1;
+  const [reportOpen, setReportOpen] = useState(false);
+  const [ry, setRy] = useState(nowY);
+  const [rm, setRm] = useState(nowM);
+  const [reportBusy, setReportBusy] = useState(false);
+  const yearOpts = Array.from({ length: 5 }, (_, k) => nowY - k);
+  const MONTHS = Array.from({ length: 12 }, (_, k) => k + 1);
+
   /** 필터 변경은 offset 0으로 리셋 — React 배칭으로 effect는 한 번만 실행. */
   const applyWho = (v: string) => { if (v !== who) { setWho(v); setOffset(0); } };
   const applyAct = (v: string) => { setAct(v); setOffset(0); };
@@ -49,7 +60,11 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [who, act, from, to, offset]);
 
-  const stamp = () => new Date().toISOString().slice(0, 19).replace("T", " ");
+  // 리포트 생성 일시 — 감사 at(서버 LocalDateTime, KST)과 시간대 일치를 위해 로컬 시간으로 표기(toISOString=UTC 회피).
+  const stamp = () => {
+    const d = new Date(), p = (n: number) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  };
   const fileStamp = () => new Date().toISOString().slice(0, 10);
   // at은 ISO_LOCAL_DATE_TIME(마이크로초 포함 가능) — 초 단위까지만 표시
   const fmtAt = (at: string) => at.replace("T", " ").slice(0, 19);
@@ -63,28 +78,33 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
     toast && toast(rows.length + "건을 CSV로 내보냈습니다", "download");
   };
 
-  const downloadReport = () => {
-    const byType: Record<string, number> = {};
-    rows.forEach((r) => { const k = actLabel(r.act); byType[k] = (byType[k] || 0) + 1; });
-    const fails = rows.filter((r) => actType(r.act) === "loginfail").length;
-    const grants = rows.filter((r) => actType(r.act) === "grant" || actType(r.act) === "revoke").length;
-    const period = rows.length ? (rows[rows.length - 1].at.slice(0, 10) + " ~ " + rows[0].at.slice(0, 10)) : "—";
-    let md = "";
-    md += "# WorkNote 감사 리포트\n\n";
-    md += "- 생성 일시: " + stamp() + "\n";
-    md += "- 대상 기간: " + period + "\n";
-    md += "- 수록 이벤트: " + rows.length + "건 (전체 " + total + "건 중 현재 페이지)\n";
-    md += "- 권한 변경(부여/회수): " + grants + "건\n";
-    md += "- 로그인 실패: " + fails + "건\n\n";
-    md += "## 행위 유형별 집계\n\n";
-    md += "| 행위 | 건수 |\n| --- | --- |\n";
-    Object.keys(byType).forEach((k) => { md += "| " + k + " | " + byType[k] + " |\n"; });
-    md += "\n## 로그 (시간 역순)\n\n";
-    md += "| 일시 | 행위자 | 행위 | 대상 | IP/단말 |\n| --- | --- | --- | --- | --- |\n";
-    rows.forEach((r) => { md += "| " + fmtAt(r.at) + " | " + r.who + " | " + actLabel(r.act) + " | " + (r.target || "—") + " | " + r.ip + " |\n"; });
-    md += "\n---\n_본 리포트는 ISMS · PCI-DSS 감사 추적 목적으로 자동 생성되었습니다._\n";
-    adminDownload("audit-report_" + fileStamp() + ".md", md, "text/markdown");
-    toast && toast("감사 리포트를 내려받았습니다", "check");
+  /** 월간 감사 리포트 — 선택 월(1일~말일) 전건을 페이지네이션으로 수집 + 명부/역할을 받아 5분류 .md 생성. */
+  const generateReport = async () => {
+    if (reportBusy) return;
+    setReportBusy(true);
+    try {
+      const { from, to } = monthBounds(ry, rm);
+      const all: ApiAudit[] = [];
+      let off = 0, totalN = Infinity;
+      while (all.length < totalN) {
+        const res = await AdminApi.audit({ who: "", act: "", from, to, limit: 200, offset: off });
+        totalN = res.total;
+        if (res.rows.length === 0) break;
+        all.push(...res.rows);
+        off += res.rows.length;
+        if (off > 100000) break;   // 폭주 안전장치
+      }
+      const [us, rs] = await Promise.all([AdminApi.users(), AdminApi.roles()]);
+      const md = buildAuditReport({ year: ry, month: rm, rows: all, users: us, roles: rs, generatedAt: stamp() });
+      const mm = String(rm).padStart(2, "0");
+      adminDownload("audit-report_" + ry + "-" + mm + ".md", md, "text/markdown");
+      toast(ry + "-" + mm + " 감사 리포트를 내려받았습니다 (" + all.length + "건)", "check");
+      setReportOpen(false);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "리포트 생성 실패");
+    } finally {
+      setReportBusy(false);
+    }
   };
 
   const first = total === 0 ? 0 : offset + 1;
@@ -108,7 +128,7 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
       h("input", { className: "aselect", type: "date", value: to, title: "종료일",
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => applyTo(e.target.value) }),
       h("span", { style: { flex: 1 } }),
-      h("button", { className: "btn", onClick: downloadReport, disabled: loading || rows.length === 0 }, h(Icon, { name: "fileLines" }), "감사 리포트"),
+      h("button", { className: "btn", onClick: () => setReportOpen(true), title: "월을 선택해 월간 감사 리포트 생성" }, h(Icon, { name: "fileLines" }), "감사 리포트"),
       h("button", { className: "btn", onClick: exportCsv, disabled: loading || rows.length === 0 }, h(Icon, { name: "download" }), "내보내기")),
     loading
       ? h(SkeletonTable, { cols: 5 })
@@ -131,6 +151,25 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
         loading ? "불러오는 중…" : total + "건 중 " + first + "–" + last),
       h("span", { style: { flex: 1 } }),
       h("button", { className: "btn sm", disabled: loading || !hasPrev, onClick: () => setOffset(Math.max(0, offset - LIMIT)) }, "이전"),
-      h("button", { className: "btn sm", disabled: loading || !hasNext, onClick: () => setOffset(offset + LIMIT) }, "다음"))
+      h("button", { className: "btn sm", disabled: loading || !hasNext, onClick: () => setOffset(offset + LIMIT) }, "다음")),
+    reportOpen && h("div", { className: "modal-ov", onMouseDown: () => { if (!reportBusy) setReportOpen(false); } },
+      h("div", { className: "modal", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
+        h("div", { className: "modal-head" },
+          h("div", { className: "micon" }, h(Icon, { name: "fileLines" })),
+          h("h3", null, "월간 감사 리포트")),
+        h("div", { className: "modal-body" },
+          h("p", { className: "muted", style: { marginTop: 0, marginBottom: 12, fontSize: 13, lineHeight: 1.6 } },
+            "리포트를 생성할 연도와 월을 선택하세요. 선택한 달(1일~말일)의 접속·조회·다운로드·계정 기록을 5개 항목으로 집계합니다."),
+          h("div", { style: { display: "flex", gap: 8 } },
+            h("select", { className: "aselect", style: { flex: 1 }, value: ry, disabled: reportBusy,
+              onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setRy(+e.target.value) },
+              yearOpts.map((y) => h("option", { key: y, value: y }, y + "년"))),
+            h("select", { className: "aselect", style: { flex: 1 }, value: rm, disabled: reportBusy,
+              onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setRm(+e.target.value) },
+              MONTHS.map((m) => h("option", { key: m, value: m }, m + "월"))))),
+        h("div", { className: "modal-foot" },
+          h("button", { className: "btn", disabled: reportBusy, onClick: () => setReportOpen(false) }, "취소"),
+          h("button", { className: "btn primary", disabled: reportBusy, onClick: () => void generateReport() },
+            reportBusy ? "생성 중…" : "리포트 생성"))))
   );
 }

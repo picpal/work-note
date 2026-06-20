@@ -11,6 +11,7 @@ import com.worknote.vault.dto.CreateNodeRequest;
 import com.worknote.vault.dto.ExportLogRequest;
 import com.worknote.vault.dto.MoveNodeRequest;
 import com.worknote.vault.dto.UpdateNodeRequest;
+import com.worknote.vault.dto.ViewLogRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -91,6 +92,20 @@ public class VaultController {
             default -> "기타";
         };
         audit.log(user, "note.export", id + " (" + fmt + ")", req.getRemoteAddr());
+    }
+
+    /** 노트 조회 감사 핑 — /tree가 본문까지 내려줘 열람은 클라 내부 동작이므로 노트를 열 때 프런트가 사후 통지.
+        read 권한 필요(열람 가능 노트만 집계). local 모드는 audit.log(null) no-op.
+        target=조회 시점 페이지명(감사 리포트 §5 페이지명) — 빈 값/과도한 길이는 id·120자로 정규화. */
+    @PostMapping("/nodes/{id}/view-log")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void viewLog(@PathVariable String id, @RequestBody(required = false) ViewLogRequest body, HttpServletRequest req) {
+        UserRow user = user(req);
+        guard.requireRead(user, id);
+        String raw = body == null ? null : body.title();
+        String title = (raw == null || raw.isBlank()) ? id : raw.trim();
+        if (title.length() > 120) title = title.substring(0, 120);
+        audit.log(user, "note.view", title, req.getRemoteAddr());
     }
 
     /** 이동 미리보기 — 실제 이동 없이 노출(접근 집합/공개/스페이스) 델타만 계산. move와 동일 가드·검증으로 동일 오류(404/422). */

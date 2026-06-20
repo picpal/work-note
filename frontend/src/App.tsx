@@ -103,6 +103,17 @@ export function App() {
   // 브레드크럼 세그먼트(조상 폴더 id+name) — 링크로 렌더해 클릭 시 해당 폴더로 이동.
   const crumbs = useMemo(() => (activeId ? crumbPath(tree, activeId) : []), [tree, activeId]);
 
+  // 노트 조회 감사 핑(server 모드) — 노트를 열 때 1회. 같은 노트 재선택 전까지 중복 핑 방지(편집·트리 갱신으로 객체가 바뀌어도 id 동일이면 skip).
+  // /tree가 본문까지 줘 열람은 클라 내부 동작이라 서버 라운드트립이 없음 → 내보내기 핑과 동일하게 프런트가 사후 통지.
+  const lastViewedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (storageMode !== "http" || !ready || loadError) return;
+    if (!activeNote) return;
+    if (lastViewedRef.current === activeNote.id) return;
+    lastViewedRef.current = activeNote.id;
+    void VaultApi.logView(activeNote.id, activeNote.title || "").catch(() => {});
+  }, [activeNote, ready, loadError]);
+
   // 백링크 역인덱스(클라 파생). 링크 후보·해석 콜백.
   const backlinks = useMemo(() => buildBacklinks(tree), [tree]);
   const wikiCandidates = useCallback(

@@ -104,6 +104,40 @@ class DownloadAuditApiTest {
         assertThat(auditCount("note.export")).isZero();
     }
 
+    // ---- note.view (조회 감사 핑) ----
+
+    @Test
+    void viewLog_recordsNoteViewAudit_withTitleAsTarget() throws Exception {
+        MockHttpSession s = login("10001");
+        mvc.perform(post("/api/nodes/n1/view-log").session(s).contentType(APPLICATION_JSON)
+                .content("{\"title\":\"분기 보고서\"}"))
+            .andExpect(status().isNoContent());
+        assertThat(auditCount("note.view")).isEqualTo(1);
+        String who = jdbc.queryForObject("SELECT who FROM audit_log WHERE act='note.view'", String.class);
+        String target = jdbc.queryForObject("SELECT target FROM audit_log WHERE act='note.view'", String.class);
+        assertThat(who).isEqualTo("10001");
+        assertThat(target).isEqualTo("분기 보고서");
+    }
+
+    @Test
+    void viewLog_blankTitle_fallsBackToNodeId() throws Exception {
+        MockHttpSession s = login("10001");
+        mvc.perform(post("/api/nodes/n1/view-log").session(s).contentType(APPLICATION_JSON)
+                .content("{\"title\":\"  \"}"))
+            .andExpect(status().isNoContent());
+        String target = jdbc.queryForObject("SELECT target FROM audit_log WHERE act='note.view'", String.class);
+        assertThat(target).isEqualTo("n1");
+    }
+
+    @Test
+    void viewLog_unreadableNote_isForbidden_andNotLogged() throws Exception {
+        MockHttpSession s = login("20002"); // u2: n1 권한 없음
+        mvc.perform(post("/api/nodes/n1/view-log").session(s).contentType(APPLICATION_JSON)
+                .content("{\"title\":\"x\"}"))
+            .andExpect(status().isForbidden());
+        assertThat(auditCount("note.view")).isZero();
+    }
+
     // ---- attachment.download ----
 
     private String upload(MockHttpSession s, String name) throws Exception {
