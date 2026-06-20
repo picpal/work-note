@@ -114,7 +114,7 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
             h("table", { className: "atable" },
               h("thead", null, h("tr", null,
                 h("th", null, "사번"), h("th", null, "이메일"), h("th", null, "역할"),
-                h("th", null, "상태"), h("th", null, "2FA"), h("th", null, "마지막 로그인"), h("th", { className: "right" }, "작업"))),
+                h("th", null, "상태"), h("th", null, "2FA"), h("th", null, "마지막 로그인"), h("th", { className: "center" }, "작업"))),
               h("tbody", null,
                 filtered.map((u) => h("tr", { key: u.id, style: { cursor: "default" } },
                   h("td", { className: "mono" }, u.emp),
@@ -124,8 +124,8 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
                   h("td", null, u.totpEnabled
                     ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "2FA")
                     : h("span", { style: { color: "var(--text-3)" } }, "—")),
-                  h("td", { className: "muted mono" }, u.lastLogin ?? "—"),
-                  h("td", { className: "right" },
+                  h("td", { className: "muted mono" }, u.lastLogin ? u.lastLogin.slice(0, 10) : "—"),
+                  h("td", { className: "center" },
                     h("div", { className: "actions" },
                       h("button", { className: "lact", onClick: () => setSelId(u.id) }, "상세"),
                       h("button", { className: "lact", disabled: busy, onClick: () => openResetPw(u) }, "비번 초기화"),

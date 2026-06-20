@@ -105,7 +105,9 @@
 .atable .mono { font-family: var(--font-mono); font-size: 12.5px; }
 .atable .muted { color: var(--text-3); }
 .atable .right { text-align: right; }
+.atable .center { text-align: center; }
 .atable .actions { display: flex; gap: 6px; justify-content: flex-end; }
+.atable .center .actions { justify-content: center; }
 .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .table-wrap .atable thead th { background: var(--bg-sunken); }
 .table-wrap .atable tbody tr:last-child td { border-bottom: none; }
@@ -145,7 +147,7 @@
 /* link-style row action */
 .lact {
   border: none; background: none; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px;
-  color: var(--text-2); padding: 3px 7px; border-radius: 6px;
+  color: var(--text-2); padding: 3px 7px; border-radius: 6px; white-space: nowrap;
 }
 .lact:hover { background: var(--bg-hover); color: var(--ink); }
 .lact.danger:hover { color: #b3261e; }
