@@ -456,6 +456,14 @@ button.topbar-me { font-family: var(--font-ui); }
 
 /* 2FA 등록 권고 배너 — Icon은 CSS로 크기 지정(미지정 시 svg가 부모를 채워 거대해짐) */
 .totp-nudge-banner svg { width: 16px; height: 16px; flex: none; }
+/* "지금 등록" CTA — 모노톤 primary(ink) 버튼. .lact가 index 앱엔 없어 브라우저 기본이 노출되던 것 교체 */
+.totp-nudge-banner button {
+  flex: none; cursor: pointer; padding: 4px 11px;
+  font-size: 12.5px; font-weight: 600; letter-spacing: -.01em;
+  color: var(--on-ink); background: var(--ink);
+  border: none; border-radius: 6px; transition: opacity .12s;
+}
+.totp-nudge-banner button:hover { opacity: .85; }
 
 /* editor toolbar — floating, centered (no filled background band) */
 .etoolbar {
