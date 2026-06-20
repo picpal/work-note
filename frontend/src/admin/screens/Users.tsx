@@ -35,6 +35,8 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
 
   const sel = useMemo(() => users.find((u) => u.id === selId) ?? null, [users, selId]);
   const isMe = (u: ApiUser) => me?.id === u.id;
+  // 마지막 로그인: ISO(마이크로초 포함) → "YYYY-MM-DD HH:MM:SS"
+  const fmtLogin = (s: string | null) => (s ? s.replace("T", " ").slice(0, 19) : "—");
 
   const filtered = useMemo(() => users.filter((u) => {
     const needle = q.toLowerCase();
@@ -114,7 +116,7 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
             h("table", { className: "atable" },
               h("thead", null, h("tr", null,
                 h("th", null, "사번"), h("th", null, "이메일"), h("th", null, "역할"),
-                h("th", null, "상태"), h("th", null, "2FA"), h("th", null, "마지막 로그인"), h("th", { className: "center" }, "작업"))),
+                h("th", null, "상태"), h("th", null, "2FA"), h("th", { className: "col-lastlogin" }, "마지막 로그인"), h("th", { className: "center" }, "작업"))),
               h("tbody", null,
                 filtered.map((u) => h("tr", { key: u.id, style: { cursor: "default" } },
                   h("td", { className: "mono" }, u.emp),
@@ -124,14 +126,14 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
                   h("td", null, u.totpEnabled
                     ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "2FA")
                     : h("span", { style: { color: "var(--text-3)" } }, "—")),
-                  h("td", { className: "muted mono" }, u.lastLogin ? u.lastLogin.slice(0, 10) : "—"),
-                  h("td", { className: "center" },
-                    h("div", { className: "actions" },
+                  h("td", { className: "muted mono col-lastlogin" }, fmtLogin(u.lastLogin)),
+                  h("td", null,
+                    h("div", { className: "actions actions-left" },
                       h("button", { className: "lact", onClick: () => setSelId(u.id) }, "상세"),
                       h("button", { className: "lact", disabled: busy, onClick: () => openResetPw(u) }, "비번 초기화"),
-                      u.totpEnabled && h("button", { className: "lact", disabled: busy, onClick: () => setModal({ kind: "resetTotp", user: u }) }, "2FA 초기화"),
                       u.status === "active" && h("button", { className: "lact danger", disabled: busy || isMe(u), title: isMe(u) ? "본인 계정은 변경할 수 없습니다" : undefined, onClick: () => setModal({ kind: "deactivate", user: u }) }, "비활성화"),
-                      u.status === "disabled" && h("button", { className: "lact", disabled: busy || isMe(u), onClick: () => void activate(u) }, "활성화"))))))) ),
+                      u.status === "disabled" && h("button", { className: "lact", disabled: busy || isMe(u), onClick: () => void activate(u) }, "활성화"),
+                      u.totpEnabled && h("button", { className: "lact", disabled: busy, onClick: () => setModal({ kind: "resetTotp", user: u }) }, "2FA 초기화"))))))) ),
       sel && h("div", { className: "panel" },
         h("div", { className: "panel-head" }, h(Icon, { name: "user" }), "사용자 상세",
           h("button", { className: "lact", style: { marginLeft: "auto" }, onClick: () => setSelId(null) }, h(Icon, { name: "x" }))),
@@ -142,7 +144,7 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
             h("div", { className: "row" }, h("span", { className: "k" }, "이메일"), h("span", { className: "v" }, sel.email ?? "—")),
             h("div", { className: "row" }, h("span", { className: "k" }, "역할"), h("span", { className: "v" }, h(RoleBadge, { role: roleName(sel.roleId, roles) }))),
             h("div", { className: "row" }, h("span", { className: "k" }, "상태"), h("span", { className: "v" }, h(StatusBadge, { status: statusLabel(sel.status) }))),
-            h("div", { className: "row" }, h("span", { className: "k" }, "마지막 로그인"), h("span", { className: "v mono muted" }, sel.lastLogin ?? "—")),
+            h("div", { className: "row" }, h("span", { className: "k" }, "마지막 로그인"), h("span", { className: "v mono muted" }, fmtLogin(sel.lastLogin))),
             h("div", { className: "row" }, h("span", { className: "k" }, "2FA"),
               h("span", { className: "v" }, sel.totpEnabled
                 ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "활성")
