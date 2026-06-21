@@ -1,2 +1,6 @@
 onlyBuiltDependencies:
   - esbuild
+# 보안: mermaid가 번들한 dompurify까지 패치 버전으로 끌어올림 (GHSA-cmwh-pvxp-8882, <=3.4.10).
+# uuid는 mermaid 10.x가 v9 API에 의존 → v11 강제 시 깨질 위험 + buf 미전달로 비익스플로잇 → 미오버라이드.
+overrides:
+  dompurify: '>=3.4.11'

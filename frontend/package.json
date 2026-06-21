@@ -25,10 +25,10 @@
     "@lezer/highlight": "1.2.1",
     "@lezer/lr": "1.4.2",
     "@lezer/markdown": "1.3.2",
-    "dompurify": "^3.4.9",
+    "dompurify": "^3.4.11",
     "highlight.js": "11.9.0",
     "marked": "12.0.2",
-    "mermaid": "10.9.1",
+    "mermaid": "10.9.6",
     "pretendard": "1.3.9",
     "react": "18.3.1",
     "react-dom": "18.3.1"

@@ -192,7 +192,14 @@ export function enhanceMermaid(root: Element | Document): void {
     const id = "mmd-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + "-" + i;
     const doRender = () => {
       try {
-        mermaid.render(id, src).then(({ svg }) => { (el as HTMLElement).innerHTML = svg; })
+        // 심층 방어: mermaid 내부 sanitizer(securityLevel:strict)를 신뢰하되, 반환 SVG를
+        // 한 번 더 통과시킨다. foreignObject(HTML-in-SVG XSS 벡터)는 htmlLabels:false라 미사용 → 차단.
+        mermaid.render(id, src).then(({ svg }) => {
+          (el as HTMLElement).innerHTML = DOMPurify.sanitize(svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+            ADD_TAGS: ["style"], FORBID_TAGS: ["foreignObject"],
+          });
+        })
           .catch(() => { (el as HTMLElement).innerHTML = '<pre style="margin:0;font-size:12px;color:var(--text-3)">' + escAttr(src) + "</pre>"; });
       } catch (e) {
         (el as HTMLElement).innerHTML = '<pre style="margin:0;font-size:12px;color:var(--text-3)">' + escAttr(src) + "</pre>";
