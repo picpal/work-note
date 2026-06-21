@@ -8,3 +8,6 @@ dist/
 backend/build/
 backend/.gradle/
 *.db
+
+# QA/개발용 시드 스크립트 — 운영 DB 실행 위험·기본 비번 포함, 커밋 금지
+backend/seed_*.py

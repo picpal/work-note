@@ -19,6 +19,10 @@ server:
   servlet:
     session:
       timeout: 30m           # server 모드 세션 타임아웃 (스펙 §7 보안 정책)
+      cookie:
+        same-site: lax       # CSRF 방어 — 교차 사이트 POST/PATCH/DELETE에 세션 쿠키 미전송 (multipart 업로드 갭 차단)
+        http-only: true      # XSS 시에도 JS가 세션 쿠키를 못 읽게 (Tomcat 기본 true지만 명시)
+        # secure: true       # TLS(HTTPS) 종단 시 활성화 — 폐쇄망 HTTP 배포에선 false 유지(true면 HTTP에서 쿠키 미전송)
 worknote:
   mode: ${WORKNOTE_MODE:local}                     # local=1단계(무인증), server=2단계(인증+권한)
   admin-password: ${WORKNOTE_ADMIN_PASSWORD:}      # server 모드 최초 기동 시 관리자 비밀번호 (필수)
