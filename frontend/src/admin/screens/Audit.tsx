@@ -128,7 +128,10 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
   const hasNext = offset + LIMIT < total;
 
   return h("div", { className: "apage wide" },
-    h(SecHead, { title: "감사 로그", hint: "ISMS · PCI-DSS 추적용 · 시간 역순" }),
+    h(SecHead, { title: "감사 로그", hint: "ISMS · PCI-DSS 추적용 · 시간 역순",
+      right: h(React.Fragment, null,
+        h("button", { className: "btn", onClick: () => setReportOpen(true), title: "월을 선택해 월간 감사 리포트 생성" }, h(Icon, { name: "fileLines" }), "감사 리포트"),
+        h("button", { className: "btn", onClick: exportCsv, disabled: loading || rows.length === 0 }, h(Icon, { name: "download" }), "내보내기")) }),
     h("div", { className: "atoolbar" },
       h("div", { className: "afield" }, h(Icon, { name: "search" }),
         h("input", { placeholder: "행위자(사번) — Enter로 적용", value: whoInput,
@@ -141,10 +144,7 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
       h("input", { className: "aselect", type: "date", value: from, title: "시작일",
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => applyFrom(e.target.value) }),
       h("input", { className: "aselect", type: "date", value: to, title: "종료일",
-        onChange: (e: React.ChangeEvent<HTMLInputElement>) => applyTo(e.target.value) }),
-      h("span", { style: { flex: 1 } }),
-      h("button", { className: "btn", onClick: () => setReportOpen(true), title: "월을 선택해 월간 감사 리포트 생성" }, h(Icon, { name: "fileLines" }), "감사 리포트"),
-      h("button", { className: "btn", onClick: exportCsv, disabled: loading || rows.length === 0 }, h(Icon, { name: "download" }), "내보내기")),
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => applyTo(e.target.value) })),
     loading
       ? h(SkeletonTable, { cols: 5 })
       : rows.length === 0
