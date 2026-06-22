@@ -31,6 +31,7 @@ const ACTS: Record<string, string> = {
   "node.restore": "복구", "node.purge": "영구 삭제",
   "note.view": "노트 조회", "note.export": "내보내기", "attachment.download": "첨부 다운로드",
   "share.create": "공유 링크 생성", "share.view": "공유 링크 열람", "share.revoke": "공유 링크 취소",
+  "pii.view": "개인정보 열람",
 };
 export function actLabel(act: string): string { return ACTS[act] ?? act; }
 
