@@ -1,0 +1,18 @@
+/* ---- PII 노트 열람 뷰어 ---- */
+.modal.pii-viewer { width: min(720px, 94vw); }
+.pii-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12.5px; }
+.pii-code {
+  height: 380px; overflow: auto; background: var(--bg-sunken); border: 1px solid var(--border);
+  border-radius: 8px; font-family: var(--mono, monospace); font-size: 12.5px;
+}
+.pii-line {
+  height: 22px; line-height: 22px; white-space: pre; padding: 0 10px;
+  color: var(--text-2);
+}
+.pii-line.active { background: rgba(179, 38, 30, .10); }
+.pii-line mark { background: #ffe08a; color: var(--ink); border-radius: 2px; padding: 0 1px; }
+[data-theme="dark"] .pii-line mark { background: #7a5b00; color: #fff; }
+
+/* 클릭 가능한 점검 테이블 행 (Task 7에서 사용) */
+.atable tr.click-row { cursor: pointer; }
+.atable tr.click-row:hover { background: var(--bg-sunken); }
