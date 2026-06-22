@@ -104,4 +104,27 @@ class PiiServiceTest {
         assertEquals(1, svc.noticesFor("eReq").size());
         assertEquals("approved", svc.noticesFor("eReq").get(0).get("kind"));
     }
+
+    @Test void noteContent_본문과_매치라인() {
+        nodes.insert(new NodeRow("c1", null, "note", "n", 1, "이름\n전화 010-1234-5678\n끝", "2026-06-14T00:00:00", null, null));
+        var res = svc.noteContent("c1");
+        assertEquals("이름\n전화 010-1234-5678\n끝", res.content());
+        assertEquals("n", res.title());
+        assertEquals(1, res.matches().size());
+        assertEquals(2, res.matches().get(0).line());
+        assertEquals(3, res.matches().get(0).col());
+        assertEquals("phone", res.matches().get(0).type());
+        assertEquals("010-1234-5678", res.matches().get(0).value());
+    }
+
+    @Test void noteContent_매치없음_빈리스트() {
+        nodes.insert(new NodeRow("c3", null, "note", "n", 1, "평범한 내용", "2026-06-14T00:00:00", null, null));
+        assertTrue(svc.noteContent("c3").matches().isEmpty());
+    }
+
+    @Test void noteContent_삭제노트_404() {
+        note("c2");
+        nodes.softDeleteSubtree("c2", "2026-06-22T00:00:00", "admin");
+        assertThrows(com.worknote.vault.VaultException.class, () -> svc.noteContent("c2"));
+    }
 }

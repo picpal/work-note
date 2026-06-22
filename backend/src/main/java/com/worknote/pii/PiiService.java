@@ -11,6 +11,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import com.worknote.vault.NodeRow;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -188,4 +190,34 @@ public class PiiService {
 
     @Transactional(readOnly = true)
     public java.util.List<java.util.Map<String, Object>> adminRequests() { return mapper.adminRequests(); }
+
+    /** 관리자 본문 열람 — 본문 + 매치 라인. 삭제/부재 시 404. */
+    @Transactional(readOnly = true)
+    public PiiContentResponse noteContent(String nodeId) {
+        NodeRow node = nodeMapper.findById(nodeId);
+        if (node == null || node.deletedAt() != null) {
+            throw VaultException.notFound("노트를 찾을 수 없습니다: " + nodeId);
+        }
+        String content = node.content() == null ? "" : node.content();
+        return new PiiContentResponse(nodeId, node.name(), content,
+            toMatchLines(content, PiiDetector.scanMatches(content)));
+    }
+
+    /** 매치 start(문자 인덱스)를 (line, col)로 변환. 본문 1회 순회로 개행 누적 — O(n+m).
+     *  matches는 start 오름차순(scanMatches 보장). */
+    static List<PiiContentResponse.MatchLine> toMatchLines(String content, List<PiiDetector.Match> matches) {
+        List<PiiContentResponse.MatchLine> out = new ArrayList<>();
+        if (matches.isEmpty()) return out;
+        int line = 1, lineStart = 0, idx = 0;
+        for (int i = 0; i <= content.length() && idx < matches.size(); i++) {
+            while (idx < matches.size() && matches.get(idx).start() == i) {
+                out.add(new PiiContentResponse.MatchLine(
+                    matches.get(idx).type().name().toLowerCase(),
+                    line, i - lineStart, matches.get(idx).value()));
+                idx++;
+            }
+            if (i < content.length() && content.charAt(i) == '\n') { line++; lineStart = i + 1; }
+        }
+        return out;
+    }
 }
