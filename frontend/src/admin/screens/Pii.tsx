@@ -1,6 +1,7 @@
 /* Admin screen: 개인정보 점검 — 예외 요청 대기 + 전체 플래그 노트 */
 import React from "react";
-import { AdminApi, type ApiPiiNote, type ApiPiiRequest } from "../api";
+import { AdminApi, type ApiPiiNote, type ApiPiiRequest, type ApiPiiContent } from "../api";
+import { PiiNoteViewer } from "../../components/PiiNoteViewer";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, Modal } from "../common";
 import { piiTypeLabel, piiStatusLabel } from "../../lib/pii";
@@ -17,6 +18,14 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
   const [reject, setReject] = useState<{ nodeId: string; title: string } | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ data: ApiPiiContent; source: "request" | "note" | "exempted" } | null>(null);
+
+  const openViewer = async (nodeId: string, source: "request" | "note" | "exempted") => {
+    try {
+      const data = await AdminApi.piiNoteContent(nodeId);
+      setViewing({ data, source });
+    } catch (e) { toast(e instanceof ApiError ? e.message : "본문을 불러올 수 없습니다"); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -57,14 +66,14 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
           h("thead", null, h("tr", null,
             h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
             h("th", null, "사유"), h("th", { className: "right" }, "처리"))),
-          h("tbody", null, reqs.map((r) => h("tr", { key: r.nodeId },
+          h("tbody", null, reqs.map((r) => h("tr", { key: r.nodeId, className: "click-row", onClick: () => void openViewer(r.nodeId, "request") },
             h("td", null, r.title),
             h("td", { className: "mono" }, r.updatedBy ?? "—"),
             h("td", null, h("div", { className: "chips" }, typeChips(r.types))),
             h("td", null, r.requestReason || "—"),
             h("td", { className: "right" }, h("div", { className: "actions" },
-              h("button", { className: "btn sm primary", disabled: busy === r.nodeId, onClick: () => void approve(r.nodeId) }, "허용"),
-              h("button", { className: "btn sm danger", disabled: busy === r.nodeId, onClick: () => setReject({ nodeId: r.nodeId, title: r.title }) }, "반려")))))))),
+              h("button", { className: "btn sm primary", disabled: busy === r.nodeId, onClick: (e: React.MouseEvent) => { e.stopPropagation(); void approve(r.nodeId); } }, "허용"),
+              h("button", { className: "btn sm danger", disabled: busy === r.nodeId, onClick: (e: React.MouseEvent) => { e.stopPropagation(); setReject({ nodeId: r.nodeId, title: r.title }); } }, "반려")))))))),
 
     h("div", { style: { height: 22 } }),
     h(SecHead, { title: "전체 개인정보 노트", hint: "탐지된 모든 노트(허용 제외). 능동 알림 발송 가능" }),
@@ -74,14 +83,14 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
           h("thead", null, h("tr", null,
             h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
             h("th", null, "상태"), h("th", null, "탐지 시각"), h("th", { className: "right" }, "알림"))),
-          h("tbody", null, shown.map((n) => h("tr", { key: n.nodeId },
+          h("tbody", null, shown.map((n) => h("tr", { key: n.nodeId, className: "click-row", onClick: () => void openViewer(n.nodeId, "note") },
             h("td", null, n.title),
             h("td", { className: "mono" }, n.updatedBy ?? "—"),
             h("td", null, h("div", { className: "chips" }, typeChips(n.types))),
             h("td", null, piiStatusLabel(n.status)),
             h("td", { className: "mono" }, n.detectedAt?.slice(0, 16).replace("T", " ")),
             h("td", { className: "right" },
-              h("button", { className: "btn sm", disabled: busy === n.nodeId || !n.updatedBy, onClick: () => void notify(n.nodeId) }, "알림 보내기"))))))),
+              h("button", { className: "btn sm", disabled: busy === n.nodeId || !n.updatedBy, onClick: (e: React.MouseEvent) => { e.stopPropagation(); void notify(n.nodeId); } }, "알림 보내기"))))))),
 
     h("div", { style: { height: 22 } }),
     h(SecHead, { title: "예외 처리된 노트", hint: "관리자가 허용한 개인정보 예외 노트. 값이 바뀌면 자동으로 다시 탐지됩니다" }),
@@ -91,12 +100,21 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
           h("thead", null, h("tr", null,
             h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
             h("th", null, "탐지 시각"))),
-          h("tbody", null, exempted.map((n) => h("tr", { key: n.nodeId },
+          h("tbody", null, exempted.map((n) => h("tr", { key: n.nodeId, className: "click-row", onClick: () => void openViewer(n.nodeId, "exempted") },
             h("td", null, n.title),
             h("td", { className: "mono" }, n.updatedBy ?? "—"),
             h("td", null, h("div", { className: "chips" }, typeChips(n.types))),
             h("td", { className: "mono" }, n.detectedAt?.slice(0, 16).replace("T", " "))))))),
 
+    viewing && h(PiiNoteViewer, {
+      data: viewing.data,
+      source: viewing.source,
+      busy: busy === viewing.data.nodeId,
+      onApprove: () => { const id = viewing.data.nodeId; setViewing(null); void approve(id); },
+      onReject: () => { const { nodeId, title } = { nodeId: viewing.data.nodeId, title: viewing.data.title }; setViewing(null); setReject({ nodeId, title }); },
+      onNotice: () => { const id = viewing.data.nodeId; setViewing(null); void notify(id); },
+      onClose: () => setViewing(null),
+    }),
     reject && h(Modal, {
       icon: "ban", iconWarn: true, title: "예외 반려", confirmLabel: "반려", confirmDanger: true,
       onConfirm: () => { void doReject(); }, onClose: () => { setReject(null); setReason(""); },
