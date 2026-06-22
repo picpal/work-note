@@ -79,7 +79,7 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
     h(SecHead, { title: "전체 개인정보 노트", hint: "탐지된 모든 노트(허용 제외). 능동 알림 발송 가능" }),
     shown.length === 0
       ? h(Empty, { icon: "shield", title: "표시할 노트가 없습니다", desc: "탐지된 노트가 이곳에 나열됩니다." })
-      : h("div", { className: "table-wrap" }, h("table", { className: "atable" },
+      : h("div", { className: "table-wrap" }, h("table", { className: "atable pii-center-table" },
           h("thead", null, h("tr", { className: "pii-head-center" },
             h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
             h("th", null, "상태"), h("th", null, "탐지 시각"), h("th", { className: "right" }, "알림"))),
@@ -89,7 +89,7 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
             h("td", null, h("div", { className: "chips" }, typeChips(n.types))),
             h("td", null, piiStatusLabel(n.status)),
             h("td", { className: "mono" }, n.detectedAt?.slice(0, 16).replace("T", " ")),
-            h("td", { className: "right" },
+            h("td", null,
               h("button", { className: "btn sm", disabled: busy === n.nodeId || !n.updatedBy, onClick: (e: React.MouseEvent) => { e.stopPropagation(); void notify(n.nodeId); } }, "알림 보내기"))))))),
 
     h("div", { style: { height: 22 } }),

@@ -17,5 +17,7 @@
 .atable tr.click-row { cursor: pointer; }
 .atable tr.click-row:hover { background: var(--bg-sunken); }
 
-/* 전체 개인정보 노트 표 — 헤더(제목 영역) 가운데 정렬 */
+/* 전체 개인정보 노트 표 — 헤더·데이터 모두 가운데 정렬 */
 .atable thead tr.pii-head-center th { text-align: center; }
+.atable.pii-center-table tbody td { text-align: center; }
+.atable.pii-center-table tbody td .chips { justify-content: center; }
