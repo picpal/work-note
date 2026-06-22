@@ -111,7 +111,7 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
       source: viewing.source,
       busy: busy === viewing.data.nodeId,
       onApprove: () => { const id = viewing.data.nodeId; setViewing(null); void approve(id); },
-      onReject: () => { const { nodeId, title } = { nodeId: viewing.data.nodeId, title: viewing.data.title }; setViewing(null); setReject({ nodeId, title }); },
+      onReject: () => { const { nodeId, title } = viewing.data; setViewing(null); setReject({ nodeId, title }); },
       onNotice: () => { const id = viewing.data.nodeId; setViewing(null); void notify(id); },
       onClose: () => setViewing(null),
     }),

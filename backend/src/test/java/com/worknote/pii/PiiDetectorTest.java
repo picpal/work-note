@@ -73,4 +73,9 @@ class PiiDetectorTest {
         assertTrue(PiiDetector.scanMatches("").isEmpty());
         assertTrue(PiiDetector.scanMatches(null).isEmpty());
     }
+
+    @Test void 개행_가로지르면_미탐지() {   // [- \t]로 좁혀 \n은 구분자 아님 — 라인 포커스 정확성 보장
+        assertFalse(PiiDetector.detect("010\n1234\n5678").contains(PiiType.PHONE));
+        assertEquals(1, PiiDetector.scanMatches("전화 010-1234-5678").size());   // 한 줄 정상 표기는 그대로 탐지
+    }
 }

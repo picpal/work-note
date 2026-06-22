@@ -16,13 +16,13 @@ import java.util.regex.Pattern;
 public final class PiiDetector {
     private PiiDetector() {}
 
-    private static final Pattern RRN      = Pattern.compile("(?<!\\d)\\d{6}[-\\s]?[1-8]\\d{6}(?!\\d)");
-    private static final Pattern PHONE    = Pattern.compile("(?<!\\d)01[016789][-\\s]?\\d{3,4}[-\\s]?\\d{4}(?!\\d)");
+    private static final Pattern RRN      = Pattern.compile("(?<!\\d)\\d{6}[- \\t]?[1-8]\\d{6}(?!\\d)");
+    private static final Pattern PHONE    = Pattern.compile("(?<!\\d)01[016789][- \\t]?\\d{3,4}[- \\t]?\\d{4}(?!\\d)");
     private static final Pattern EMAIL    = Pattern.compile("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}");
     private static final Pattern CARD     = Pattern.compile("(?<!\\d)(?:\\d[ -]?){15}\\d(?!\\d)");
     private static final Pattern BIZ      = Pattern.compile("(?<!\\d)\\d{3}-\\d{2}-\\d{5}(?!\\d)");
     private static final Pattern PASSPORT = Pattern.compile("(?<![A-Z0-9])[A-Z]\\d{8}(?![A-Z0-9])");
-    private static final Pattern DRIVER   = Pattern.compile("(?<!\\d)\\d{2}[-\\s]?\\d{2}[-\\s]?\\d{6}[-\\s]?\\d{2}(?!\\d)");
+    private static final Pattern DRIVER   = Pattern.compile("(?<!\\d)\\d{2}[- \\t]?\\d{2}[- \\t]?\\d{6}[- \\t]?\\d{2}(?!\\d)");
 
     /** 탐지 결과 — 유형 집합 + 매치된 원문 스팬(값 기준 예외 비교용). */
     public record Scan(Set<PiiType> types, List<String> spans) {}
