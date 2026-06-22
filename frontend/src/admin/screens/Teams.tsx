@@ -153,7 +153,7 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
       teams.length === 0
         ? h(Empty, { icon: "users", title: "팀이 없습니다", desc: "팀을 생성하고 멤버를 추가하세요." })
         : h("div", { className: "table-wrap" },
-            h("table", { className: "atable" },
+            h("table", { className: "atable center-all" },
               h("thead", null, h("tr", null,
                 h("th", null, "팀 이름"), h("th", null, "멤버"), h("th", null, "스페이스"), h("th", { className: "right" }, "작업"))),
               h("tbody", null,
@@ -176,7 +176,7 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
         h("div", { className: "panel-body" },
           sel.members.length === 0
             ? h("div", { style: { fontSize: 12.5, color: "var(--text-3)", padding: "6px 0" } }, "멤버가 없습니다.")
-            : h("table", { className: "atable" },
+            : h("table", { className: "atable center-all" },
                 h("thead", null, h("tr", null,
                   h("th", null, "사번"), h("th", null, "이름"), h("th", { className: "right" }, ""))),
                 h("tbody", null,
@@ -224,7 +224,7 @@ export function Teams({ toast }: { toast: (msg: string, icon?: string) => void }
       spaces === null || tree === null
         ? h(SkeletonTable, { cols: 3, rows: 3 })
         : h("div", { className: "table-wrap" },
-            h("table", { className: "atable" },
+            h("table", { className: "atable center-all" },
               h("thead", null, h("tr", null,
                 h("th", null, "폴더"), h("th", null, "소유"), h("th", { className: "right" }, "작업"))),
               h("tbody", null,

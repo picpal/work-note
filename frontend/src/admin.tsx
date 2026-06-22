@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import "./styles/fonts.css";
 import "./styles/app.css";
 import "./styles/admin.css";
+import "./styles/admin-tables.css";
 import { setOn401 } from "./api/http";
 import { AdminApp } from "./admin/AdminApp";
 

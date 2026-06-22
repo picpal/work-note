@@ -46,7 +46,7 @@ export function Shares({ toast }: { toast: (msg: string, icon?: string) => void 
       : rows.length === 0
         ? h(Empty, { icon: "link", title: "활성 공유 링크가 없습니다" })
         : h("div", { className: "table-wrap" },
-            h("table", { className: "atable" },
+            h("table", { className: "atable center-all" },
               h("thead", null, h("tr", null,
                 h("th", null, "노트"), h("th", null, "생성자"), h("th", null, "생성일"),
                 h("th", null, "만료일"), h("th", null, "열람"), h("th", null, "대상"),

@@ -150,7 +150,7 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
       : rows.length === 0
         ? h(Empty, { icon: "history", title: "조건에 맞는 로그가 없습니다" })
         : h("div", { className: "table-wrap" },
-            h("table", { className: "atable" },
+            h("table", { className: "atable center-all" },
               h("thead", null, h("tr", null,
                 h("th", null, "일시"), h("th", null, "행위자"), h("th", null, "행위"),
                 h("th", null, "대상"), h("th", null, "IP / 단말"))),
