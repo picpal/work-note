@@ -21,3 +21,15 @@
 .atable thead tr.pii-head-center th { text-align: center; }
 .atable.pii-center-table tbody td { text-align: center; }
 .atable.pii-center-table tbody td .chips { justify-content: center; }
+
+/* 탐지 유형(3번째 컬럼): 헤더는 가운데 유지, 데이터(셀)만 왼쪽 정렬 */
+.atable.pii-center-table tbody td:nth-child(3) { text-align: left; }
+.atable.pii-center-table tbody td:nth-child(3) .chips { justify-content: flex-start; }
+
+/* 좁은 창에서 탐지 유형 컬럼 숨김 — 단 사이드바를 접으면(.anav-collapsed) 공간이 생기므로 다시 표시 */
+@media (max-width: 1140px) {
+  .pii-center-table th:nth-child(3),
+  .pii-center-table td:nth-child(3) { display: none; }
+  .admin.anav-collapsed .pii-center-table th:nth-child(3),
+  .admin.anav-collapsed .pii-center-table td:nth-child(3) { display: table-cell; }
+}
