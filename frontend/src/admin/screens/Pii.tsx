@@ -80,7 +80,7 @@ export function Pii({ toast }: { toast: (msg: string, icon?: string) => void }) 
     shown.length === 0
       ? h(Empty, { icon: "shield", title: "표시할 노트가 없습니다", desc: "탐지된 노트가 이곳에 나열됩니다." })
       : h("div", { className: "table-wrap" }, h("table", { className: "atable" },
-          h("thead", null, h("tr", null,
+          h("thead", null, h("tr", { className: "pii-head-center" },
             h("th", null, "노트"), h("th", null, "최종 수정자"), h("th", null, "탐지 유형"),
             h("th", null, "상태"), h("th", null, "탐지 시각"), h("th", { className: "right" }, "알림"))),
           h("tbody", null, shown.map((n) => h("tr", { key: n.nodeId, className: "click-row", onClick: () => void openViewer(n.nodeId, "note") },
