@@ -50,6 +50,15 @@ public class PiiController {
         return pii.adminList();
     }
 
+    @GetMapping("/admin/pii/notes/{id}/content")
+    public PiiContentResponse adminNoteContent(@PathVariable String id, HttpServletRequest req) {
+        UserRow u = user(req);
+        adminGuard.requireAdmin(u);
+        PiiContentResponse res = pii.noteContent(id);
+        audit.log(u, "pii.view", id, req.getRemoteAddr());
+        return res;
+    }
+
     @GetMapping("/admin/pii/requests")
     public List<Map<String, Object>> adminRequests(HttpServletRequest req) {
         adminGuard.requireAdmin(user(req));

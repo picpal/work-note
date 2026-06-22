@@ -78,4 +78,20 @@ class PiiApiTest {
         mvc.perform(post("/api/me/pii-notices/ack").contentType("application/json").content("{}"))
             .andExpect(status().isNoContent());
     }
+
+    @Test void admin_note_content_returns_body_and_matches() throws Exception {
+        nodes.insert(new NodeRow("pc1", null, "note", "고객정보", 1, "전화 010-1234-5678", "2026-06-14T00:00:00", null, null));
+        mvc.perform(get("/api/admin/pii/notes/pc1/content"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("고객정보"))
+            .andExpect(jsonPath("$.content").value("전화 010-1234-5678"))
+            .andExpect(jsonPath("$.matches[0].type").value("phone"))
+            .andExpect(jsonPath("$.matches[0].line").value(1))
+            .andExpect(jsonPath("$.matches[0].value").value("010-1234-5678"));
+    }
+
+    @Test void admin_note_content_404_for_missing() throws Exception {
+        mvc.perform(get("/api/admin/pii/notes/nope-xyz/content"))
+            .andExpect(status().isNotFound());
+    }
 }
