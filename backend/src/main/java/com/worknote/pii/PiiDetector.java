@@ -1,6 +1,7 @@
 package com.worknote.pii;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -25,6 +26,38 @@ public final class PiiDetector {
 
     /** 탐지 결과 — 유형 집합 + 매치된 원문 스팬(값 기준 예외 비교용). */
     public record Scan(Set<PiiType> types, List<String> spans) {}
+
+    /** 매치 위치 포함 — 라인/오프셋 산출용. start/end는 text 내 문자 인덱스. */
+    public record Match(PiiType type, int start, int end, String value) {}
+
+    /** 모든 패턴의 매치를 위치와 함께 수집(start 오름차순). CARD만 Luhn 통과. */
+    public static List<Match> scanMatches(String text) {
+        List<Match> out = new ArrayList<>();
+        if (text == null || text.isEmpty()) return out;
+        collectMatches(RRN, PiiType.RRN, text, out);
+        collectMatches(BIZ, PiiType.BIZ, text, out);
+        collectCardMatches(text, out);
+        collectMatches(PHONE, PiiType.PHONE, text, out);
+        collectMatches(EMAIL, PiiType.EMAIL, text, out);
+        collectMatches(PASSPORT, PiiType.PASSPORT, text, out);
+        collectMatches(DRIVER, PiiType.DRIVER, text, out);
+        out.sort(Comparator.comparingInt(Match::start));
+        return out;
+    }
+
+    private static void collectMatches(Pattern p, PiiType t, String text, List<Match> out) {
+        Matcher m = p.matcher(text);
+        while (m.find()) out.add(new Match(t, m.start(), m.end(), m.group()));
+    }
+
+    private static void collectCardMatches(String text, List<Match> out) {
+        Matcher m = CARD.matcher(text);
+        while (m.find()) {
+            if (luhn(m.group().replaceAll("[ -]", ""))) {
+                out.add(new Match(PiiType.CARD, m.start(), m.end(), m.group()));
+            }
+        }
+    }
 
     public static Set<PiiType> detect(String text) {
         return scan(text).types();

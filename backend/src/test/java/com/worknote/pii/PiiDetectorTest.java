@@ -52,4 +52,25 @@ class PiiDetectorTest {
     @Test void CSV_직렬화_정렬() {
         assertEquals("email,phone", PiiType.csv(Set.of(PiiType.PHONE, PiiType.EMAIL)));
     }
+
+    @Test void scanMatches_위치_포함() {
+        var ms = PiiDetector.scanMatches("연락처 010-1234-5678");
+        assertEquals(1, ms.size());
+        assertEquals(PiiType.PHONE, ms.get(0).type());
+        assertEquals("010-1234-5678", ms.get(0).value());
+        assertEquals(4, ms.get(0).start());   // "연락처 "=4자(공백 포함)
+    }
+
+    @Test void scanMatches_다중_등장순서() {
+        var ms = PiiDetector.scanMatches("a@b.com 그리고 010-1234-5678");
+        assertEquals(2, ms.size());
+        assertEquals(PiiType.EMAIL, ms.get(0).type());   // start 오름차순
+        assertEquals(PiiType.PHONE, ms.get(1).type());
+        assertTrue(ms.get(0).start() < ms.get(1).start());
+    }
+
+    @Test void scanMatches_빈텍스트() {
+        assertTrue(PiiDetector.scanMatches("").isEmpty());
+        assertTrue(PiiDetector.scanMatches(null).isEmpty());
+    }
 }
