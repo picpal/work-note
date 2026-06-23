@@ -1137,7 +1137,8 @@ button.topbar-me { font-family: var(--font-ui); }
 }
 
 /* 백링크 패널 */
-.backlinks { margin: 28px 0 64px; border-top: 1px solid var(--border); padding-top: 14px; }
+/* 본문 .doc(max-width 760·중앙정렬·좌우 패딩 32)과 동일한 박스로 맞춰 좌측 라인을 본문 텍스트에 정렬 */
+.backlinks { max-width: 760px; margin: 28px auto 64px; border-top: 1px solid var(--border); padding: 14px 32px 0; }
 .backlinks .bl-head {
   display: flex; align-items: center; gap: 6px; background: none; border: none;
   color: var(--text-2); font-size: 13px; cursor: pointer; padding: 4px 0;
