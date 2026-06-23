@@ -11,7 +11,7 @@ import { syntaxTree, StreamLanguage, HighlightStyle, syntaxHighlighting } from "
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { history, historyKeymap, defaultKeymap, indentMore, indentLess } from "@codemirror/commands";
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import { autocompletion, completionKeymap, completionStatus, currentCompletions, selectedCompletion, moveCompletionSelection, acceptCompletion } from "@codemirror/autocomplete";
 import { tags as t } from "@lezer/highlight";
 // language packages (for nested highlighting inside fenced code blocks)
 import { sql } from "@codemirror/lang-sql";
@@ -427,18 +427,30 @@ export interface CreateOpts {
   wikiCandidates?: () => WikiCandidate[];  // [[ 자동완성 후보
 }
 
+// [[ 자동완성 드롭다운이 열려 후보가 하나라도 있으면, 방향키로 선택하지 않았어도 Enter로 첫 후보를 삽입.
+// 기본 acceptCompletion은 selected<0일 때 false를 반환해 그대로 개행으로 빠지므로, 선택이 없으면 첫 후보로 이동시킨 뒤 수락한다.
+function acceptCompletionOnEnter(view: EditorView): boolean {
+  if (completionStatus(view.state) !== "active") return false;   // 자동완성 미활성 → 기본 Enter(개행)
+  if (currentCompletions(view.state).length === 0) return false; // 후보 없음 → 개행
+  if (!selectedCompletion(view.state)) moveCompletionSelection(true)(view); // 선택 없으면 첫 후보로
+  return acceptCompletion(view);
+}
+
 export function create(parent: Element, opts?: CreateOpts): EditorView {
   const { doc = "", onChange, onFocusEditable, wiki, wikiCandidates } = opts || {}; // onFocusEditable: reserved: read-only 모드용 (프로토타입 계승)
   const state = EditorState.create({
     doc,
     extensions: [
       history(),
-      keymap.of([...completionKeymap, { key: "Tab", run: tabInCode, shift: shiftTabInCode }, ...defaultKeymap, ...historyKeymap]),
+      keymap.of([{ key: "Enter", run: acceptCompletionOnEnter }, ...completionKeymap, { key: "Tab", run: tabInCode, shift: shiftTabInCode }, ...defaultKeymap, ...historyKeymap]),
       markdown({ base: markdownLanguage, extensions: GFM, addKeymap: true, codeLanguages: codeLanguageFor }),
       syntaxHighlighting(codeHighlight),
       autocompletion({
         override: wikiCandidates ? [fenceCompletion, wikilinkCompletion(wikiCandidates)] : [fenceCompletion],
         activateOnTyping: true, icons: false,
+        // 검색어 타이핑 직후 곧바로 Enter를 쳐도 후보가 수락되도록 상호작용 지연 제거(기본 75ms margin은
+        // 빠른 Enter를 무시해 개행으로 빠지게 한다 — [[ 위키링크에선 즉시 수락이 의도된 동작).
+        interactionDelay: 0,
       }),
       EditorView.lineWrapping,
       codeFenceInput,
