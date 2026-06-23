@@ -212,7 +212,7 @@ button { font-family: inherit; cursor: pointer; }
   white-space: nowrap;
 }
 .row:hover { background: var(--bg-hover); }
-.row.active { background: var(--bg-active); color: var(--ink); font-weight: 550; box-shadow: inset 2px 0 0 var(--ink); }
+.row.active { background: var(--bg-active); color: var(--ink); font-weight: 550; }
 .row .twirl {
   width: 16px; height: 16px; flex: none; display: grid; place-items: center;
   color: var(--text-3); transition: transform .15s; margin-left: -2px;
