@@ -1152,3 +1152,5 @@ button.topbar-me { font-family: var(--font-ui); }
   padding: 6px 8px; border-radius: 6px; font-size: 13.5px;
 }
 .backlinks .bl-item:hover { background: var(--bg-active); }
+.backlinks .bl-item svg { width: 15px; height: 15px; flex: none; color: var(--text-3); }
+.backlinks .bl-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
