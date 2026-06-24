@@ -35,6 +35,7 @@
   --border-soft:  #eeeeeb;
   --border-strong:#d9d9d4;
   --ink:          #1c1c1a;
+  --link:         #2f6fdb;
   --text:         #2a2a27;
   --text-2:       #6b6b64;
   --text-3:       #9a9a92;
@@ -70,6 +71,7 @@
   --border-soft:  #232220;
   --border-strong:#3a3833;
   --ink:          #ededea;
+  --link:         #6fa8ff;
   --text:         #dcdbd6;
   --text-2:       #9d9b93;
   --text-3:       #6f6d65;
@@ -880,6 +882,26 @@ button.topbar-me { font-family: var(--font-ui); }
 .cm-completionLabel { color: inherit; }
 .cm-completionMatchedText { text-decoration: none; font-weight: 700; color: var(--ink); }
 .cm-completionIcon { display: none; }
+
+/* 위키링크 [[ 후보: 노트명(좌, 노트 아이콘) / 폴더 경로(우, 폴더 아이콘·흐림)로 직관 구분.
+   detail은 위키링크 항목만 가지므로(코드 키워드 자동완성엔 detail 없음) 이 스타일은 위키링크 전용. */
+.cm-tooltip-autocomplete > ul > li:has(.cm-completionDetail) .cm-completionLabel::before {
+  content: ""; display: inline-block; width: 13px; height: 13px; margin-right: 7px; vertical-align: -2.5px;
+  background: var(--text-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v5h5'/%3E%3Cpath d='M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v5h5'/%3E%3Cpath d='M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+.cm-completionDetail {
+  margin-left: auto; padding-left: 16px; flex: none;
+  font-style: normal; font-size: 11px; color: var(--text-faint);
+  font-family: var(--font-ui); white-space: nowrap;
+}
+.cm-completionDetail::before {
+  content: ""; display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1.5px;
+  background: var(--text-faint);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E") center/contain no-repeat;
+}
 .cm-fallback {
   width: 100%; min-height: 52vh; border: none; outline: none; resize: none;
   background: transparent; font-family: var(--font-ui); font-size: var(--reading-size);
@@ -1127,11 +1149,11 @@ button.topbar-me { font-family: var(--font-ui); }
 
 /* 위키링크 — 에디터 토큰 + 공유/미리보기 a */
 .cm-wikilink, .md a.wikilink {
-  color: var(--ink); cursor: pointer;
-  border-bottom: 1px solid var(--border-strong);
+  color: var(--link); cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--link) 50%, transparent);
   transition: color .12s ease, border-color .12s ease;
 }
-.cm-wikilink:hover, .md a.wikilink:hover { border-bottom-color: var(--ink); }
+.cm-wikilink:hover, .md a.wikilink:hover { border-bottom-color: var(--link); }
 .cm-wikilink.broken, .md a.wikilink.broken {
   color: var(--text-faint); cursor: not-allowed; border-bottom-style: dotted;
 }
