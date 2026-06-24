@@ -214,6 +214,22 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, ready]);
 
+  // 노트 네비게이션 ↔ 브라우저 history: 노트 전환을 history에 쌓아 뒤로/앞으로가기로 이전 노트를 복원.
+  const navByPop = useRef(false);
+  useEffect(() => {
+    if (!ready) return;
+    if (navByPop.current) { navByPop.current = false; return; }   // popstate가 유발한 전환은 다시 push하지 않음(루프 방지)
+    if (history.state && "wnNote" in history.state) history.pushState({ wnNote: activeId }, "");
+    else history.replaceState({ wnNote: activeId }, "");          // 첫 진입은 현재 노트로 치환(중복 항목 방지)
+  }, [activeId, ready]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      if (e.state && "wnNote" in e.state) { navByPop.current = true; setActiveId(e.state.wnNote as string | null); }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [setActiveId]);
+
   // ---- note ops ----
   const openNote = useCallback((note: { id: string }) => { setActiveId(note.id); }, []);
   // 브레드크럼 폴더 클릭 → 사이드바에서 펼치고(open), 그 폴더의 첫 노트를 연다.
