@@ -1177,3 +1177,22 @@ button.topbar-me { font-family: var(--font-ui); }
 .backlinks .bl-item:hover { background: var(--bg-active); }
 .backlinks .bl-item svg { width: 15px; height: 15px; flex: none; color: var(--text-3); }
 .backlinks .bl-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================================
+   Redmine 임포트 — 분할 패널
+   ============================================================ */
+.rm-split { display: flex; min-height: 0; flex: 1; }
+.rm-split.row { flex-direction: row; }
+.rm-split.column { flex-direction: column; }
+.rm-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  border-right: 1px solid var(--border); background: var(--bg); }
+.rm-split.column .rm-panel { border-right: none; border-bottom: 1px solid var(--border); }
+.rm-panel-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+.rm-issue-list { overflow: auto; flex: 1; }
+.rm-issue { padding: 8px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.rm-issue:hover { background: var(--bg-active); }
+.rm-issue .rm-id { color: var(--text-3); font-family: var(--font-mono); font-size: 12px; }
+.rm-detail { overflow: auto; flex: 1; padding: 14px; }
+.rm-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
+.rm-block-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.rm-insert-btn { font-size: 12px; }
