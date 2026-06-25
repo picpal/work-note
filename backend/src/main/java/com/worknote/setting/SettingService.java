@@ -7,12 +7,14 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** app_setting 기반 런타임 설정. 업로드 정책 + 2FA 유예 일수. */
+/** app_setting 기반 런타임 설정. 업로드 정책 + 2FA 유예 일수 + Redmine 연동. */
 @Service
 public class SettingService {
     static final String KEY_EXT = "upload.allowed_ext";
     static final String KEY_MAX = "upload.max_bytes";
     static final String KEY_GRACE_DAYS = "2fa.grace_days";
+    static final String KEY_REDMINE_ENABLED = "redmine.enabled";
+    static final String KEY_REDMINE_BASE_URL = "redmine.base_url";
     private static final long DEFAULT_MAX = 26214400L; // seed 누락 시 안전망
     private static final int DEFAULT_GRACE_DAYS = 7;   // seed 누락/손상 시 안전망
 
@@ -44,6 +46,27 @@ public class SettingService {
         long maxBytes = (max == null || max.isBlank()) ? DEFAULT_MAX : Long.parseLong(max.trim());
         return UploadPolicy.of(list, maxBytes);
     }
+
+    // ─── Redmine 연동 설정 ────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public boolean redmineEnabled() {
+        return "1".equals(mapper.get(KEY_REDMINE_ENABLED));
+    }
+
+    @Transactional(readOnly = true)
+    public String redmineBaseUrl() {
+        String v = mapper.get(KEY_REDMINE_BASE_URL);
+        return v == null ? "" : v.trim();
+    }
+
+    @Transactional
+    public void setRedmine(boolean enabled, String baseUrl) {
+        mapper.put(KEY_REDMINE_ENABLED, enabled ? "1" : "0");
+        mapper.put(KEY_REDMINE_BASE_URL, baseUrl == null ? "" : baseUrl.trim());
+    }
+
+    // ─── 업로드 정책 ─────────────────────────────────────────────────────
 
     @Transactional
     public void setUploadPolicy(List<String> exts, long maxBytes) {

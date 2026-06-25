@@ -18,10 +18,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 관리자 업로드 정책 조회/변경. app_setting을 단일 출처로. */
+/** 관리자 업로드 정책 조회/변경 + Redmine 연동 설정. app_setting을 단일 출처로. */
 @RestController
 @RequestMapping("/api/admin")
 public class AdminSettingController {
+
+    public record RedmineConfig(boolean enabled, String baseUrl) {}
 
     private final SettingService settings;
     private final AdminGuard guard;
@@ -52,5 +54,23 @@ public class AdminSettingController {
         settings.setUploadPolicy(body.allowedExt(), body.maxBytes());
         audit.log(u, "settings.upload",
             "ext=" + body.allowedExt().size() + " max=" + body.maxBytes(), req.getRemoteAddr());
+    }
+
+    // ─── Redmine 연동 설정 ─────────────────────────────────────────────────
+
+    @GetMapping("/settings/redmine")
+    public RedmineConfig getRedmine(HttpServletRequest req) {
+        guard.requireAdmin(user(req));
+        return new RedmineConfig(settings.redmineEnabled(), settings.redmineBaseUrl());
+    }
+
+    @PutMapping("/settings/redmine")
+    public RedmineConfig setRedmine(@RequestBody RedmineConfig cfg, HttpServletRequest req) {
+        UserRow u = user(req);
+        guard.requireAdmin(u);
+        settings.setRedmine(cfg.enabled(), cfg.baseUrl());
+        audit.log(u, "settings.redmine",
+            "enabled=" + cfg.enabled() + " url=" + cfg.baseUrl(), req.getRemoteAddr());
+        return new RedmineConfig(settings.redmineEnabled(), settings.redmineBaseUrl());
     }
 }
