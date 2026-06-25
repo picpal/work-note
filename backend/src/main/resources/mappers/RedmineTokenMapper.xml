@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.redmine.RedmineTokenMapper">
+  <insert id="upsert">
+    INSERT INTO user_redmine_token (user_id, token_enc, redmine_login, last_verified_at, created_at)
+    VALUES (#{userId}, #{tokenEnc}, #{redmineLogin}, #{lastVerifiedAt}, #{createdAt})
+    ON CONFLICT(user_id) DO UPDATE SET
+      token_enc = excluded.token_enc,
+      redmine_login = excluded.redmine_login,
+      last_verified_at = excluded.last_verified_at
+  </insert>
+  <select id="find" resultType="com.worknote.redmine.RedmineTokenRow">
+    SELECT user_id AS userId, token_enc AS tokenEnc, redmine_login AS redmineLogin,
+           last_verified_at AS lastVerifiedAt, created_at AS createdAt
+    FROM user_redmine_token WHERE user_id = #{userId}
+  </select>
+  <delete id="delete">DELETE FROM user_redmine_token WHERE user_id = #{userId}</delete>
+</mapper>
