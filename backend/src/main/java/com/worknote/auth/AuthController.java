@@ -12,6 +12,7 @@ import com.worknote.auth.dto.RecoverVerifyRequest;
 import com.worknote.auth.totp.RecoveryService;
 import com.worknote.auth.totp.Totp2faPolicy;
 import com.worknote.auth.totp.TotpService;
+import com.worknote.redmine.RedmineTokenService;
 import com.worknote.vault.VaultException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -44,13 +45,16 @@ public class AuthController {
     private final RecoveryService recoveryService;
     private final UserMapper users;
     private final com.worknote.setting.SettingService settings;
+    private final RedmineTokenService redmineTokens;
     private final Clock clock;
     private final boolean serverMode;
 
     public AuthController(AuthService auth, RoleCaps roleCaps, AuditService audit,
                           TotpService totpService, RecoveryService recoveryService,
                           UserMapper users,
-                          com.worknote.setting.SettingService settings, Clock clock,
+                          com.worknote.setting.SettingService settings,
+                          RedmineTokenService redmineTokens,
+                          Clock clock,
                           @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
         this.roleCaps = roleCaps;
@@ -59,6 +63,7 @@ public class AuthController {
         this.recoveryService = recoveryService;
         this.users = users;
         this.settings = settings;
+        this.redmineTokens = redmineTokens;
         this.clock = clock;
         this.serverMode = "server".equals(mode);
     }
@@ -226,9 +231,10 @@ public class AuthController {
             throw AuthException.unauthorized("인증이 필요합니다");
         }
         // 1단계 호환 — caps도 실제 admin 시드로 채움 (프런트 caps 기반 UI 가드가 모드 무관하게 동작)
-        // local 모드는 2FA 무관 — TotpInfo 전부 false
+        // local 모드는 2FA/redmine 무관 — 전부 false
         return new MeResponse("local", "local", "local", null, "admin", roleCaps.of("admin"),
-            new MeResponse.TotpInfo(false, false, false, false));
+            new MeResponse.TotpInfo(false, false, false, false),
+            new MeResponse.RedmineInfo(false, false));
     }
 
     private MeResponse toMe(UserRow user, Set<String> caps) {
@@ -241,6 +247,7 @@ public class AuthController {
             settings.graceDays(), LocalDateTime.now(clock));
         boolean emailPresent = user.email() != null && !user.email().isBlank();
         return new MeResponse(user.id(), user.emp(), user.name(), user.email(), user.roleId(), caps,
-            new MeResponse.TotpInfo(enabled, enforced, graceExpired, emailPresent));
+            new MeResponse.TotpInfo(enabled, enforced, graceExpired, emailPresent),
+            new MeResponse.RedmineInfo(settings.redmineEnabled(), redmineTokens.hasToken(user.id())));
     }
 }
