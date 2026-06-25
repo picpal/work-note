@@ -1,6 +1,7 @@
 package com.worknote;
 
 import com.worknote.auth.AuthException;
+import com.worknote.redmine.RedmineException;
 import com.worknote.vault.VaultException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,5 +49,20 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, String>> tooLarge(MaxUploadSizeExceededException e) {
         return ResponseEntity.unprocessableEntity().body(Map.of("error", "파일이 너무 큽니다"));
+    }
+
+    @ExceptionHandler(RedmineException.Auth.class)
+    public ResponseEntity<Map<String, String>> redmineAuth(RedmineException.Auth e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(RedmineException.NotFound.class)
+    public ResponseEntity<Map<String, String>> redmineNotFound(RedmineException.NotFound e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(RedmineException.Upstream.class)
+    public ResponseEntity<Map<String, String>> redmineUpstream(RedmineException.Upstream e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
     }
 }
