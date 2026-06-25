@@ -61,3 +61,8 @@ export function actType(act: string): string {
 export function roleName(roleId: string, roles: ApiRole[]): string {
   return roles.find((r) => r.id === roleId)?.name ?? roleId;
 }
+
+const REDMINE_STATUS: Record<string, string> = {
+  "New": "신규", "In Progress": "진행 중", "Resolved": "해결", "Closed": "완료", "Rejected": "거부",
+};
+export function redmineStatusLabel(s: string): string { return REDMINE_STATUS[s] ?? s; }
