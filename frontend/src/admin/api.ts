@@ -93,6 +93,10 @@ export const AdminApi = {
   setUploadPolicy: (allowedExt: string[], maxBytes: number) =>
     req<void>("/admin/settings/upload", { method: "PUT", body: JSON.stringify({ allowedExt, maxBytes }) }),
 
+  getRedmineConfig: () => req<{ enabled: boolean; baseUrl: string }>("/admin/settings/redmine"),
+  setRedmineConfig: (cfg: { enabled: boolean; baseUrl: string }) =>
+    req<{ enabled: boolean; baseUrl: string }>("/admin/settings/redmine", { method: "PUT", body: JSON.stringify(cfg) }),
+
   piiNotes: () => req<ApiPiiNote[]>("/admin/pii/notes"),
   piiNoteContent: (nodeId: string) => req<ApiPiiContent>(`/admin/pii/notes/${encodeURIComponent(nodeId)}/content`),
   piiRequests: () => req<ApiPiiRequest[]>("/admin/pii/requests"),

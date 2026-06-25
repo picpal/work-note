@@ -16,6 +16,7 @@ export interface Me {
   email: string | null;
   caps: string[];
   totp?: TotpInfo;
+  redmine?: { enabled: boolean; tokenPresent: boolean };
 }
 
 export interface SignupForm {
