@@ -16,6 +16,7 @@ import { Shares } from "./screens/Shares";
 import { Audit } from "./screens/Audit";
 import { Pii } from "./screens/Pii";
 import { Uploads } from "./screens/Uploads";
+import { Redmine } from "./screens/Redmine";
 import { Security } from "./screens/Security";
 
 const { useState, useEffect, useCallback, useMemo } = React;
@@ -32,6 +33,7 @@ const NAV = [
   { id: "pii", label: "개인정보 점검", icon: "alert" },
   { id: "audit", label: "감사 로그", icon: "history" },
   { id: "uploads", label: "업로드 정책", icon: "image" },
+  { id: "redmine", label: "Redmine 연동", icon: "link" },
   { id: "security", label: "보안 설정", icon: "settings" },
 ];
 const TITLES: Record<string, [string, string]> = {
@@ -45,6 +47,7 @@ const TITLES: Record<string, [string, string]> = {
   pii: ["개인정보 점검", "PII 탐지 노트·예외 요청 처리"],
   audit: ["감사 로그", "보안 감사 추적"],
   uploads: ["업로드 정책", "첨부 허용 확장자·용량"],
+  redmine: ["Redmine 연동", "이슈 임포트 활성화·서버 주소"],
   security: ["보안 설정", "인증·세션 정책"],
 };
 
@@ -123,6 +126,7 @@ export function AdminApp() {
     pii: Pii,
     audit: Audit,
     uploads: Uploads,
+    redmine: Redmine,
     security: Security,
   };
   const Screen = screenMap[route] || Dashboard;

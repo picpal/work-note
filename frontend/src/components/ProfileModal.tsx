@@ -10,6 +10,7 @@ import { validatePasswordChange } from "./passwordValidation";
 import { validateProfile } from "./profileValidation";
 import { MIN_PASSWORD_LENGTH } from "../lib/passwordPolicy";
 import { SecurityTab } from "../account/SecurityTab";
+import { RedmineTab } from "../account/RedmineTab";
 import { useEscClose } from "../state/useEscClose";
 
 const h = React.createElement;
@@ -138,5 +139,7 @@ export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail
             h("button", { className: "pf-btn primary", onClick: changePw }, "비밀번호 변경"))),
         // 2FA 보안 탭 — http 모드 + totp 정보 있을 때만
         storageMode === "http" && totp != null && h("div", { className: "pf-sec", ref: securityRef },
-          h(SecurityTab, { totp, onChanged: onRefreshMe ?? (() => {}), toast })))));
+          h(SecurityTab, { totp, onChanged: onRefreshMe ?? (() => {}), toast })),
+        // Redmine 연동 — http 모드(관리자 활성 시에만 RedmineTab 내부에서 렌더)
+        storageMode === "http" && h(RedmineTab, { toast }))));
 }

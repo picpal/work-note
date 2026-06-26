@@ -28,6 +28,8 @@ import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { loadPending, clearAllPending } from "./state/pendingStore";
 import { useSession } from "./state/useSession";
 import { repository, storageMode } from "./storage";
+import * as cm from "./editor/cm";
+import { RedmineImportPanel } from "./components/RedmineImportPanel";
 import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
 import { useSettings } from "./state/useSettings";
@@ -71,6 +73,7 @@ export function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [redmineOpen, setRedmineOpen] = useState(false);
   const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -474,9 +477,25 @@ export function App() {
               }, b.cap
                 ? createElement("span", { className: "hcap" }, b.cap[0], createElement("sub", null, b.cap.slice(1)))
                 : createElement(Icon, { name: b.icon! })))
-          ))
+          )),
+        // Redmine 가져오기 — http 모드 + 관리자 연동 활성 시
+        storageMode === "http" && me?.redmine?.enabled && createElement(Fragment, { key: "redmine-tb" },
+          createElement("span", { className: "div" }),
+          createElement("button", {
+            className: "tb" + (redmineOpen ? " active" : ""), title: "Redmine 가져오기",
+            onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
+            onClick: () => setRedmineOpen((o) => !o),
+          }, createElement(Icon, { name: "link" })))
       ),
-      // document
+      // document (+ Redmine 임포트 도킹 패널 — 열리면 에디터 좌측에 분할)
+      createElement(
+        "div", { className: "rm-dock" },
+        redmineOpen && createElement("div", { className: "rm-dock-pane" },
+          createElement(RedmineImportPanel, {
+            onInsert: (md: string) => { const v = editorViewRef.current; if (v) cm.insertAtCursor(v, md); },
+            onClose: () => setRedmineOpen(false),
+            toast,
+          })),
       createElement(
         "div", { className: "doc-scroll" },
         activeNote
@@ -500,7 +519,7 @@ export function App() {
             items: backlinks.get(activeNote.id) || [],
             onOpen: openNote,
           })
-      ),
+      )),
       activeNote && createElement(Outline, {
         key: "ol-" + activeNote.id, content: activeNote.content, title: activeNote.title, viewRef: editorViewRef,
       }),
