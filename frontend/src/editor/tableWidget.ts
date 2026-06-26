@@ -1,6 +1,7 @@
 // tableWidget.ts — CodeMirror block 위젯: GFM 표를 편집 가능한 그리드로 렌더.
 // 셀=contenteditable(plaintext-only). 편집은 DOM 로컬, 커밋 시 문서 소스 재작성(Task 6+).
 import { EditorView, WidgetType } from "@codemirror/view";
+import { undo, redo } from "@codemirror/commands";
 import { syntaxTree } from "@codemirror/language";
 import { parseGfmTable, serializeGfmTable, insertRow, deleteRow, insertColumn, deleteColumn, setAlign, renderInline } from "./gfmTable";
 import type { TableModel, Align } from "./gfmTable";
@@ -150,6 +151,7 @@ export class TableWidget extends WidgetType {
     if (this.view.state.sliceDoc(range.from, range.to) === next) return; // no-op
     try {
       this.view.dispatch({ changes: { from: range.from, to: range.to, insert: next } });
+      this.source = next; // DOM이 표현하는 현재 소스로 갱신 — eq 스테일 방지(undo로 원본 복귀 시 재렌더 보장)
     } catch {
       /* 뷰가 파괴 중이면 무시 */
     }
@@ -194,12 +196,32 @@ export class TableWidget extends WidgetType {
     pendingFocus = focus;
     try {
       this.view.dispatch({ changes: { from: range.from, to: range.to, insert: next } });
+      this.source = next; // eq 스테일 방지(commit과 동일 — undo 후 재렌더 보장)
     } catch {
       pendingFocus = null;
     }
   }
 
+  /** 위젯 내부(셀/범위)의 Ctrl/Cmd+Z·Shift+Z·Y를 CM 히스토리로 라우팅.
+   *  위젯은 ignoreEvent=true라 CM 키맵이 못 받으므로 여기서 직접 undo/redo 호출.
+   *  undo 전엔 디바운스 미커밋분을 먼저 commit해 "내 마지막 동작" 단위로 되돌림(redo는 커밋 금지 — 리두 스택 보존).
+   *  stopPropagation으로 cell→wrap 버블에 의한 이중 처리 방지. */
+  protected maybeHistoryKey(e: KeyboardEvent): boolean {
+    if (!this.view) return false;
+    if (!(e.metaKey || e.ctrlKey)) return false;
+    const k = e.key.toLowerCase();
+    const isUndo = k === "z" && !e.shiftKey;
+    const isRedo = (k === "z" && e.shiftKey) || k === "y";
+    if (!isUndo && !isRedo) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    if (isUndo) { this.commit(); undo(this.view); }
+    else redo(this.view);
+    return true;
+  }
+
   protected onCellKey(e: KeyboardEvent, cell: HTMLElement): void {
+    if (this.maybeHistoryKey(e)) return;
     if (e.key === "Tab") {
       e.preventDefault();
       const cells = this.allCells();
@@ -364,6 +386,7 @@ export class TableWidget extends WidgetType {
   }
 
   protected onRangeKey(e: KeyboardEvent): void {
+    if (this.maybeHistoryKey(e)) return;
     if (!this.selectedRect) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") { e.preventDefault(); this.copyRange(); }
     else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); this.deleteRange(); }
