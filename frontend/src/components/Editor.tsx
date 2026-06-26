@@ -89,7 +89,9 @@ export function Editor(props: EditorProps) {
     let added = 0;
     let pos = at; // 여러 이미지 연속 삽입 시 길이만큼 전진
     for (const file of Array.from(files)) {
-      toast("업로드 중…");
+      // "업로드 중…"은 즉시 띄우지 않고 지연 표시한다. 확장자·용량 위반은 서버가 즉시 거부하므로,
+      // 로딩 토스트(스택형)와 거부 토스트가 위아래로 겹쳐 보였다 → 빠른 응답이면 로딩 토스트 자체를 안 띄움.
+      const slow = setTimeout(() => toast("업로드 중…"), 400);
       try {
         const res = await AttachmentApi.upload(cur.id, file);
         // 이미지는 본문에 인라인 미리보기 마크다운 삽입. 비이미지는 본문 표기 없이 첨부영역에만 등록.
@@ -103,6 +105,8 @@ export function Editor(props: EditorProps) {
         toast("첨부했습니다", "check");
       } catch (e) {
         toast(e instanceof ApiError ? e.message : "업로드 실패");
+      } finally {
+        clearTimeout(slow);
       }
     }
     if (added) setAttachVersion((n) => n + 1); // 첨부영역 새로고침
