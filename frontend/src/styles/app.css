@@ -1184,6 +1184,8 @@ button.topbar-me { font-family: var(--font-ui); }
 /* 도킹 — 에디터 영역을 [Redmine 패널 | 노트]로 분할(.doc-scroll 대체 grow 자식) */
 .rm-dock { flex: 1; display: flex; min-height: 0; }
 .rm-dock-pane { flex: 0 0 46%; min-width: 320px; display: flex; padding: 12px 0 12px 12px; }
+/* Icon SVG는 viewBox만 있어 제약 없으면 컨테이너 폭으로 팽창 — 패널 내 아이콘 크기 고정(헤더/검색/닫기) */
+.rm-dock-pane svg { width: 16px; height: 16px; flex: none; }
 .rm-split { display: flex; min-height: 0; flex: 1; }
 .rm-split.row { flex-direction: row; }
 .rm-split.column { flex-direction: column; }

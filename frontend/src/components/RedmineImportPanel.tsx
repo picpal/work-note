@@ -211,7 +211,7 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
         flexShrink: 0,
       },
     },
-      h(Icon, { name: "book" }),
+      h(Icon, { name: "download" }),
       h("span", { style: { fontWeight: 600, fontSize: 14, flex: 1 } }, "Redmine 이슈 임포트"),
       busy && h("span", { style: { fontSize: 12, color: "var(--text-3)" } }, "로딩 중…"),
       h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" })),

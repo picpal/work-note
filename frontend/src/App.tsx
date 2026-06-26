@@ -485,7 +485,7 @@ export function App() {
             className: "tb" + (redmineOpen ? " active" : ""), title: "Redmine 가져오기",
             onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
             onClick: () => setRedmineOpen((o) => !o),
-          }, createElement(Icon, { name: "link" })))
+          }, createElement(Icon, { name: "download" })))
       ),
       // document (+ Redmine 임포트 도킹 패널 — 열리면 에디터 좌측에 분할)
       createElement(
