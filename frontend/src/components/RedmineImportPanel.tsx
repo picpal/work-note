@@ -207,7 +207,7 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
         gap: 8,
         padding: "8px 14px",
         borderBottom: "1px solid var(--border)",
-        background: "var(--bg-2)",
+        background: "var(--bg-elev)",
         flexShrink: 0,
       },
     },

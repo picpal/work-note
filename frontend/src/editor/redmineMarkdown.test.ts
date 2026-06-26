@@ -21,8 +21,20 @@ describe("metaTableMd", () => {
 });
 
 describe("bodyMd", () => {
-  it("본문을 그대로 트림해 반환한다", () => {
-    expect(bodyMd(detail)).toBe("본문\n둘째줄\n");
+  it("본문을 트림 + 선행/후행 개행으로 분리한다", () => {
+    expect(bodyMd(detail)).toBe("\n본문\n둘째줄\n");
+  });
+});
+
+describe("블록 분리(선행 개행)", () => {
+  it("모든 블록은 선행 개행으로 시작 — 앞 내용과 붙지 않음", () => {
+    expect(metaTableMd(detail).startsWith("\n")).toBe(true);
+    expect(bodyMd(detail).startsWith("\n")).toBe(true);
+    expect(commentMd({ userName: "홍", createdOn: "x", notes: "n" }).startsWith("\n")).toBe(true);
+  });
+  it("본문 뒤 메타표 연속 삽입 시 표 앞에 빈 줄이 생긴다", () => {
+    const combined = bodyMd(detail) + metaTableMd(detail);
+    expect(combined).toContain("둘째줄\n\n| 상태 |");
   });
 });
 
