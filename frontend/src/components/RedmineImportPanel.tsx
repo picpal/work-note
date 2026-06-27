@@ -200,8 +200,8 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
         busy && h("span", { className: "rm-modal-busy" }, "로딩 중…"),
         h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" })),
       ),
-      /* 분할 패널 */
-      h("div", { className: `rm-split ${dir}` },
+      /* 분할 패널 — dir(row|column)을 rm- 접두 클래스로 매핑(전역 .row 충돌 방지) */
+      h("div", { className: `rm-split ${dir === "row" ? "rm-row" : "rm-col"}` },
         panelLeft,
         panelRight,
       ),

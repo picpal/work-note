@@ -1191,12 +1191,13 @@ button.topbar-me { font-family: var(--font-ui); }
 .rm-modal-busy { font-size: 12px; color: var(--text-3); }
 /* Icon SVG는 viewBox만 있어 제약 없으면 컨테이너 폭으로 팽창 — 모달 내 아이콘 크기 고정(헤더/검색/닫기) */
 .rm-modal svg { width: 16px; height: 16px; flex: none; }
-.rm-split { display: flex; min-height: 0; flex: 1; }
-.rm-split.row { flex-direction: row; }
-.rm-split.column { flex-direction: column; }
+/* 분할 방향 클래스는 rm- 접두 — 전역 .row(트리 행: height/align-items 고정) 충돌 방지 */
+.rm-split { display: flex; min-height: 0; flex: 1; align-items: stretch; }
+.rm-split.rm-row { flex-direction: row; }
+.rm-split.rm-col { flex-direction: column; }
 .rm-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0;
   border-right: 1px solid var(--border); background: var(--bg); }
-.rm-split.column .rm-panel { border-right: none; border-bottom: 1px solid var(--border); }
+.rm-split.rm-col .rm-panel { border-right: none; border-bottom: 1px solid var(--border); }
 .rm-panel-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
 .rm-issue-list { overflow: auto; flex: 1; }
 .rm-issue { padding: 8px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
