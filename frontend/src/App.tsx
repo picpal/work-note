@@ -487,15 +487,7 @@ export function App() {
             onClick: () => setRedmineOpen((o) => !o),
           }, createElement(Icon, { name: "download" })))
       ),
-      // document (+ Redmine 임포트 도킹 패널 — 열리면 에디터 좌측에 분할)
-      createElement(
-        "div", { className: "rm-dock" },
-        redmineOpen && createElement("div", { className: "rm-dock-pane" },
-          createElement(RedmineImportPanel, {
-            onInsert: (md: string) => { const v = editorViewRef.current; if (v) cm.insertAtCursor(v, md); },
-            onClose: () => setRedmineOpen(false),
-            toast,
-          })),
+      // document (Redmine 임포트는 중앙 모달 — 하단 모달 섹션에서 렌더)
       createElement(
         "div", { className: "doc-scroll" },
         activeNote
@@ -519,7 +511,7 @@ export function App() {
             items: backlinks.get(activeNote.id) || [],
             onOpen: openNote,
           })
-      )),
+      ),
       activeNote && createElement(Outline, {
         key: "ol-" + activeNote.id, content: activeNote.content, title: activeNote.title, viewRef: editorViewRef,
       }),
@@ -552,6 +544,11 @@ export function App() {
     trashOpen && createElement(TrashModal, { onClose: () => setTrashOpen(false), toast, onRestored: rawActions.reload }),
     shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
     moveTarget && createElement(MoveModal, { node: moveTarget, tree, onMove: actions.move, onClose: () => setMoveTarget(null), toast }),
+    redmineOpen && createElement(RedmineImportPanel, {
+      onInsert: (md: string) => { const v = editorViewRef.current; if (v) cm.insertAtCursor(v, md); },
+      onClose: () => setRedmineOpen(false),
+      toast,
+    }),
     pendingWarn && createElement(MoveWarnDialog, {
       name: nodeName(pendingWarn.id),
       preview: pendingWarn.preview,

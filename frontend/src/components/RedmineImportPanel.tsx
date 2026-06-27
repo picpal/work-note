@@ -187,39 +187,24 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
     detail ? renderDetail(detail) : detailEmpty,
   );
 
-  /* ── 루트 레이아웃 ── */
-  return h("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      height: "100%",
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: "var(--radius)",
-      overflow: "hidden",
-    },
-  },
-    /* 헤더 */
+  /* ── 루트 레이아웃 (중앙 모달 — 오버레이 클릭 시 닫힘) ── */
+  return h("div", { className: "pf-overlay", onMouseDown: onClose },
     h("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "8px 14px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-elev)",
-        flexShrink: 0,
-      },
+      className: "rm-modal",
+      onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
     },
-      h(Icon, { name: "download" }),
-      h("span", { style: { fontWeight: 600, fontSize: 14, flex: 1 } }, "Redmine 이슈 임포트"),
-      busy && h("span", { style: { fontSize: 12, color: "var(--text-3)" } }, "로딩 중…"),
-      h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" })),
-    ),
-    /* 분할 패널 */
-    h("div", { className: `rm-split ${dir}`, style: { flex: 1, minHeight: 0 } },
-      panelLeft,
-      panelRight,
+      /* 헤더 */
+      h("div", { className: "rm-modal-head" },
+        h(Icon, { name: "download" }),
+        h("span", { className: "rm-modal-title" }, "Redmine 이슈 임포트"),
+        busy && h("span", { className: "rm-modal-busy" }, "로딩 중…"),
+        h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" })),
+      ),
+      /* 분할 패널 */
+      h("div", { className: `rm-split ${dir}` },
+        panelLeft,
+        panelRight,
+      ),
     ),
   );
 }

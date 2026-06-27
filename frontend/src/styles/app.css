@@ -1181,11 +1181,16 @@ button.topbar-me { font-family: var(--font-ui); }
 /* ============================================================
    Redmine 임포트 — 분할 패널
    ============================================================ */
-/* 도킹 — 에디터 영역을 [Redmine 패널 | 노트]로 분할(.doc-scroll 대체 grow 자식) */
-.rm-dock { flex: 1; display: flex; min-height: 0; }
-.rm-dock-pane { flex: 0 0 46%; min-width: 320px; display: flex; padding: 12px 0 12px 12px; }
-/* Icon SVG는 viewBox만 있어 제약 없으면 컨테이너 폭으로 팽창 — 패널 내 아이콘 크기 고정(헤더/검색/닫기) */
-.rm-dock-pane svg { width: 16px; height: 16px; flex: none; }
+/* 중앙 모달 — .pf-overlay(공유 오버레이) 안의 넓은 카드. 내부는 [검색/목록 | 상세] 분할 */
+.rm-modal { width: min(960px, 94vw); height: 80vh; display: flex; flex-direction: column;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-pop); overflow: hidden; }
+.rm-modal-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); background: var(--bg-elev); flex-shrink: 0; }
+.rm-modal-title { font-weight: 600; font-size: 14px; flex: 1; }
+.rm-modal-busy { font-size: 12px; color: var(--text-3); }
+/* Icon SVG는 viewBox만 있어 제약 없으면 컨테이너 폭으로 팽창 — 모달 내 아이콘 크기 고정(헤더/검색/닫기) */
+.rm-modal svg { width: 16px; height: 16px; flex: none; }
 .rm-split { display: flex; min-height: 0; flex: 1; }
 .rm-split.row { flex-direction: row; }
 .rm-split.column { flex-direction: column; }
