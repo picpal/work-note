@@ -477,7 +477,7 @@ export function create(parent: Element, opts?: CreateOpts): EditorView {
 /** 커서(또는 선택 영역)를 text로 치환하고 캐럿을 삽입 끝으로 옮긴다 — 첨부 업로드 후 마크다운 삽입용. */
 export function insertAtCursor(view: EditorView, text: string): void {
   const { from, to } = view.state.selection.main;
-  view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
+  view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, scrollIntoView: true });
   view.focus();
 }
 

@@ -545,7 +545,7 @@ export function App() {
     shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
     moveTarget && createElement(MoveModal, { node: moveTarget, tree, onMove: actions.move, onClose: () => setMoveTarget(null), toast }),
     redmineOpen && createElement(RedmineImportPanel, {
-      onInsert: (md: string) => { const v = editorViewRef.current; if (v) cm.insertAtCursor(v, md); },
+      onInsert: (md: string): boolean => { const v = editorViewRef.current; if (!v) return false; cm.insertAtCursor(v, md); return true; },
       onClose: () => setRedmineOpen(false),
       toast,
     }),

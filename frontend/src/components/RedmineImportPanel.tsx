@@ -11,7 +11,7 @@ import { Icon } from "./Icon";
 const h = React.createElement;
 
 interface Props {
-  onInsert: (md: string) => void;
+  onInsert: (md: string) => boolean; // 노트에 삽입 — 성공(열린 노트 있음) 여부 반환
   onClose: () => void;
   toast?: (m: string, i?: string) => void;
 }
@@ -46,6 +46,14 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
     else if (msg === "redmine_token_invalid") toast?.("Redmine 키가 유효하지 않습니다. 프로필에서 갱신하세요");
     else toast?.(msg);
   }, [toast]);
+
+  /* 노트에 삽입 + 피드백 토스트(모달이 에디터를 가리므로 삽입됐는지 사용자가 알 수 있게).
+     토스트는 z-index 3000 > 모달 2100 이라 모달 위에 표시된다. emptyMsg 지정 시 내용이 비면 가드. */
+  const doInsert = (md: string, emptyMsg?: string) => {
+    if (emptyMsg && !md.trim()) { toast?.(emptyMsg); return; }
+    const ok = onInsert(md);
+    toast?.(ok ? "노트에 삽입했습니다" : "열린 노트가 없습니다", ok ? "check" : undefined);
+  };
 
   /* 검색 */
   const search = useCallback(async () => {
@@ -153,7 +161,7 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
       h("div", { className: "rm-block" },
         h("div", { className: "rm-block-head" },
           h("span", { style: { fontSize: 12 } }, "메타 정보"),
-          h("button", { className: "rm-insert-btn", onClick: () => onInsert(metaTableMd(d)), title: "메타 정보 삽입" }, "[삽입]"),
+          h("button", { className: "rm-insert-btn", onClick: () => doInsert(metaTableMd(d)), title: "메타 정보 삽입" }, "[삽입]"),
         ),
         h("div", { style: { padding: "8px 10px", fontSize: 12, color: "var(--text-3)" } },
           `상태: ${redmineStatusLabel(d.statusName)} · 담당: ${d.assignedToName ?? "-"} · 우선순위: ${d.priorityName ?? "-"}`,
@@ -163,7 +171,7 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
       h("div", { className: "rm-block" },
         h("div", { className: "rm-block-head" },
           h("span", { style: { fontSize: 12 } }, "본문"),
-          h("button", { className: "rm-insert-btn", onClick: () => onInsert(bodyMd(d)), title: "본문 삽입" }, "[삽입]"),
+          h("button", { className: "rm-insert-btn", onClick: () => doInsert(bodyMd(d), "본문이 비어 있습니다"), title: "본문 삽입" }, "[삽입]"),
         ),
         h("div", { style: { padding: "8px 10px", fontSize: 12, color: "var(--text-3)", whiteSpace: "pre-wrap", maxHeight: 120, overflow: "auto" } },
           d.description ? d.description.slice(0, 300) + (d.description.length > 300 ? "…" : "") : "(본문 없음)",
@@ -174,7 +182,7 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
         h("div", { className: "rm-block", key: `${c.userName}-${c.createdOn}` },
           h("div", { className: "rm-block-head" },
             h("span", { style: { fontSize: 12 } }, `댓글 — ${c.userName} ${c.createdOn ? c.createdOn.slice(0, 10) : ""}`),
-            h("button", { className: "rm-insert-btn", onClick: () => onInsert(commentMd(c)), title: "댓글 삽입" }, "[삽입]"),
+            h("button", { className: "rm-insert-btn", onClick: () => doInsert(commentMd(c), "댓글이 비어 있습니다"), title: "댓글 삽입" }, "[삽입]"),
           ),
           h("div", { style: { padding: "8px 10px", fontSize: 12, color: "var(--text-3)", whiteSpace: "pre-wrap", maxHeight: 80, overflow: "auto" } },
             c.notes ? c.notes.slice(0, 200) + (c.notes.length > 200 ? "…" : "") : "(내용 없음)",
