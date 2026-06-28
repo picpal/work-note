@@ -18,7 +18,7 @@ export function RoleBadge({ role }: { role: string }) {
 }
 
 // ---- Modal ----
-export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDanger, onConfirm, onClose, wide }: {
+export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDanger, onConfirm, onClose, wide, closeX }: {
   icon?: string;
   iconWarn?: boolean;
   title: string;
@@ -28,6 +28,7 @@ export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDa
   onConfirm?: () => void;
   onClose: () => void;
   wide?: boolean; // 폼 모달(권한 그리드 등) — 폭↑ + 본문 좌패딩 정상화. 확인 다이얼로그는 기본(좁고 들여쓰기).
+  closeX?: boolean; // 우측 상단 X 닫기 버튼 — 확인 버튼 없는 보기 전용 모달(상세 보기 등)에서 사용. true면 하단 푸터 생략.
 }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -38,9 +39,10 @@ export function Modal({ icon, iconWarn, title, children, confirmLabel, confirmDa
     h("div", { className: "modal" + (wide ? " modal-wide" : ""), onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
       h("div", { className: "modal-head" },
         h("div", { className: "micon" + (iconWarn ? " warn" : "") }, h(Icon, { name: icon || "alert" })),
-        h("h3", null, title)),
+        h("h3", null, title),
+        closeX && h("button", { className: "modal-x", onClick: onClose, title: "닫기", "aria-label": "닫기" }, h(Icon, { name: "x" }))),
       h("div", { className: "modal-body" }, children),
-      h("div", { className: "modal-foot" },
+      (onConfirm || !closeX) && h("div", { className: "modal-foot" },
         h("button", { className: "btn", onClick: onClose }, onConfirm ? "취소" : "닫기"),
         onConfirm && h("button", { className: "btn " + (confirmDanger ? "danger" : "primary"), onClick: onConfirm }, confirmLabel || "확인"))));
 }

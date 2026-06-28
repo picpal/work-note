@@ -12,6 +12,7 @@ const { useState, useMemo } = React;
 const h = React.createElement;
 
 type ModalState =
+  | { kind: "detail"; user: ApiUser }
   | { kind: "deactivate"; user: ApiUser }
   | { kind: "resetPw"; user: ApiUser }
   | { kind: "role"; user: ApiUser }
@@ -26,14 +27,12 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
   const [q, setQ] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
-  const [selId, setSelId] = useState<string | null>(null);    // selected user for detail panel
   const [modal, setModal] = useState<ModalState>(null);
   const [busy, setBusy] = useState(false);
   const [pw, setPw] = useState("");                           // resetPw modal input
   const [pickRole, setPickRole] = useState("");               // role modal select
   const [form, setForm] = useState(EMPTY_FORM);               // create modal form
 
-  const sel = useMemo(() => users.find((u) => u.id === selId) ?? null, [users, selId]);
   const isMe = (u: ApiUser) => me?.id === u.id;
   // 마지막 로그인: ISO(마이크로초 포함) → "YYYY-MM-DD HH:MM:SS"
   const fmtLogin = (s: string | null) => (s ? s.replace("T", " ").slice(0, 19) : "—");
@@ -109,52 +108,49 @@ export function Users({ toast }: { toast: (msg: string, icon?: string) => void }
       h("select", { className: "aselect", value: status, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setStatus(e.target.value) },
         h("option", { value: "all" }, "전체 상태"),
         (["active", "disabled", "pending"] as const).map((s) => h("option", { key: s, value: s }, statusLabel(s))))),
-    h("div", { style: { display: "grid", gridTemplateColumns: sel ? "1fr 340px" : "1fr", gap: 16, alignItems: "start" } },
-      filtered.length === 0
-        ? h(Empty, { icon: "users", title: "조건에 맞는 사용자가 없습니다", desc: "검색어나 필터를 조정해 보세요." })
-        : h("div", { className: "table-wrap" },
-            h("table", { className: "atable" },
-              h("thead", null, h("tr", null,
-                h("th", null, "사번"), h("th", null, "이메일"), h("th", null, "역할"),
-                h("th", null, "상태"), h("th", null, "2FA"), h("th", { className: "col-lastlogin" }, "마지막 로그인"), h("th", { className: "center" }, "작업"))),
-              h("tbody", null,
-                filtered.map((u) => h("tr", { key: u.id, style: { cursor: "default" } },
-                  h("td", { className: "mono" }, u.emp),
-                  h("td", null, u.email ?? "—"),
-                  h("td", null, h(RoleBadge, { role: roleName(u.roleId, roles) })),
-                  h("td", null, h(StatusBadge, { status: statusLabel(u.status) })),
-                  h("td", null, u.totpEnabled
-                    ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "2FA")
-                    : h("span", { style: { color: "var(--text-3)" } }, "—")),
-                  h("td", { className: "muted mono col-lastlogin" }, fmtLogin(u.lastLogin)),
-                  h("td", null,
-                    h("div", { className: "actions actions-left" },
-                      h("button", { className: "lact", onClick: () => setSelId(u.id) }, "상세"),
-                      h("button", { className: "lact", disabled: busy, onClick: () => openResetPw(u) }, "비번 초기화"),
-                      u.status === "active" && h("button", { className: "lact danger", disabled: busy || isMe(u), title: isMe(u) ? "본인 계정은 변경할 수 없습니다" : undefined, onClick: () => setModal({ kind: "deactivate", user: u }) }, "비활성화"),
-                      u.status === "disabled" && h("button", { className: "lact", disabled: busy || isMe(u), onClick: () => void activate(u) }, "활성화"),
-                      u.totpEnabled && h("button", { className: "lact", disabled: busy, onClick: () => setModal({ kind: "resetTotp", user: u }) }, "2FA 초기화"))))))) ),
-      sel && h("div", { className: "panel" },
-        h("div", { className: "panel-head" }, h(Icon, { name: "user" }), "사용자 상세",
-          h("button", { className: "lact", style: { marginLeft: "auto" }, onClick: () => setSelId(null) }, h(Icon, { name: "x" }))),
-        h("div", { className: "panel-body" },
-          h("div", { className: "kv" },
-            h("div", { className: "row" }, h("span", { className: "k" }, "사번"), h("span", { className: "v mono" }, sel.emp)),
-            h("div", { className: "row" }, h("span", { className: "k" }, "이름"), h("span", { className: "v" }, sel.name)),
-            h("div", { className: "row" }, h("span", { className: "k" }, "이메일"), h("span", { className: "v" }, sel.email ?? "—")),
-            h("div", { className: "row" }, h("span", { className: "k" }, "역할"), h("span", { className: "v" }, h(RoleBadge, { role: roleName(sel.roleId, roles) }))),
-            h("div", { className: "row" }, h("span", { className: "k" }, "상태"), h("span", { className: "v" }, h(StatusBadge, { status: statusLabel(sel.status) }))),
-            h("div", { className: "row" }, h("span", { className: "k" }, "마지막 로그인"), h("span", { className: "v mono muted" }, fmtLogin(sel.lastLogin))),
-            h("div", { className: "row" }, h("span", { className: "k" }, "2FA"),
-              h("span", { className: "v" }, sel.totpEnabled
-                ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "활성")
-                : h("span", { style: { color: "var(--text-3)" } }, "미등록")))),
-          h("div", { style: { marginTop: 18, fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.6 } },
-            "리소스 단위 접근 권한은 권한 관리 화면에서 부여·회수합니다."),
-          h("div", { className: "btn-row", style: { marginTop: 18 } },
-            h("button", { className: "btn sm", disabled: busy || isMe(sel), title: isMe(sel) ? "본인 계정은 변경할 수 없습니다" : undefined, onClick: () => openRole(sel) }, "역할 변경"),
-            h("button", { className: "btn sm", disabled: busy, onClick: () => openResetPw(sel) }, "비밀번호 초기화"),
-            sel.totpEnabled && h("button", { className: "btn sm danger", disabled: busy, onClick: () => setModal({ kind: "resetTotp", user: sel }) }, "2FA 초기화"))))),
+    filtered.length === 0
+      ? h(Empty, { icon: "users", title: "조건에 맞는 사용자가 없습니다", desc: "검색어나 필터를 조정해 보세요." })
+      : h("div", { className: "table-wrap" },
+          h("table", { className: "atable" },
+            h("thead", null, h("tr", null,
+              h("th", null, "사번"), h("th", null, "이메일"), h("th", null, "역할"),
+              h("th", null, "상태"), h("th", null, "2FA"), h("th", { className: "col-lastlogin" }, "마지막 로그인"), h("th", { className: "center" }, "작업"))),
+            h("tbody", null,
+              filtered.map((u) => h("tr", { key: u.id, style: { cursor: "pointer" }, onClick: () => setModal({ kind: "detail", user: u }) },
+                h("td", { className: "mono" }, u.emp),
+                h("td", null, u.email ?? "—"),
+                h("td", null, h(RoleBadge, { role: roleName(u.roleId, roles) })),
+                h("td", null, h(StatusBadge, { status: statusLabel(u.status) })),
+                h("td", null, u.totpEnabled
+                  ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "2FA")
+                  : h("span", { style: { color: "var(--text-3)" } }, "—")),
+                h("td", { className: "muted mono col-lastlogin" }, fmtLogin(u.lastLogin)),
+                h("td", null,
+                  h("div", { className: "actions actions-left", onClick: (e: React.MouseEvent) => e.stopPropagation() },
+                    h("button", { className: "lact", disabled: busy, onClick: () => openResetPw(u) }, "비번 초기화"),
+                    u.status === "active" && h("button", { className: "lact danger", disabled: busy || isMe(u), title: isMe(u) ? "본인 계정은 변경할 수 없습니다" : undefined, onClick: () => setModal({ kind: "deactivate", user: u }) }, "비활성화"),
+                    u.status === "disabled" && h("button", { className: "lact", disabled: busy || isMe(u), onClick: () => void activate(u) }, "활성화"),
+                    u.totpEnabled && h("button", { className: "lact", disabled: busy, onClick: () => setModal({ kind: "resetTotp", user: u }) }, "2FA 초기화")))))))),
+    modal?.kind === "detail" && h(Modal, {
+      icon: "user", title: "사용자 상세", wide: true, closeX: true, onClose: () => setModal(null),
+    },
+      h("div", { className: "kv" },
+        h("div", { className: "row" }, h("span", { className: "k" }, "사번"), h("span", { className: "v mono" }, modal.user.emp)),
+        h("div", { className: "row" }, h("span", { className: "k" }, "이름"), h("span", { className: "v" }, modal.user.name)),
+        h("div", { className: "row" }, h("span", { className: "k" }, "이메일"), h("span", { className: "v" }, modal.user.email ?? "—")),
+        h("div", { className: "row" }, h("span", { className: "k" }, "역할"), h("span", { className: "v" }, h(RoleBadge, { role: roleName(modal.user.roleId, roles) }))),
+        h("div", { className: "row" }, h("span", { className: "k" }, "상태"), h("span", { className: "v" }, h(StatusBadge, { status: statusLabel(modal.user.status) }))),
+        h("div", { className: "row" }, h("span", { className: "k" }, "마지막 로그인"), h("span", { className: "v mono muted" }, fmtLogin(modal.user.lastLogin))),
+        h("div", { className: "row" }, h("span", { className: "k" }, "2FA"),
+          h("span", { className: "v" }, modal.user.totpEnabled
+            ? h("span", { className: "sec-badge sec-badge--on", style: { fontSize: 11 } }, "활성")
+            : h("span", { style: { color: "var(--text-3)" } }, "미등록")))),
+      h("div", { style: { marginTop: 18, fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.6 } },
+        "리소스 단위 접근 권한은 권한 관리 화면에서 부여·회수합니다."),
+      h("div", { className: "btn-row", style: { marginTop: 18 } },
+        h("button", { className: "btn sm", disabled: busy || isMe(modal.user), title: isMe(modal.user) ? "본인 계정은 변경할 수 없습니다" : undefined, onClick: () => openRole(modal.user) }, "역할 변경"),
+        h("button", { className: "btn sm", disabled: busy, onClick: () => openResetPw(modal.user) }, "비밀번호 초기화"),
+        modal.user.totpEnabled && h("button", { className: "btn sm danger", disabled: busy, onClick: () => setModal({ kind: "resetTotp", user: modal.user }) }, "2FA 초기화"))),
     modal?.kind === "deactivate" && h(Modal, {
       icon: "ban", iconWarn: true, title: "계정 비활성화", confirmLabel: "비활성화", confirmDanger: true,
       onConfirm: () => void deactivate(modal.user), onClose: () => setModal(null),
