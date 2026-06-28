@@ -1206,4 +1206,5 @@ button.topbar-me { font-family: var(--font-ui); }
 .rm-detail { overflow: auto; flex: 1; padding: 14px; }
 .rm-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
 .rm-block-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-.rm-insert-btn { font-size: 12px; }
+/* 모달 내 버튼(검색·삽입)은 프로젝트 모달 버튼(.pf-btn) 테마 + 컴팩트 사이즈 */
+.rm-modal .pf-btn { padding: 5px 11px; font-size: 12px; border-radius: 7px; flex: none; }
