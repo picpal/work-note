@@ -532,7 +532,7 @@ export function App() {
       onOpen: openNote,
     }),
     profileOpen && createElement(ProfileModal, {
-      emp: me ? me.emp : currentEmp, role: me ? me.roleId : "운영자", name: me?.name, email: me?.email,
+      emp: me ? me.emp : currentEmp, role: me ? me.roleId : "일반사용자", name: me?.name, email: me?.email,
       totp: me?.totp,
       initialSection: profileSection,
       onSaved: setMe,

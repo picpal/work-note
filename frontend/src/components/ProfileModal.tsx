@@ -99,7 +99,7 @@ export function ProfileModal({ emp, role, name: sessionName, email: sessionEmail
         h("span", { className: "pf-av" }, h(Icon, { name: "user" })),
         h("div", { className: "pf-id" },
           h("div", { className: "pf-emp" }, emp),
-          h("div", { className: "pf-role" }, role || "운영자")),
+          h("div", { className: "pf-role" }, role || "일반사용자")),
         h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" }))),
       h("div", { className: "pf-body" },
         // info section

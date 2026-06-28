@@ -74,6 +74,13 @@ class SchemaMigrationTest {
     }
 
     @Test
+    void v10_renamesOperatorRoleLabel() {
+        // id는 'operator' 그대로, 표시명만 '일반사용자'로 변경 (V10)
+        assertThat(jdbc.queryForObject("SELECT name FROM role WHERE id = 'operator'", String.class))
+            .isEqualTo("일반사용자");
+    }
+
+    @Test
     void seedRoleCaps_allKnownToWhitelist() throws Exception {
         // 시드 드리프트 가드: 새 cap을 시드에 추가하고 RoleAdminService.KNOWN_CAPS 갱신을 빠뜨리면 즉시 검출
         var json = new com.fasterxml.jackson.databind.ObjectMapper();
