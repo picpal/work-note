@@ -11,6 +11,9 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,11 +26,13 @@ public class UserAdminService {
     private final UserMapper users;
     private final RoleMapper roles;
     private final PermissionService perm;
+    private final Clock clock;
 
-    public UserAdminService(UserMapper users, RoleMapper roles, PermissionService perm) {
+    public UserAdminService(UserMapper users, RoleMapper roles, PermissionService perm, Clock clock) {
         this.users = users;
         this.roles = roles;
         this.perm = perm;
+        this.clock = clock;
     }
 
     public List<UserRow> list() {
@@ -94,6 +99,11 @@ public class UserAdminService {
             target.roleId(), ACTIVE, target.lastLogin());
         users.update(merged);
         return merged;
+    }
+
+    /** 관리자 2FA 초기화 동반 — 유예를 현재 시각으로 재시작(초기화당한 사용자가 즉시 재차단되지 않게). */
+    public void resetGrace(String id) {
+        users.setGraceStart(id, LocalDateTime.now(clock).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }
 
     @Transactional

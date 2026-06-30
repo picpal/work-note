@@ -100,6 +100,22 @@ class AdminUser2faResetTest {
     }
 
     @Test
+    void resetSetsFreshGrace() throws Exception {
+        // u2의 grace를 과거(만료)로 설정
+        jdbc.update("UPDATE app_user SET totp_grace_start = '2020-01-01T00:00:00' WHERE id = 'u2'");
+
+        MockHttpSession admin = adminLogin();
+        mvc.perform(post("/api/admin/users/u2/2fa/reset").session(admin))
+            .andExpect(status().isNoContent());
+
+        String grace = users.findGraceStart("u2");
+        assertThat(grace).isNotNull();
+        assertThat(grace).isNotEqualTo("2020-01-01T00:00:00");
+        // 최근 시각으로 갱신 — 연도가 2026 이상
+        assertThat(java.time.LocalDateTime.parse(grace).getYear()).isGreaterThanOrEqualTo(2026);
+    }
+
+    @Test
     void nonAdmin_reset_403() throws Exception {
         // 일반 사용자(operator, TOTP 없음) 로그인 후 관리자 전용 엔드포인트 → 403
         MockHttpSession op = new MockHttpSession();
