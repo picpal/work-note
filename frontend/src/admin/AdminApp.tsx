@@ -159,7 +159,12 @@ export function AdminApp() {
     return h(React.Fragment, null,
       h(TotpEnrollGate, {
         totp: me.totp,
-        onChanged: () => { AuthApi.me().then(setMe).catch(() => {}); },
+        onChanged: () => {
+          AuthApi.me().then((m) => {
+            setMe(m);
+            if (!(m.totp && mustEnrollNow(m.totp))) void reload();
+          }).catch(() => {});
+        },
         toast: toastPush,
         onLogout: () => { AuthApi.logout().finally(() => { location.href = "login.html"; }); },
       }),
