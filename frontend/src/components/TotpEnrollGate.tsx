@@ -24,7 +24,7 @@ export function TotpEnrollGate({ totp, onChanged, toast, onLogout }: Props) {
       boxShadow: "0 2px 16px rgba(0,0,0,.12)", padding: 32,
     } },
       h("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } },
-        h(Icon, { name: "shield" }),
+        h("span", { className: "totp-gate-ic" }, h(Icon, { name: "shield" })),
         h("h2", { style: { margin: 0, fontSize: 18, fontWeight: 600 } }, "2단계 인증 등록 필요")),
       h("p", { style: { margin: "0 0 20px", color: "var(--text-2)", lineHeight: 1.6, fontSize: 14 } },
         "관리자 계정은 보안 정책에 따라 2FA(TOTP) 등록을 완료해야 계속 사용할 수 있습니다. 인증 앱을 준비하고 아래 절차를 따라 등록을 완료하세요. 인증 앱을 쓸 수 없으면 다른 관리자에게 2FA 초기화를 요청하세요."),
