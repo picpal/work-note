@@ -1,7 +1,9 @@
 /* AdminApp — shell: left nav, topbar, screen routing. */
 import React from "react";
 import { Icon } from "../components/Icon";
-import { ApiError } from "../api/http";
+import { ApiError, setOn2faRequired } from "../api/http";
+import { mustEnrollNow } from "../lib/totp2fa";
+import { TotpEnrollGate } from "../components/TotpEnrollGate";
 import { AuthApi, type Me } from "../api/auth";
 import { AdminApi, type ApiRole, type ApiTeam, type ApiUser } from "./api";
 import { AdminDataContext } from "./useAdminData";
@@ -88,6 +90,7 @@ export function AdminApp() {
         if (!alive) return;
         if (!m.caps.includes("admin.users")) { location.href = "index.html"; return; }
         setMe(m);
+        if (m.totp && mustEnrollNow(m.totp)) return;   // 유예 만료 → 게이트가 렌더됨, admin 데이터 미조회
         void reload();
       })
       .catch((e) => {
@@ -113,6 +116,13 @@ export function AdminApp() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleCollapsed]);
+
+  // 세션 중 2FA 유예 만료(403) 시 me 재조회 → 게이트 노출 (loop-safe: me는 allowlist).
+  useEffect(() => {
+    setOn2faRequired(() => { AuthApi.me().then(setMe).catch(() => {}); });
+    return () => setOn2faRequired(null);
+  }, []);
+
   const go = (id: string) => { location.hash = id; setRoute(id); };
 
   const screenMap: Record<string, React.ComponentType<{ go: (id: string) => void; toast: (msg: string, icon?: string) => void }>> = {
@@ -143,6 +153,18 @@ export function AdminApp() {
     toast: toastPush,
   }), [me, data, reload, toastPush]);
   const loading = !me || !data;
+
+  // 2FA 유예 만료 관리자 → 강제 등록 게이트 (admin 셸 대신). 모든 hook 이후의 early-return.
+  if (me?.totp && mustEnrollNow(me.totp)) {
+    return h(React.Fragment, null,
+      h(TotpEnrollGate, {
+        totp: me.totp,
+        onChanged: () => { AuthApi.me().then(setMe).catch(() => {}); },
+        toast: toastPush,
+        onLogout: () => { AuthApi.logout().finally(() => { location.href = "login.html"; }); },
+      }),
+      toastNode);
+  }
 
   return h("div", { className: "admin" + (navCollapsed ? " anav-collapsed" : "") },
     // left nav
