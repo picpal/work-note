@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { req, ApiError, setOn401 } from "./http";
+import { req, ApiError, setOn401, is2faEnrollmentRequired, setOn2faRequired } from "./http";
 
 function jsonRes(status: number, body?: unknown): Response {
   return {
@@ -51,5 +51,40 @@ describe("req", () => {
   it("on401 미설치면 401도 그냥 throw", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(jsonRes(401, {}));
     await expect(req("/x")).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+describe("is2faEnrollmentRequired", () => {
+  it("403 + 2fa_enrollment_required 코드면 true", () => {
+    expect(is2faEnrollmentRequired(403, "2fa_enrollment_required")).toBe(true);
+  });
+  it("다른 403(권한 거부)은 false", () => {
+    expect(is2faEnrollmentRequired(403, "권한이 없습니다")).toBe(false);
+    expect(is2faEnrollmentRequired(403, undefined)).toBe(false);
+  });
+  it("403 외 상태는 false", () => {
+    expect(is2faEnrollmentRequired(401, "2fa_enrollment_required")).toBe(false);
+    expect(is2faEnrollmentRequired(200, "2fa_enrollment_required")).toBe(false);
+  });
+});
+
+describe("req 2fa_enrollment_required 핸들러", () => {
+  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  afterEach(() => { vi.unstubAllGlobals(); setOn401(null); setOn2faRequired(null); });
+
+  it("403 2fa_enrollment_required 시 on2faRequired 호출 + ApiError throw", async () => {
+    const h = vi.fn();
+    setOn2faRequired(h);
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(jsonRes(403, { error: "2fa_enrollment_required" }));
+    await expect(req("/admin/users")).rejects.toBeInstanceOf(ApiError);
+    expect(h).toHaveBeenCalledTimes(1);
+  });
+
+  it("다른 403은 on2faRequired 미호출", async () => {
+    const h = vi.fn();
+    setOn2faRequired(h);
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(jsonRes(403, { error: "권한이 없습니다" }));
+    await expect(req("/admin/users")).rejects.toBeInstanceOf(ApiError);
+    expect(h).not.toHaveBeenCalled();
   });
 });
