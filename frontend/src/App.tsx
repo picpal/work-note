@@ -21,7 +21,7 @@ import { canDropOn } from "./lib/dnd";
 import { VaultApi } from "./storage/VaultApi";
 import type { MovePreview } from "./storage/VaultApi";
 import { shouldWarn } from "./components/moveWarning";
-import { ApiError } from "./api/http";
+import { ApiError, setOn2faRequired } from "./api/http";
 import { AuthApi } from "./api/auth";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
@@ -42,7 +42,7 @@ import { exportCommands } from "./commands/exportCommands";
 import { SEED_DEFAULT_TITLE } from "./seed";
 import type { ToolbarHandlers } from "./components/Editor";
 import { mustEnrollNow, shouldNudge } from "./lib/totp2fa";
-import { SecurityTab } from "./account/SecurityTab";
+import { TotpEnrollGate } from "./components/TotpEnrollGate";
 
 // editor toolbar definition (velog base + diagrams/table/checklist)
 const TB_GROUPS: Array<Array<{ k: string; cap?: string; icon?: string; title?: string; fn: (h: ToolbarHandlers) => void }>> = [
@@ -91,6 +91,12 @@ export function App() {
   const { me, setMe, meReady, isAdmin, logout } = useSession();
   const [profileSection, setProfileSection] = useState<"security" | undefined>(undefined);
   const meLabel = me ? me.name + " (" + me.emp + ")" : currentEmp;
+
+  // 세션 중 2FA 유예 만료(403) 시 me 재조회 → 게이트 노출. me는 allowlist라 재요청이 다시 403되지 않음(loop-safe).
+  useEffect(() => {
+    setOn2faRequired(() => { AuthApi.me().then(setMe).catch(() => {}); });
+    return () => setOn2faRequired(null);
+  }, [setMe]);
 
   // ---- theme ----
   useEffect(() => {
@@ -376,27 +382,12 @@ export function App() {
   // ---- 2FA 강제 등록 게이트 (server 모드 + me.totp 존재 시) ----
   // local 모드는 me=null이므로 게이트 진입 없음.
   if (storageMode === "http" && me?.totp && mustEnrollNow(me.totp)) {
-    return createElement("div", { className: "totp-gate", style: {
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      minHeight: "100vh", gap: 24, padding: 32, background: "var(--bg-0)",
-    } },
-      createElement("div", { className: "totp-gate-box", style: {
-        maxWidth: 480, width: "100%", background: "var(--bg-1)", borderRadius: 12,
-        boxShadow: "0 2px 16px rgba(0,0,0,.12)", padding: 32,
-      } },
-        createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } },
-          createElement(Icon, { name: "shield" }),
-          createElement("h2", { style: { margin: 0, fontSize: 18, fontWeight: 600 } }, "2단계 인증 등록 필요")),
-        createElement("p", { style: { margin: "0 0 20px", color: "var(--text-2)", lineHeight: 1.6, fontSize: 14 } },
-          "관리자 계정은 보안 정책에 따라 2FA(TOTP) 등록을 완료해야 계속 사용할 수 있습니다. 인증 앱을 준비하고 아래 절차를 따라 등록을 완료하세요."),
-        createElement(SecurityTab, {
-          totp: me.totp,
-          onChanged: () => { AuthApi.me().then(setMe).catch(() => {}); },
-          toast: (msg, icon) => toast(msg, icon),
-        }),
-        createElement("div", { style: { marginTop: 20, borderTop: "1px solid var(--bd)", paddingTop: 16 } },
-          createElement("button", { className: "btn sm", onClick: logout }, "로그아웃")))
-    );
+    return createElement(TotpEnrollGate, {
+      totp: me.totp,
+      onChanged: () => { AuthApi.me().then(setMe).catch(() => {}); },
+      toast,
+      onLogout: logout,
+    });
   }
 
   // ---- 2FA 등록 권고 배너 (유예 기간 내, 강제 미만료) ----
