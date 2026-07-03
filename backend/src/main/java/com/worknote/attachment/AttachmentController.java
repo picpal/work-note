@@ -103,25 +103,26 @@ public class AttachmentController {
         audit.log(user, "attachment.remove", id + " -> " + row.nodeId(), req.getRemoteAddr());
     }
 
-    /** 공유 노트의 첨부 목록 — 토큰 검증(비증가). url은 토큰 스코프 서빙 경로. */
+    /** 공유 노트의 첨부 목록 — 토큰 검증(비증가). 이미지 한정: SharePage 인라인 렌더 전용, 비이미지 반출 통로 차단. */
     @GetMapping("/share/{token}/attachments")
     public List<Map<String, Object>> shareList(@PathVariable String token, HttpServletRequest req) {
         UserRow user = user(req);
         String nodeId = share.nodeIdForAttachment(token, user == null ? null : user.emp());
         return svc.findByNode(nodeId).stream()
+            .filter(r -> UploadPolicy.isImage(r.ext()))
             .map(r -> meta(r, "/api/share/" + token + "/attachments/" + r.id()))
             .toList();
     }
 
-    /** 공유 서빙 — 토큰 검증(비증가) + 첨부가 그 노드 소속인지. 무효 전부 404. */
+    /** 공유 서빙 — 토큰 검증(비증가) + 첨부가 그 노드 소속인지 + 이미지 한정. 무효 전부 404. */
     @GetMapping("/share/{token}/attachments/{id}")
     public ResponseEntity<byte[]> shareDownload(@PathVariable String token, @PathVariable String id,
             HttpServletRequest req) {
         UserRow user = user(req);
         String nodeId = share.nodeIdForAttachment(token, user == null ? null : user.emp());
         AttachmentRow row = svc.findById(id);
-        if (row == null || !row.nodeId().equals(nodeId)) {
-            throw VaultException.notFound("첨부를 찾을 수 없습니다");
+        if (row == null || !row.nodeId().equals(nodeId) || !UploadPolicy.isImage(row.ext())) {
+            throw VaultException.notFound("첨부를 찾을 수 없습니다");   // 비이미지도 무효와 균등 404
         }
         return serve(row);
     }
