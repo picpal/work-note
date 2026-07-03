@@ -64,4 +64,10 @@ class RedmineUrlValidatorTest {
         assertThatThrownBy(() -> RedmineUrlValidator.validateForFetch("file:///etc/passwd"))
             .isInstanceOf(RedmineException.Upstream.class);
     }
+
+    @Test void fetch_allowsResolvableAllowedAddress() {
+        // IP 리터럴은 DNS 없이 해석 — 허용 대역이면 fetch 검증도 통과
+        assertThatCode(() -> RedmineUrlValidator.validateForFetch("http://10.0.0.5:3000"))
+            .doesNotThrowAnyException();
+    }
 }

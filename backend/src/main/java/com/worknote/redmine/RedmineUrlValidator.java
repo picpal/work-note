@@ -21,7 +21,7 @@ public final class RedmineUrlValidator {
     public static void validateForSave(String baseUrl) {
         URI uri = parse(baseUrl);
         try {
-            assertAllowed(InetAddress.getByName(uri.getHost()));
+            assertAllowed(InetAddress.getByName(hostForResolve(uri)));
         } catch (UnknownHostException e) {
             // 미해석은 저장 허용 — validateForFetch가 호출 시점에 재검증
         }
@@ -36,7 +36,7 @@ public final class RedmineUrlValidator {
             throw new RedmineException.Upstream("redmine_base_invalid");
         }
         try {
-            assertAllowed(InetAddress.getByName(uri.getHost()));
+            assertAllowed(InetAddress.getByName(hostForResolve(uri)));
         } catch (UnknownHostException e) {
             throw new RedmineException.Upstream("redmine_base_unresolved");
         } catch (VaultException e) {
@@ -70,5 +70,14 @@ public final class RedmineUrlValidator {
             || addr.isAnyLocalAddress() || addr.isMulticastAddress()) {
             throw VaultException.invalid("허용되지 않는 대역의 호스트입니다");
         }
+    }
+
+    /** URI.getHost()는 IPv6 리터럴을 브래킷 포함([::1])으로 돌려줌 — InetAddress 해석 전 제거(JDK strip 미보장). */
+    private static String hostForResolve(URI uri) {
+        String host = uri.getHost();
+        if (host != null && host.startsWith("[") && host.endsWith("]")) {
+            return host.substring(1, host.length() - 1);
+        }
+        return host;
     }
 }
