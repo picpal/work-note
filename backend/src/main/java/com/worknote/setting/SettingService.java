@@ -62,8 +62,12 @@ public class SettingService {
 
     @Transactional
     public void setRedmine(boolean enabled, String baseUrl) {
+        String url = baseUrl == null ? "" : baseUrl.trim();
+        if (!url.isEmpty()) {
+            com.worknote.redmine.RedmineUrlValidator.validateForSave(url);   // SSRF 가드 (감사 §2-2)
+        }
         mapper.put(KEY_REDMINE_ENABLED, enabled ? "1" : "0");
-        mapper.put(KEY_REDMINE_BASE_URL, baseUrl == null ? "" : baseUrl.trim());
+        mapper.put(KEY_REDMINE_BASE_URL, url);
     }
 
     // ─── 업로드 정책 ─────────────────────────────────────────────────────
