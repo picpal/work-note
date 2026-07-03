@@ -1207,6 +1207,17 @@ button.topbar-me { font-family: var(--font-ui); }
 .rm-issue:hover { background: var(--bg-active); }
 .rm-issue .rm-id { color: var(--text-3); font-family: var(--font-mono); font-size: 12px; }
 .rm-detail { overflow: auto; flex: 1; padding: 14px; }
+/* 전체 미리보기 — 상단 바(고정) + 렌더 본문(스크롤) */
+.rm-preview-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.rm-preview-bar { flex: none; display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.rm-preview { flex: 1; overflow: auto; padding: 14px; }
+/* 댓글 블록 — 본문보다 한 사이즈 작게 + 위에 얇은 구분선 */
+.rm-preview-comments { font-size: 0.9em; margin-top: 1.4em; padding-top: 1.1em; border-top: 1px solid var(--border); }
+.rm-preview-comments:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.rm-preview-empty { flex: 1; padding: 24px 14px; color: var(--text-3); font-size: 13px; }
+/* 렌더 본문 내 svg(mermaid)는 모달 전역 16px 규칙(위)에서 제외 — 원래 크기 유지 */
+.rm-modal .rm-preview svg { width: auto; height: auto; flex: initial; }
 .rm-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
 .rm-block-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 /* 모달 내 버튼(검색·삽입)은 프로젝트 모달 버튼(.pf-btn) 테마 + 컴팩트 사이즈 */

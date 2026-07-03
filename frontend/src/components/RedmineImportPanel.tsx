@@ -1,11 +1,12 @@
 /* RedmineImportPanel — Redmine 이슈 검색·임포트 도킹 분할 패널.
    T7(api) · T8(마크다운) · T9(분할) 의존. JSX 절대 미사용 — h = createElement 관례. */
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { RedmineApi, type RedmineIssueSummary, type RedmineIssueDetail, type RedmineComment } from "../api/redmine";
 import { ApiError } from "../api/http";
 import { metaTableMd, bodyMd, commentMd } from "../editor/redmineMarkdown";
 import { splitDirection } from "./redmineSplit";
 import { redmineStatusLabel } from "../admin/mappers";
+import { renderMarkdown, enhanceMermaid, setMermaidTheme } from "../lib/markdown";
 import { Icon } from "./Icon";
 
 const h = React.createElement;
@@ -14,9 +15,10 @@ interface Props {
   onInsert: (md: string) => boolean; // 노트에 삽입 — 성공(열린 노트 있음) 여부 반환
   onClose: () => void;
   toast?: (m: string, i?: string) => void;
+  theme?: "dark" | "light"; // 전체 미리보기 마크다운/mermaid 렌더 테마
 }
 
-export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
+export function RedmineImportPanel({ onInsert, onClose, toast, theme }: Props) {
   const [dir, setDir] = useState<"row" | "column">(() => splitDirection(window.innerWidth));
   const [q, setQ] = useState("");
   const [mine, setMine] = useState(true);
@@ -24,6 +26,8 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
   const [detail, setDetail] = useState<RedmineIssueDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [full, setFull] = useState(false); // 상세: 요약(false) ↔ 전체 미리보기(true)
+  const previewRef = useRef<HTMLDivElement>(null);
 
   /* resize → 분할 방향 갱신 */
   useEffect(() => {
@@ -32,12 +36,23 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  /* Escape → 닫기 */
+  /* Escape → 전체 미리보기면 요약 복귀, 아니면 모달 닫기(2단계) */
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (full) setFull(false);
+      else onClose();
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, full]);
+
+  /* 전체 미리보기 렌더 후 mermaid SVG 치환(테마 반영) — SharePage와 동일 패턴 */
+  useEffect(() => {
+    if (!full || !detail || !previewRef.current) return;
+    setMermaidTheme(theme === "dark");
+    enhanceMermaid(previewRef.current);
+  }, [full, detail, theme]);
 
   /* 에러 처리 분기 */
   const fail = useCallback((e: unknown) => {
@@ -78,6 +93,7 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
   const open = async (id: number) => {
     if (busy) return;
     setBusy(true);
+    setFull(false);
     setSelectedId(id);
     try {
       setDetail(await RedmineApi.get(id));
@@ -148,15 +164,18 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
 
   const renderDetail = (d: RedmineIssueDetail) =>
     h("div", { className: "rm-detail" },
-      /* 제목 */
-      h("div", { style: { marginBottom: 12 } },
-        h("div", { style: { fontSize: 12, color: "var(--text-3)", fontFamily: "var(--font-mono)" } }, `#${d.id} · ${d.projectName}`),
-        h("div", { style: { fontWeight: 600, fontSize: 15, marginTop: 2 } }, d.subject),
-        h("div", { style: { fontSize: 12, color: "var(--text-3)", marginTop: 4, display: "flex", gap: 8 } },
-          h("span", null, redmineStatusLabel(d.statusName)),
-          d.assignedToName && h("span", null, d.assignedToName),
-          d.dueDate && h("span", null, `마감: ${d.dueDate}`),
+      /* 제목 + 전체 보기 */
+      h("div", { style: { marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 8 } },
+        h("div", { style: { flex: 1, minWidth: 0 } },
+          h("div", { style: { fontSize: 12, color: "var(--text-3)", fontFamily: "var(--font-mono)" } }, `#${d.id} · ${d.projectName}`),
+          h("div", { style: { fontWeight: 600, fontSize: 15, marginTop: 2 } }, d.subject),
+          h("div", { style: { fontSize: 12, color: "var(--text-3)", marginTop: 4, display: "flex", gap: 8 } },
+            h("span", null, redmineStatusLabel(d.statusName)),
+            d.assignedToName && h("span", null, d.assignedToName),
+            d.dueDate && h("span", null, `마감: ${d.dueDate}`),
+          ),
         ),
+        h("button", { className: "pf-btn", onClick: () => setFull(true), title: "전체 미리보기", style: { flex: "none" } }, "전체 보기"),
       ),
       /* 메타 블록 */
       h("div", { className: "rm-block" },
@@ -192,8 +211,38 @@ export function RedmineImportPanel({ onInsert, onClose, toast }: Props) {
       ),
     );
 
+  /* ── 전체 미리보기 (본문 + 전체 댓글 마크다운 렌더 · lib/markdown 재사용) ──
+     보이는 그대로(WYSIWYG) 삽입 — 렌더/삽입 모두 동일한 combined 마크다운을 사용. */
+  const renderFullPreview = (d: RedmineIssueDetail) => {
+    const bodyStr = bodyMd(d).trim();
+    const hasComments = d.comments.length > 0;
+    const empty = !bodyStr && !hasComments;
+    // 삽입용 combined은 렌더와 동일 내용(WYSIWYG) — 본문 + 전체 댓글
+    const parts = [bodyStr, ...d.comments.map((c) => commentMd(c).trim())].filter(Boolean);
+    const combined = parts.length ? `\n${parts.join("\n\n")}\n` : "";
+    return h("div", { className: "rm-preview-wrap" },
+      h("div", { className: "rm-preview-bar" },
+        h("div", { style: { minWidth: 0, flex: 1 } },
+          h("div", { style: { fontSize: 12, color: "var(--text-3)", fontFamily: "var(--font-mono)" } }, `#${d.id} · ${d.projectName}`),
+          h("div", { style: { fontWeight: 600, fontSize: 15, marginTop: 2 } }, d.subject),
+        ),
+        h("div", { style: { display: "flex", alignItems: "center", gap: 6, flex: "none" } },
+          h("button", { className: "pf-btn primary", disabled: empty, onClick: () => doInsert(combined, "내용이 비어 있습니다"), title: "본문·댓글 삽입" }, "삽입"),
+          h("button", { className: "icon-btn", onClick: () => setFull(false), title: "미리보기 닫기" }, h(Icon, { name: "x" })),
+        ),
+      ),
+      empty
+        ? h("div", { className: "rm-preview-empty" }, "(내용 없음)")
+        : h("div", { className: "rm-preview", ref: previewRef },
+            // 본문과 댓글을 별도 .md 블록으로 — 댓글은 한 사이즈 작게(.rm-preview-comments)
+            bodyStr && h("div", { className: "md", dangerouslySetInnerHTML: { __html: renderMarkdown(bodyStr) } }),
+            hasComments && h("div", { className: "md rm-preview-comments", dangerouslySetInnerHTML: { __html: renderMarkdown(d.comments.map(commentMd).join("\n")) } }),
+          ),
+    );
+  };
+
   const panelRight = h("div", { style: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" } },
-    detail ? renderDetail(detail) : detailEmpty,
+    detail ? (full ? renderFullPreview(detail) : renderDetail(detail)) : detailEmpty,
   );
 
   /* ── 루트 레이아웃 (중앙 모달 — 오버레이 클릭 시 닫힘) ── */

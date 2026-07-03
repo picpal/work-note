@@ -538,6 +538,7 @@ export function App() {
     redmineOpen && createElement(RedmineImportPanel, {
       onInsert: (md: string): boolean => { const v = editorViewRef.current; if (!v) return false; cm.insertAtCursor(v, md); return true; },
       onClose: () => setRedmineOpen(false),
+      theme: settings.dark ? "dark" : "light",
       toast,
     }),
     pendingWarn && createElement(MoveWarnDialog, {
