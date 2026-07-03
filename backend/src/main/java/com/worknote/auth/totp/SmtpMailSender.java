@@ -17,13 +17,26 @@ public class SmtpMailSender implements MailSender {
 
     public boolean available() { return true; }
 
-    public void send(String to, String subject, String body) {
+    /**
+     * JavaMail 프로퍼티 — starttls=true면 opportunistic이 아닌 필수(required)로 강제하고
+     * 서버 인증서 identity를 검증한다. 복구 코드·자격이 메일 본문에 실리므로 평문 다운그레이드 차단 (감사 §4 Low).
+     */
+    static Properties mailProperties(String host, int port, boolean starttls, boolean auth) {
         Properties props = new Properties();
         props.put("mail.smtp.host", host);
         props.put("mail.smtp.port", String.valueOf(port));
-        if (starttls) props.put("mail.smtp.starttls.enable", "true");
-        boolean auth = !user.isBlank();
+        if (starttls) {
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.ssl.checkserveridentity", "true");
+        }
         props.put("mail.smtp.auth", String.valueOf(auth));
+        return props;
+    }
+
+    public void send(String to, String subject, String body) {
+        boolean auth = !user.isBlank();
+        Properties props = mailProperties(host, port, starttls, auth);
         Session session = auth
             ? Session.getInstance(props, new Authenticator() {
                 protected PasswordAuthentication getPasswordAuthentication() {
