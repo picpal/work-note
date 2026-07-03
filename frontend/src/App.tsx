@@ -26,6 +26,7 @@ import { AuthApi } from "./api/auth";
 import { useVault } from "./state/useVault";
 import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
 import { loadPending, clearAllPending } from "./state/pendingStore";
+import { pendingDiffers } from "./state/pendingRecovery";
 import { useSession } from "./state/useSession";
 import { repository, storageMode } from "./storage";
 import * as cm from "./editor/cm";
@@ -193,10 +194,12 @@ export function App() {
     const pending = loadPending();
     const ids = Object.keys(pending);
     if (ids.length === 0) return;
-    clearAllPending(); // 존재 노트만 재적용이 다시 미러링 — 사라진 노트는 자연 정리
+    clearAllPending(); // 존재 노트만 재적용이 다시 미러링 — 사라진 노트·스테일 미러는 자연 정리
     let n = 0;
     for (const id of ids) {
-      if (!findNode(tree, id).node) continue; // 그 사이 삭제된 노트는 건너뜀
+      const node = findNode(tree, id).node;
+      if (!node || node.type !== "note") continue; // 삭제됐거나(없음) 노트가 아니면 건너뜀 — pending은 노트 전용
+      if (!pendingDiffers(node, pending[id])) continue; // 서버에 이미 반영된 스테일 미러 — 조용히 폐기(재PATCH·토스트 없음)
       actions.updateNote(id, pending[id]);    // synced.updateNote → 재미러링 + 디바운스 재전송
       n++;
     }
