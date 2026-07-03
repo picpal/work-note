@@ -72,4 +72,12 @@ class AttachmentServiceTest {
         assertThatCode(() -> svc.precheck("ok.png", 10))
             .doesNotThrowAnyException();
     }
+
+    @Test
+    void pathOf_rejectsTraversalOutsideRoot() {
+        AttachmentRow evil = new AttachmentRow("att-evil", "n1", "e.png", "png", "image/png",
+            1, "../../etc/passwd", "tester", "2026-07-03T00:00:00");
+        assertThatThrownBy(() -> svc.pathOf(evil))
+            .isInstanceOf(VaultException.class);
+    }
 }

@@ -77,7 +77,12 @@ public class AttachmentService {
     }
 
     public Path pathOf(AttachmentRow row) {
-        return root.resolve(row.relPath()).normalize();
+        Path p = root.resolve(row.relPath()).normalize();
+        if (!p.startsWith(root)) {
+            // DB 손상·조작 시 루트 밖 파일 접근 차단 — store()의 쓰기 가드와 대칭 (감사 §4 Low)
+            throw VaultException.invalid("잘못된 첨부 경로");
+        }
+        return p;
     }
 
     public byte[] read(AttachmentRow row) {
