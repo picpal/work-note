@@ -68,7 +68,7 @@ WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar build/libs/worknote-0
 
 ### 스토리지 스왑 지점
 
-`frontend/src/storage/VaultRepository` 인터페이스 — **1단계 완료**: HTTP API + SQLite 동작 중. `VITE_STORAGE`로 모드 스위치(local=localStorage, http=백엔드 API). 쓰기 동기화는 `useVaultSync`(액션→API 즉시, content/tags/title은 1.5초 디바운스 PATCH).
+`frontend/src/storage/VaultRepository` 인터페이스 — **1단계 완료**: HTTP API + SQLite 동작 중. `VITE_STORAGE`로 모드 스위치(local=localStorage, http=백엔드 API). 쓰기 동기화는 `useVaultSync`(액션→API 즉시, content/tags/title은 1분 디바운스 PATCH + Cmd/Ctrl+S 수동 flush).
 
 ### 디렉토리 설계
 
