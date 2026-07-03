@@ -136,12 +136,32 @@ public class AuthController {
     }
 
     /**
+     * 복구는 비밀번호 인증(pending 세션) 후에만 — 이메일 수신함 탈취 단독으로
+     * 1차 요소(비밀번호)까지 우회하는 매직링크화 차단 (감사 §2-3).
+     * 세션 없음·pending 아님·emp 불일치 모두 동일 401 (계정 열거 차단).
+     */
+    private String requirePendingFor(String emp, HttpServletRequest http) {
+        HttpSession session = http.getSession(false);
+        String userId = session != null ? (String) session.getAttribute(SESSION_USER) : null;
+        if (userId == null || !Boolean.TRUE.equals(session.getAttribute(SESSION_2FA_PENDING))) {
+            throw AuthException.unauthorized("비밀번호 인증 후 복구 코드를 사용할 수 있습니다");
+        }
+        UserRow u = users.findById(userId);
+        if (u == null || !u.emp().equals(emp)) {
+            throw AuthException.unauthorized("비밀번호 인증 후 복구 코드를 사용할 수 있습니다");
+        }
+        return userId;
+    }
+
+    /**
      * 이메일 복구 코드 요청 — 항상 204 반환 (계정 존재 여부 노출 금지).
      * 조건 충족 시 RecoveryService가 발송; 미충족(계정없음/이메일없음/2FA미사용)이면 조용히 skip.
+     * 1차 요소 선행 강제: pending 세션 없이는 진입 불가 (감사 §2-3).
      */
     @PostMapping("/2fa/recover/request")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void recoverRequest(@Valid @RequestBody RecoverRequest req, HttpServletRequest http) {
+        requirePendingFor(req.emp(), http);   // 1차 요소 선행 — 복구는 2차 요소의 대체일 뿐
         recoveryService.request(req.emp());   // 내부에서 조건 미충족 시 skip — 균등 응답
         audit.logRaw(req.emp(), "2fa.recover.request", null, http.getRemoteAddr());
     }
@@ -149,9 +169,11 @@ public class AuthController {
     /**
      * 이메일 복구 코드 검증 — 성공 시 기존 TOTP 시드 폐기 + 완전 인증 세션 승격 + MeResponse 반환.
      * 실패(코드 오류/만료/계정없음) 시 401.
+     * 1차 요소 선행 강제: pending 세션 없이는 진입 불가 (감사 §2-3).
      */
     @PostMapping("/2fa/recover/verify")
     public MeResponse recoverVerify(@Valid @RequestBody RecoverVerifyRequest req, HttpServletRequest http) {
+        requirePendingFor(req.emp(), http);
         String ip = http.getRemoteAddr();
         if (limiter.isLocked("recover", req.emp(), ip)) {
             audit.logRaw(req.emp(), "recover.locked", null, ip);
@@ -172,13 +194,13 @@ public class AuthController {
         limiter.recordSuccess("recover", req.emp());
         // 복구 성공: 기존 시드 즉시 폐기(재등록 강제)
         totpService.disable(userId);
-        // 완전 인증 세션 발급 — 기존 pending 세션이 재사용될 수 있으므로 pending 마커 명시 제거
-        HttpSession session = http.getSession(true);
+        // 완전 인증 승격 — pending 세션 재사용, 마커 제거 + id 재발급
+        HttpSession session = http.getSession(false);
         http.changeSessionId();
         session.removeAttribute(SESSION_2FA_PENDING);
         session.setAttribute(SESSION_USER, userId);
         session.setAttribute(SESSION_CRED, cred.salt());
-        audit.logRaw(user.emp(), "2fa.recover.success", null, http.getRemoteAddr());
+        audit.logRaw(user.emp(), "2fa.recover.success", null, ip);
         return toMe(user, auth.caps(user));
     }
 
