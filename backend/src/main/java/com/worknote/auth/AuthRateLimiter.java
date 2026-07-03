@@ -57,7 +57,8 @@ public class AuthRateLimiter {
         Entry e = entries.get(key);
         if (e == null || e.lockedUntil() == null) return false;
         if (!Instant.now(clock).isBefore(e.lockedUntil())) {
-            entries.remove(key);   // 만료 — lazy 정리 + 카운터 리셋
+            entries.remove(key);   // 만료 — lazy 정리 + 카운터 리셋. bump의 compute와 remove가 경합해도
+                                   // 어느 쪽이든 '만료 항목 제거 후 새로 카운트'로 수렴해 무해 (원자성 불요)
             return false;
         }
         return true;
@@ -86,11 +87,12 @@ public class AuthRateLimiter {
     /** 항목 수 상한 초과 시 오래된(만료·비활동) 항목 제거. */
     private void sweepIfOverflow() {
         if (entries.size() <= MAX_ENTRIES) return;
-        Instant cutoff = Instant.now(clock).minus(LOCK_DURATION);
+        Instant now = Instant.now(clock);
+        Instant cutoff = now.minus(LOCK_DURATION);
         entries.entrySet().removeIf(en ->
             en.getValue().touchedAt().isBefore(cutoff)
                 && (en.getValue().lockedUntil() == null
-                    || en.getValue().lockedUntil().isBefore(Instant.now(clock))));
+                    || en.getValue().lockedUntil().isBefore(now)));
     }
 
     private static String key(String scope, String kind, String value) {

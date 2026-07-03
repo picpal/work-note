@@ -61,7 +61,10 @@ class AuthRateLimiterTest {
 
     @Test void ipThreshold_locksAcrossAccounts() {
         // 같은 IP에서 계정을 바꿔가며 30회 실패 → IP 잠금 (스프레이 방어)
-        for (int i = 0; i < 30; i++) limiter.recordFailure("login", "emp-" + i, "10.0.0.9");
+        for (int i = 0; i < 29; i++) {
+            assertThat(limiter.recordFailure("login", "emp-" + i, "10.0.0.9")).isFalse();
+        }
+        assertThat(limiter.recordFailure("login", "emp-29", "10.0.0.9")).isTrue();   // 30번째 = IP 잠금 전이
         assertThat(limiter.isLocked("login", "fresh-emp", "10.0.0.9")).isTrue();
         // 다른 IP는 무관
         assertThat(limiter.isLocked("login", "fresh-emp", "10.0.0.10")).isFalse();
