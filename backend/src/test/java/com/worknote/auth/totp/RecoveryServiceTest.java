@@ -40,7 +40,7 @@ class RecoveryServiceTest {
 
     @Test void requestSendsCodeWhenEmailPresentAndEnabled() {
         recovery.request("10001");
-        assertThat(SENT_BODY.get()).isNotNull().containsPattern("\\d{8}");
+        assertThat(SENT_BODY.get()).isNotNull().containsPattern("[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{12}");
     }
 
     @Test void requestSilentWhenNoEmail_noThrow_noSend() {
@@ -58,12 +58,12 @@ class RecoveryServiceTest {
 
     @Test void verifyRejectsWrongCode() {
         recovery.request("10001");
-        assertThat(recovery.verify("10001", "00000000")).isNull();
+        assertThat(recovery.verify("10001", "AAAAAAAAAAAA")).isNull();
     }
 
     @Test void verifyRejectsExpiredCode() {
         // 과거 만료·미사용 복구 코드를 직접 INSERT — 만료 게이트 검증(Clock 오버라이드 불필요)
-        String code = "12345678";
+        String code = "ABCDEFGHIJKL";
         String salt = PasswordHasher.newSalt();
         jdbc.update("INSERT INTO totp_recovery(id,user_id,salt,code_hash,expires_at,used,created_at) "
                 + "VALUES(?,?,?,?,?,0,?)",
@@ -73,7 +73,7 @@ class RecoveryServiceTest {
     }
 
     private static String extractCode(String body) {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{8})").matcher(body);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("복구 코드: (\\S+)").matcher(body);
         m.find(); return m.group(1);
     }
 }

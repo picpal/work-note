@@ -61,7 +61,7 @@ class Totp2faRecoverApiTest {
     @Test void verifyValidCodeLogsInAndDisablesTotp() throws Exception {
         mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
             .content("{\"emp\":\"10001\"}"));
-        String code = BODY.get().replaceAll("[^0-9]","").substring(0,8);
+        String code = BODY.get().replaceAll("(?s)[^\\S\n]*복구 코드: ([^\\s]+).*", "$1");
         MockHttpSession s = new MockHttpSession();
         mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
             .content("{\"emp\":\"10001\",\"code\":\""+code+"\"}"))
@@ -86,7 +86,7 @@ class Totp2faRecoverApiTest {
         // 복구 코드 요청·검증 (같은 pending 세션 재사용)
         mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
             .content("{\"emp\":\"10001\"}"));
-        String code = BODY.get().replaceAll("[^0-9]","").substring(0,8);
+        String code = BODY.get().replaceAll("(?s)[^\\S\n]*복구 코드: ([^\\s]+).*", "$1");
         mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
             .content("{\"emp\":\"10001\",\"code\":\""+code+"\"}"))
             .andExpect(status().isOk())
