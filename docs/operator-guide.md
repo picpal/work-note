@@ -100,9 +100,11 @@ java -jar worknote-0.1.0.jar
 3. 관리자 콘솔 → **팀·스페이스**: 팀 생성, 최상위 폴더를 팀 스페이스로 지정
 4. **역할 관리**: 필요 시 커스텀 역할 생성 (시스템 역할 3종은 수정 불가)
 5. **업로드 정책**: 허용 확장자·용량 확인 (기본: png,jpg,jpeg,gif,webp,pdf,docx,xlsx,pptx,txt,md,csv,zip / 25MB)
-6. (선택) SMTP 설정 — 2FA 복구 코드 메일 발송에 필요
-7. (선택) **Redmine 연동** 설정
+6. (선택) SMTP 설정 — 2FA 복구 코드 메일 발송에 필요. 사내 SMTP가 STARTTLS를 지원하면 `WORKNOTE_SMTP_STARTTLS=true`로 평문 전송을 차단하세요(복구 코드가 메일 본문에 실림).
+7. (선택) **Redmine 연동** 설정 — base URL은 `http`/`https`만, loopback·link-local·0.0.0.0 등 특수 대역은 거부됩니다(SSRF 방어). 사내망 사설 IP는 허용됩니다.
 8. 백업 스케줄 구성 ([§13](#13-백업과-복구))
+
+> **보안 배포 체크리스트**: TLS 종단 시 `application.yml` 쿠키 `secure: true` 활성화, 필수 시크릿(`WORKNOTE_ADMIN_PASSWORD`·`WORKNOTE_2FA_KEY`·`WORKNOTE_SMTP_*`) env 주입 확인. 상세는 [보안 조치 결과](security/2026-07-03-remediation.md) 참조.
 
 ## 4. 사용자 관리
 
@@ -118,7 +120,7 @@ java -jar worknote-0.1.0.jar
 - **비밀번호 초기화**: 사용자 관리에서 새 비밀번호 지정(10자 이상). 해당 사용자의 **다른 세션은 즉시 무효화**됩니다.
 - **2FA 초기화**: 기기 분실 등으로 복구 메일도 못 받는 사용자용. 시드가 삭제되고 유예 기간이 다시 부여됩니다.
 - **비활성화**: 로그인이 즉시 차단됩니다. 데이터는 유지됩니다.
-- 실패한 로그인은 감사 로그에 기록되지만 **자동 잠금(lockout)은 없습니다** — 감사 로그의 `login.fail`을 주기적으로 확인하세요.
+- 실패한 로그인·2FA·복구 시도는 감사 로그에 기록되며, **계정 5회·같은 IP 30회 연속 실패 시 5분간 자동 잠금**됩니다(잠금 응답 HTTP 429). 잠금 전이는 감사 로그 `auth.lockout`, 잠금 중 시도는 `login.locked`/`2fa.locked`/`recover.locked`로 남습니다. 잠금은 인메모리라 서버 재기동 시 초기화됩니다. 실패 자체(`login.fail`)도 주기적으로 확인하세요.
 
 ## 5. 권한 모델
 
