@@ -34,6 +34,14 @@ public class AttachmentService {
         this.root = Paths.get(uploadDir).toAbsolutePath().normalize();
     }
 
+    /**
+     * 바이트 적재 전 선검사 — multipart가 선언한 크기로 정책 위반을 조기 차단(힙 DoS 방지, 감사 §4 Low).
+     * store()의 실바이트 검사와 이중 방어.
+     */
+    public void precheck(String filename, long size) {
+        settings.uploadPolicy().check(filename, size);
+    }
+
     @Transactional
     public AttachmentRow store(String nodeId, String filename, byte[] bytes, String createdBy) {
         settings.uploadPolicy().check(filename, bytes.length);

@@ -57,6 +57,7 @@ public class AttachmentController {
         if (name == null || name.isBlank()) {
             throw VaultException.invalid("파일명이 없습니다");
         }
+        svc.precheck(name, file.getSize());   // 힙 적재 전 크기·확장자 선검사
         AttachmentRow row = svc.store(id, name, file.getBytes(), guard.who(user));
         audit.log(user, "attachment.add", row.id() + " -> " + id, req.getRemoteAddr());
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
