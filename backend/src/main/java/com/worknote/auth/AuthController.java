@@ -48,6 +48,7 @@ public class AuthController {
     private final RedmineTokenService redmineTokens;
     private final Clock clock;
     private final boolean serverMode;
+    private final AuthRateLimiter limiter;
 
     public AuthController(AuthService auth, RoleCaps roleCaps, AuditService audit,
                           TotpService totpService, RecoveryService recoveryService,
@@ -55,6 +56,7 @@ public class AuthController {
                           com.worknote.setting.SettingService settings,
                           RedmineTokenService redmineTokens,
                           Clock clock,
+                          AuthRateLimiter limiter,
                           @Value("${worknote.mode:local}") String mode) {
         this.auth = auth;
         this.roleCaps = roleCaps;
@@ -65,18 +67,28 @@ public class AuthController {
         this.settings = settings;
         this.redmineTokens = redmineTokens;
         this.clock = clock;
+        this.limiter = limiter;
         this.serverMode = "server".equals(mode);
     }
 
     @PostMapping("/login")
     public Object login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        if (limiter.isLocked("login", req.emp(), ip)) {
+            audit.logRaw(req.emp(), "login.locked", null, ip);
+            throw AuthException.locked("시도 횟수를 초과했습니다. 잠시 후 다시 시도하세요");
+        }
         AuthService.AuthUser result;
         try {
             result = auth.login(req.emp(), req.password());
         } catch (AuthException e) {
-            audit.logRaw(req.emp(), "login.fail", null, http.getRemoteAddr());   // 실패도 항상 기록 (스펙 §7)
+            if (limiter.recordFailure("login", req.emp(), ip)) {
+                audit.logRaw(req.emp(), "auth.lockout", "login", ip);
+            }
+            audit.logRaw(req.emp(), "login.fail", null, ip);   // 실패도 항상 기록 (스펙 §7)
             throw e;
         }
+        limiter.recordSuccess("login", req.emp());
         HttpSession session = http.getSession(true);
         http.changeSessionId();   // 세션 고정 방어 — 공용 PC 교대 로그인 시 세션 id 재사용 방지 (내용 유지, id만 교체)
         session.setAttribute(SESSION_USER, result.user().id());
@@ -107,10 +119,19 @@ public class AuthController {
         if (userId == null || !Boolean.TRUE.equals(session.getAttribute(SESSION_2FA_PENDING))) {
             throw AuthException.unauthorized("2FA 인증 대기 상태가 아닙니다");
         }
+        String ip = http.getRemoteAddr();
+        if (limiter.isLocked("2fa", userId, ip)) {
+            audit.logRaw(userId, "2fa.locked", null, ip);
+            throw AuthException.locked("시도 횟수를 초과했습니다. 잠시 후 다시 시도하세요");
+        }
         if (!totpService.verifyLogin(userId, req.code())) {
-            audit.logRaw(userId, "2fa.verify.fail", null, http.getRemoteAddr());
+            if (limiter.recordFailure("2fa", userId, ip)) {
+                audit.logRaw(userId, "auth.lockout", "2fa", ip);
+            }
+            audit.logRaw(userId, "2fa.verify.fail", null, ip);
             throw AuthException.unauthorized("인증 코드가 올바르지 않습니다");
         }
+        limiter.recordSuccess("2fa", userId);
         return completePending(session, userId, http, "2fa.verify.success");
     }
 
@@ -131,15 +152,24 @@ public class AuthController {
      */
     @PostMapping("/2fa/recover/verify")
     public MeResponse recoverVerify(@Valid @RequestBody RecoverVerifyRequest req, HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        if (limiter.isLocked("recover", req.emp(), ip)) {
+            audit.logRaw(req.emp(), "recover.locked", null, ip);
+            throw AuthException.locked("시도 횟수를 초과했습니다. 잠시 후 다시 시도하세요");
+        }
         String userId = recoveryService.verify(req.emp(), req.code());
         if (userId == null) {
-            audit.logRaw(req.emp(), "2fa.recover.fail", null, http.getRemoteAddr());
+            if (limiter.recordFailure("recover", req.emp(), ip)) {
+                audit.logRaw(req.emp(), "auth.lockout", "recover", ip);
+            }
+            audit.logRaw(req.emp(), "2fa.recover.fail", null, ip);
             throw AuthException.unauthorized("복구 코드가 올바르지 않거나 만료되었습니다");
         }
         // user/cred 존재를 disable 전에 확인 — 실패 시 시드만 폐기돼 사용자가 잠기는 것 방지
         UserRow user = users.findById(userId);
         CredentialRow cred = users.findCredential(userId);
         if (user == null || cred == null) throw AuthException.unauthorized("자격 정보가 유효하지 않습니다");
+        limiter.recordSuccess("recover", req.emp());
         // 복구 성공: 기존 시드 즉시 폐기(재등록 강제)
         totpService.disable(userId);
         // 완전 인증 세션 발급 — 기존 pending 세션이 재사용될 수 있으므로 pending 마커 명시 제거

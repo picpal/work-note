@@ -32,6 +32,7 @@ public class ApiExceptionHandler {
         HttpStatus status = switch (e.status()) {
             case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case LOCKED -> HttpStatus.TOO_MANY_REQUESTS;
         };
         return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
     }
