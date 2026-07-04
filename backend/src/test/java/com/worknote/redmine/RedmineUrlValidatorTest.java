@@ -4,11 +4,31 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.worknote.vault.VaultException;
+import java.net.InetAddress;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class RedmineUrlValidatorTest {
+
+    @Test void assertAllAllowed_rejectsWhenAnyResolvedAddressBlocked() throws Exception {
+        // 다중 A레코드 중 하나라도 차단 대역이면 거부 — DNS 리바인딩 표면 축소
+        InetAddress[] mixed = {
+            InetAddress.getByName("10.0.0.5"),      // 허용(사설)
+            InetAddress.getByName("127.0.0.1"),     // loopback — 차단
+        };
+        assertThatThrownBy(() -> RedmineUrlValidator.assertAllAllowed(mixed))
+            .isInstanceOf(VaultException.class);
+    }
+
+    @Test void assertAllAllowed_allowsWhenEveryResolvedAddressAllowed() throws Exception {
+        InetAddress[] ok = {
+            InetAddress.getByName("10.0.0.5"),
+            InetAddress.getByName("192.168.1.20"),
+        };
+        assertThatCode(() -> RedmineUrlValidator.assertAllAllowed(ok))
+            .doesNotThrowAnyException();
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {
