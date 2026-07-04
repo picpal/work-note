@@ -67,6 +67,9 @@ public final class RedmineUrlValidator {
 
     /** 해석된 주소 전부 검사 — 하나라도 차단 대역이면 거부(다중 A레코드 리바인딩 표면 축소). */
     static void assertAllAllowed(InetAddress[] addrs) {
+        if (addrs == null || addrs.length == 0) {
+            throw VaultException.invalid("호스트를 해석할 수 없습니다");   // fail-closed: 빈 순회의 암묵적 허용 차단
+        }
         for (InetAddress addr : addrs) {
             assertAllowed(addr);
         }

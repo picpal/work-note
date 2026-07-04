@@ -30,6 +30,12 @@ class RedmineUrlValidatorTest {
             .doesNotThrowAnyException();
     }
 
+    @Test void assertAllAllowed_rejectsEmptyResolution_failClosed() {
+        // 해석 결과 없음(null/빈 배열)은 통과가 아니라 거부 — 빈 순회의 암묵적 allow 차단
+        assertThatThrownBy(() -> RedmineUrlValidator.assertAllAllowed(new InetAddress[0]))
+            .isInstanceOf(VaultException.class);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
         "file:///etc/passwd",
