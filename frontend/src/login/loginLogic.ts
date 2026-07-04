@@ -77,6 +77,11 @@ export async function submitVerify2fa(
   }
 }
 
+/** 복구 코드 입력 정규화 — 공백·하이픈 제거 + 대문자화 (백엔드 RecoveryCodec.normalize와 동일 규칙). */
+export function normalizeRecoveryCode(input: string): string {
+  return input.replace(/[\s-]/g, "").toUpperCase();
+}
+
 export async function submitRecover(
   api: { recoverVerify: (emp: string, code: string) => Promise<unknown> },
   emp: string, code: string,

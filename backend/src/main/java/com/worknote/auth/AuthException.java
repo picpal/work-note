@@ -3,7 +3,7 @@ package com.worknote.auth;
 /** 인증 도메인 예외. UNAUTHORIZED→401, FORBIDDEN→403 (ApiExceptionHandler). */
 public class AuthException extends RuntimeException {
 
-    public enum Status { UNAUTHORIZED, FORBIDDEN }
+    public enum Status { UNAUTHORIZED, FORBIDDEN, LOCKED }
 
     private final Status status;
 
@@ -22,5 +22,9 @@ public class AuthException extends RuntimeException {
 
     public static AuthException forbidden(String message) {
         return new AuthException(Status.FORBIDDEN, message);
+    }
+
+    public static AuthException locked(String message) {
+        return new AuthException(Status.LOCKED, message);
     }
 }

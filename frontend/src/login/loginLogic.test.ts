@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { validateSignup, submitLogin, submitSignup, submitLogin2fa, submitVerify2fa, submitRecover } from "./loginLogic";
+import { validateSignup, submitLogin, submitSignup, submitLogin2fa, submitVerify2fa, submitRecover, normalizeRecoveryCode } from "./loginLogic";
 import { ApiError } from "../api/http";
 
 describe("validateSignup", () => {
@@ -104,5 +104,14 @@ describe("submitRecover", () => {
       recoverVerify: vi.fn().mockRejectedValue(new ApiError("복구 코드가 올바르지 않거나 만료되었습니다", 401)),
     };
     expect(await submitRecover(api as any, "10001", "00000000")).toContain("복구");
+  });
+});
+
+describe("normalizeRecoveryCode", () => {
+  it("공백·하이픈 제거 + 대문자화", () => {
+    expect(normalizeRecoveryCode(" abcd-2345 efgh ")).toBe("ABCD2345EFGH");
+  });
+  it("빈 입력은 빈 문자열", () => {
+    expect(normalizeRecoveryCode("")).toBe("");
   });
 });

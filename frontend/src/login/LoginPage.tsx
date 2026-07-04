@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import React from "react";
 import { Icon } from "../components/Icon";
 import { AuthApi } from "../api/auth";
-import { validateSignup, submitLogin2fa, submitVerify2fa, submitSignup, submitRecover } from "./loginLogic";
+import { validateSignup, submitLogin2fa, submitVerify2fa, submitSignup, submitRecover, normalizeRecoveryCode } from "./loginLogic";
 
 const h = React.createElement;
 
@@ -140,12 +140,12 @@ export function LoginPage() {
           h("div", { className: "nm" }, "WorkNote"),
           h("span", { className: "tag" }, "사내 폐쇄망")),
         h("h1", { className: "auth-title" }, "복구 코드 로그인"),
-        h("p", { className: "auth-sub" }, "등록된 이메일로 복구 코드를 발송합니다. 코드는 10분간 유효합니다."),
+        h("p", { className: "auth-sub" }, "비밀번호 인증을 마친 계정의 이메일로 복구 코드를 보냅니다."),
         h("form", { onSubmit: doRecoverRequest },
           h("div", { className: "auth-field" },
-            h("label", null, "사번"),
-            h("input", { className: "auth-input", value: recoverEmp, placeholder: "사번을 입력하세요", autoFocus: true,
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setRecoverEmp(e.target.value); setErr(""); } })),
+            h("label", null, "계정"),
+            h("input", { className: "auth-input", value: recoverEmp, readOnly: true,
+              title: "복구는 비밀번호 인증에 사용한 계정으로만 진행됩니다" })),
           err && h("div", { className: "auth-err" }, err),
           h("button", { className: "auth-btn", type: "submit", disabled: busy }, "복구 코드 발송")),
         h("div", { className: "auth-foot" },
@@ -161,13 +161,13 @@ export function LoginPage() {
           h("div", { className: "nm" }, "WorkNote"),
           h("span", { className: "tag" }, "사내 폐쇄망")),
         h("h1", { className: "auth-title" }, "복구 코드 입력"),
-        h("p", { className: "auth-sub" }, "이메일로 발송된 8자리 복구 코드를 입력하세요. 복구 성공 후 2FA를 다시 등록해야 합니다."),
+        h("p", { className: "auth-sub" }, "이메일로 발송된 12자리 복구 코드를 입력하세요. 복구 성공 후 2FA를 다시 등록해야 합니다."),
         h("form", { onSubmit: doRecoverVerify },
           h("div", { className: "auth-field" },
             h("label", null, "복구 코드"),
-            h("input", { className: "auth-input", value: recoverCode, placeholder: "12345678", maxLength: 8,
-              inputMode: "numeric", autoFocus: true,
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setRecoverCode(e.target.value.replace(/\D/g, "")); setErr(""); } })),
+            h("input", { className: "auth-input", value: recoverCode, placeholder: "ABCD2345EFGH", maxLength: 14,
+              autoFocus: true, autoComplete: "one-time-code",
+              onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setRecoverCode(normalizeRecoveryCode(e.target.value)); setErr(""); } })),
           err && h("div", { className: "auth-err" }, err),
           h("button", { className: "auth-btn", type: "submit", disabled: busy }, "복구 로그인")),
         h("div", { className: "auth-foot" },

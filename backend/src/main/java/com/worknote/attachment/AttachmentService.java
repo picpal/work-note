@@ -34,6 +34,14 @@ public class AttachmentService {
         this.root = Paths.get(uploadDir).toAbsolutePath().normalize();
     }
 
+    /**
+     * 바이트 적재 전 선검사 — multipart가 선언한 크기로 정책 위반을 조기 차단(힙 DoS 방지, 감사 §4 Low).
+     * store()의 실바이트 검사와 이중 방어.
+     */
+    public void precheck(String filename, long size) {
+        settings.uploadPolicy().check(filename, size);
+    }
+
     @Transactional
     public AttachmentRow store(String nodeId, String filename, byte[] bytes, String createdBy) {
         settings.uploadPolicy().check(filename, bytes.length);
@@ -69,7 +77,12 @@ public class AttachmentService {
     }
 
     public Path pathOf(AttachmentRow row) {
-        return root.resolve(row.relPath()).normalize();
+        Path p = root.resolve(row.relPath()).normalize();
+        if (!p.startsWith(root)) {
+            // DB 손상·조작 시 루트 밖 파일 접근 차단 — store()의 쓰기 가드와 대칭 (감사 §4 Low)
+            throw VaultException.invalid("잘못된 첨부 경로");
+        }
+        return p;
     }
 
     public byte[] read(AttachmentRow row) {

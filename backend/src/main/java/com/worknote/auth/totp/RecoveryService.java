@@ -39,7 +39,7 @@ public class RecoveryService {
         LocalDateTime now = LocalDateTime.now(clock);
         totp.invalidateRecovery(user.id());   // 기존 미사용 코드 무효화
         totp.insertRecovery(new RecoveryRow(
-            "rc-" + UUID.randomUUID(), user.id(), salt, PasswordHasher.hash(code, salt),
+            "rc-" + UUID.randomUUID(), user.id(), salt, PasswordHasher.hash(RecoveryCodec.normalize(code), salt),
             now.plusMinutes(EXPIRY_MINUTES).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
             0, now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
         try {
@@ -59,7 +59,7 @@ public class RecoveryService {
         RecoveryRow rc = totp.findLatestRecovery(user.id());
         if (rc == null || rc.used() == 1) return null;
         if (LocalDateTime.now(clock).isAfter(LocalDateTime.parse(rc.expiresAt()))) return null;
-        if (!PasswordHasher.verify(code, rc.salt(), rc.codeHash())) return null;
+        if (!PasswordHasher.verify(RecoveryCodec.normalize(code), rc.salt(), rc.codeHash())) return null;
         totp.markRecoveryUsed(rc.id());
         return user.id();
     }

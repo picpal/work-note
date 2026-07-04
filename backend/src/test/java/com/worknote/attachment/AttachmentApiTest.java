@@ -113,4 +113,31 @@ class AttachmentApiTest {
         // 다른 첨부(미존재)는 404
         mvc.perform(get("/api/share/" + token + "/attachments/att-nonexistent")).andExpect(status().isNotFound());
     }
+
+    /** 공유 토큰으로 비이미지 첨부 다운로드 시도 → 404 (무효와 균등, 반출 통로 차단). */
+    @Test
+    void shareDownload_nonImage_returns404() throws Exception {
+        String json = upload("doc.pdf", new byte[]{1, 2, 3});
+        String id = JsonPath.read(json, "$.id");
+        String shareJson = mvc.perform(post("/api/nodes/n1/share").contentType("application/json").content("{}"))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String token = JsonPath.read(shareJson, "$.token");
+        // 비이미지는 공유 스코프에서 404 (이미지만 허용)
+        mvc.perform(get("/api/share/" + token + "/attachments/" + id))
+            .andExpect(status().isNotFound());
+    }
+
+    /** 공유 첨부 목록은 이미지만 반환 (비이미지 제외). */
+    @Test
+    void shareList_containsOnlyImages() throws Exception {
+        upload("doc.pdf", new byte[]{1, 2, 3});
+        upload("pic.png", new byte[]{4, 5, 6});
+        String shareJson = mvc.perform(post("/api/nodes/n1/share").contentType("application/json").content("{}"))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String token = JsonPath.read(shareJson, "$.token");
+        mvc.perform(get("/api/share/" + token + "/attachments"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].filename").value("pic.png"));
+    }
 }

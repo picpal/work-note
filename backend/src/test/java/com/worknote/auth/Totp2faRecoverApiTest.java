@@ -51,49 +51,59 @@ class Totp2faRecoverApiTest {
         totp.confirm("u1", Totp.codeAt(totp.currentSecretForTest("u1"), java.time.Instant.now().getEpochSecond()));
     }
 
-    @Test void requestAlwaysReturns204_evenUnknownEmp() throws Exception {
-        mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
-            .content("{\"emp\":\"99999\"}")).andExpect(status().isNoContent());   // 열거 방지
-        mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
-            .content("{\"emp\":\"10001\"}")).andExpect(status().isNoContent());
-    }
-
-    @Test void verifyValidCodeLogsInAndDisablesTotp() throws Exception {
-        mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
-            .content("{\"emp\":\"10001\"}"));
-        String code = BODY.get().replaceAll("[^0-9]","").substring(0,8);
+    /** 복구 플로우 진입 헬퍼 — 비밀번호 로그인으로 pending 세션 생성. */
+    private MockHttpSession pendingSession() throws Exception {
         MockHttpSession s = new MockHttpSession();
-        mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
-            .content("{\"emp\":\"10001\",\"code\":\""+code+"\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.emp").value("10001"))
-            .andExpect(jsonPath("$.totp.enabled").value(false));   // 복구 = 2FA 폐기(재등록 강제)
-    }
-
-    /**
-     * 부분 인증(pending) 세션에서 복구 → 승격 후 보호 API 통과 검증.
-     * recoverVerify가 기존 pending 세션의 SESSION_2FA_PENDING을 제거하지 않으면 이후 요청이 401로 막힌다.
-     */
-    @Test void verifyFromPendingSession_promotesAndAllowsProtectedApi() throws Exception {
-        MockHttpSession s = new MockHttpSession();
-        // 로그인 → 2FA 활성 사용자라 부분 인증(pending) 세션 생성
         mvc.perform(post("/api/auth/login").session(s).contentType(APPLICATION_JSON)
             .content("{\"emp\":\"10001\",\"password\":\"pw-1234\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("2fa_required"));
-        // pending 상태에선 보호 API 차단
-        mvc.perform(get("/api/auth/me").session(s)).andExpect(status().isUnauthorized());
-        // 복구 코드 요청·검증 (같은 pending 세션 재사용)
+        return s;
+    }
+
+    private String mailedCode() {
+        return BODY.get().replaceAll("(?s).*복구 코드: (\\S+).*", "$1");
+    }
+
+    @Test void requestWithoutPendingSession_returns401() throws Exception {
         mvc.perform(post("/api/auth/2fa/recover/request").contentType(APPLICATION_JSON)
-            .content("{\"emp\":\"10001\"}"));
-        String code = BODY.get().replaceAll("[^0-9]","").substring(0,8);
+            .content("{\"emp\":\"10001\"}")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void verifyWithoutPendingSession_returns401() throws Exception {
+        mvc.perform(post("/api/auth/2fa/recover/verify").contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\",\"code\":\"ABCD2345EFGH\"}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test void requestForDifferentEmp_returns401_uniformMessage() throws Exception {
+        MockHttpSession s = pendingSession();
+        // pending은 10001 — 다른 사번으로 요청하면 세션없음 케이스와 동일한 401 (열거 차단)
+        mvc.perform(post("/api/auth/2fa/recover/request").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"99999\"}")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void recoverFlow_fromPendingSession_succeedsAndDisablesTotp() throws Exception {
+        MockHttpSession s = pendingSession();
+        mvc.perform(post("/api/auth/2fa/recover/request").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\"}")).andExpect(status().isNoContent());
         mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
-            .content("{\"emp\":\"10001\",\"code\":\""+code+"\"}"))
+            .content("{\"emp\":\"10001\",\"code\":\"" + mailedCode() + "\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.totp.enabled").value(false));
+            .andExpect(jsonPath("$.emp").value("10001"))
+            .andExpect(jsonPath("$.totp.enabled").value(false));   // 복구 = 2FA 폐기(재등록 강제)
         // 승격 후 보호 API 통과 — pending 마커가 제거됐어야 함
         mvc.perform(get("/api/auth/me").session(s))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.emp").value("10001"));
+    }
+
+    @Test void recoverRequest_stillSilentSkipsWhenNoEmail_returns204() throws Exception {
+        // 이메일 없는 사용자 — pending까지 왔더라도 발송은 조용히 skip, 204 균등 응답 유지
+        jdbc.update("UPDATE app_user SET email = NULL WHERE id = 'u1'");
+        MockHttpSession s = pendingSession();
+        mvc.perform(post("/api/auth/2fa/recover/request").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\"}")).andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(BODY.get()).isNull();
     }
 }

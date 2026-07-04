@@ -38,8 +38,12 @@ public class RedmineClient {
         return RedmineJson.parseIssueDetail(get(base, token, "/issues/" + id + ".json?include=journals"));
     }
 
+    /** 응답 본문 상한 — SSRF·오설정 시 대용량 바디로 인한 힙 고갈 방지 (감사 §4 Info). */
+    static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
+
     private JsonNode get(String base, String token, String path) {
         if (base == null || base.isBlank()) throw new RedmineException.Upstream("base_url 미설정");
+        RedmineUrlValidator.validateForFetch(base);   // 호출 시점 재검증 — 저장 후 DNS 변경(리바인딩)·직접 DB 조작 대응
         String url = base.replaceAll("/+$", "") + path;
         try {
             HttpRequest req = HttpRequest.newBuilder(URI.create(url))
@@ -47,17 +51,31 @@ public class RedmineClient {
                 .header("X-Redmine-API-Key", token)
                 .header("Accept", "application/json")
                 .GET().build();
-            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<java.io.InputStream> res =
+                http.send(req, HttpResponse.BodyHandlers.ofInputStream());
+            byte[] body;
+            try (java.io.InputStream in = res.body()) {
+                body = readCapped(in);
+            }
             int sc = res.statusCode();
             if (sc == 401 || sc == 403) throw new RedmineException.Auth("redmine_token_invalid");
             if (sc == 404) throw new RedmineException.NotFound("redmine_not_found");
             if (sc >= 400) throw new RedmineException.Upstream("redmine_upstream_" + sc);
-            return json.readTree(res.body());
+            return json.readTree(body);
         } catch (RedmineException e) {
             throw e;
         } catch (Exception e) {
             throw new RedmineException.Upstream("redmine_io: " + e.getClass().getSimpleName());
         }
+    }
+
+    /** 상한 초과 시 즉시 중단 — 전체를 힙에 올리기 전에 차단. */
+    static byte[] readCapped(java.io.InputStream in) throws java.io.IOException {
+        byte[] buf = in.readNBytes(MAX_BODY_BYTES + 1);
+        if (buf.length > MAX_BODY_BYTES) {
+            throw new RedmineException.Upstream("redmine_response_too_large");
+        }
+        return buf;
     }
 
     private static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8); }

@@ -1,6 +1,7 @@
 package com.worknote.attachment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.worknote.vault.VaultException;
@@ -57,5 +58,26 @@ class AttachmentServiceTest {
         svc.store("n1", "b.png", new byte[]{2}, "local");
         svc.deleteForNodes(List.of("n1"));
         assertThat(svc.findByNode("n1")).isEmpty();
+    }
+
+    @Test
+    void precheck_rejectsOversizeWithoutLoadingBytes() {
+        // 정책 최대보다 큰 선언 크기 — 바이트 적재 없이 422
+        assertThatThrownBy(() -> svc.precheck("big.png", Long.MAX_VALUE))
+            .isInstanceOf(VaultException.class);
+    }
+
+    @Test
+    void precheck_allowsWithinPolicy() {
+        assertThatCode(() -> svc.precheck("ok.png", 10))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void pathOf_rejectsTraversalOutsideRoot() {
+        AttachmentRow evil = new AttachmentRow("att-evil", "n1", "e.png", "png", "image/png",
+            1, "../../etc/passwd", "tester", "2026-07-03T00:00:00");
+        assertThatThrownBy(() -> svc.pathOf(evil))
+            .isInstanceOf(VaultException.class);
     }
 }
