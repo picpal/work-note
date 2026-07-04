@@ -11,6 +11,7 @@ import java.net.UnknownHostException;
  * - loopback · link-local(169.254.0.0/16 — 클라우드 메타데이터 포함) · any-local(0.0.0.0) · multicast 거부
  * - 사설 대역(10/8 등)은 허용 — 폐쇄망 인트라넷 Redmine이 정상 사용처(차단 시 기능 불능)
  * - DNS 미해석 호스트는 저장 시점엔 허용(폐쇄망 DNS 준비 전 설정 가능), 호출 시점 재검증이 최종 방어
+ * - 호스트가 여러 주소로 해석되면(다중 A레코드) 전부 검사 — 하나라도 차단 대역이면 거부(리바인딩 표면 축소)
  * - 호출 시점 재검증은 resolve-then-connect라 TOCTOU 잔여 위험이 있으나(자바 HttpClient 제약)
  *   저장 후 DNS 레코드 변경(리바인딩) 시나리오를 실질 차단
  */
@@ -21,7 +22,7 @@ public final class RedmineUrlValidator {
     public static void validateForSave(String baseUrl) {
         URI uri = parse(baseUrl);
         try {
-            assertAllowed(InetAddress.getByName(hostForResolve(uri)));
+            assertAllAllowed(InetAddress.getAllByName(hostForResolve(uri)));
         } catch (UnknownHostException e) {
             // 미해석은 저장 허용 — validateForFetch가 호출 시점에 재검증
         }
@@ -36,7 +37,7 @@ public final class RedmineUrlValidator {
             throw new RedmineException.Upstream("redmine_base_invalid");
         }
         try {
-            assertAllowed(InetAddress.getByName(hostForResolve(uri)));
+            assertAllAllowed(InetAddress.getAllByName(hostForResolve(uri)));
         } catch (UnknownHostException e) {
             throw new RedmineException.Upstream("redmine_base_unresolved");
         } catch (VaultException e) {
@@ -62,6 +63,16 @@ public final class RedmineUrlValidator {
             throw VaultException.invalid("호스트가 없는 URL입니다");
         }
         return uri;
+    }
+
+    /** 해석된 주소 전부 검사 — 하나라도 차단 대역이면 거부(다중 A레코드 리바인딩 표면 축소). */
+    static void assertAllAllowed(InetAddress[] addrs) {
+        if (addrs == null || addrs.length == 0) {
+            throw VaultException.invalid("호스트를 해석할 수 없습니다");   // fail-closed: 빈 순회의 암묵적 허용 차단
+        }
+        for (InetAddress addr : addrs) {
+            assertAllowed(addr);
+        }
     }
 
     /** 차단 대역 검사 — 위반 시 VaultException.invalid. */
