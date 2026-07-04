@@ -78,6 +78,26 @@ class AuthRateLimitApiTest {
             .andExpect(status().isOk());
     }
 
+    @Test void fiveWrongRecoverCodes_locksRecoverVerify() throws Exception {
+        // 복구 검증도 시도 제한 대상 — pending 세션에서 잘못된 코드 5회 후 6회차 429
+        totp.setup("u1", "10001");
+        totp.confirm("u1", Totp.codeAt(totp.currentSecretForTest("u1"),
+            java.time.Instant.now().getEpochSecond()));
+        MockHttpSession s = new MockHttpSession();
+        mvc.perform(post("/api/auth/login").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\",\"password\":\"pw-1234\"}"))
+            .andExpect(jsonPath("$.status").value("2fa_required"));
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
+                .content("{\"emp\":\"10001\",\"code\":\"WRONGWRONG12\"}"))
+                .andExpect(status().isUnauthorized());
+        }
+        // 6번째 — 잠금 (recover 스코프)
+        mvc.perform(post("/api/auth/2fa/recover/verify").session(s).contentType(APPLICATION_JSON)
+            .content("{\"emp\":\"10001\",\"code\":\"WRONGWRONG12\"}"))
+            .andExpect(status().isTooManyRequests());
+    }
+
     @Test void fiveWrong2faCodes_locksVerify() throws Exception {
         totp.setup("u1", "10001");
         totp.confirm("u1", Totp.codeAt(totp.currentSecretForTest("u1"),
