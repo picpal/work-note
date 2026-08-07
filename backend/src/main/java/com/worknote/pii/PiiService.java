@@ -5,18 +5,13 @@ import com.worknote.vault.VaultException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import com.worknote.vault.NodeRow;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.TreeSet;
 
 /** PII 상태 기계 + 예외 요청/관리자 결정. 탐지는 PiiDetector(순수)에 위임. */
 @Service
@@ -24,11 +19,13 @@ public class PiiService {
 
     private final PiiMapper mapper;
     private final NodeMapper nodeMapper;
+    private final PiiFlagStore flags;
     private final Clock clock;
 
-    public PiiService(PiiMapper mapper, NodeMapper nodeMapper, Clock clock) {
+    public PiiService(PiiMapper mapper, NodeMapper nodeMapper, PiiFlagStore flags, Clock clock) {
         this.mapper = mapper;
         this.nodeMapper = nodeMapper;
+        this.flags = flags;
         this.clock = clock;
     }
 
@@ -44,69 +41,16 @@ public class PiiService {
         return LocalDateTime.now(clock).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 
-    private static List<String> typesList(String csv) {
-        return (csv == null || csv.isEmpty()) ? List.of() : Arrays.asList(csv.split(","));
-    }
-
-    /** 저장 시 재탐지 + 상태 기계 적용. content가 변경된 PATCH에서만 호출. */
-    @Transactional
+    /**
+     * 저장 시 재탐지 + 상태 기계 적용. content가 변경된 PATCH에서만 호출.
+     *
+     * <p><b>의도적으로 @Transactional이 아니다.</b> 탐지는 본문 길이에 비례하는 CPU 작업이고,
+     * 커넥션 풀이 1이라 트랜잭션 안에서 스캔하면 요청 하나가 앱 전체를 멈춘다.
+     * 스캔을 먼저 끝내고, DB 반영만 PiiFlagStore(별도 빈)의 트랜잭션에 맡긴다.
+     */
     public PiiEval evaluate(String nodeId, String content) {
-        PiiDetector.Scan scan = PiiDetector.scan(content);
-        String matched = PiiType.csv(scan.types());
-        String hash = hashSpans(scan.spans());
-        PiiFlagRow cur = mapper.findFlag(nodeId);
-
-        if (matched.isEmpty()) {
-            if (cur != null) mapper.deleteFlag(nodeId);
-            return new PiiEval("none", List.of());
-        }
-        if (cur == null) {
-            mapper.insertFlag(new PiiFlagRow(nodeId, "suspected", matched, now(),
-                null, null, null, null, null, null, hash, null));
-            return new PiiEval("suspected", typesList(matched));
-        }
-        // 승인된 값으로 (다시) 들어오면 예외 재적용 — 이전 허용 해시 집합에 현재 값이 있으면.
-        if (parseHashes(cur.exemptHashes()).contains(hash)) {
-            mapper.updateFlag(new PiiFlagRow(nodeId, "exempted", matched, now(),
-                cur.requestedBy(), cur.requestedAt(), cur.requestReason(),
-                cur.decidedBy(), cur.decidedAt(), cur.decisionReason(), hash, cur.exemptHashes()));
-            return new PiiEval("exempted", typesList(matched));
-        }
-        if ("exempted".equals(cur.status())) {
-            // 예외였는데 승인되지 않은 값으로 바뀜 → 의심 복귀(승인 집합은 보존 → 되돌아오면 다시 예외).
-            mapper.updateFlag(new PiiFlagRow(nodeId, "suspected", matched, now(),
-                null, null, null, null, null, null, hash, cur.exemptHashes()));
-            return new PiiEval("suspected", typesList(matched));
-        }
-        mapper.updateFlag(new PiiFlagRow(nodeId, cur.status(), matched, now(),
-            cur.requestedBy(), cur.requestedAt(), cur.requestReason(),
-            cur.decidedBy(), cur.decidedAt(), cur.decisionReason(), hash, cur.exemptHashes()));
-        return new PiiEval(cur.status(), typesList(matched));
-    }
-
-    /** 승인 해시 CSV 파싱(순서 보존·중복제거). null/빈 → 빈 집합. */
-    private static LinkedHashSet<String> parseHashes(String csv) {
-        LinkedHashSet<String> set = new LinkedHashSet<>();
-        if (csv != null && !csv.isEmpty()) {
-            for (String h : csv.split(",")) if (!h.isEmpty()) set.add(h);
-        }
-        return set;
-    }
-
-    /** 탐지된 원문 스팬의 SHA-256 hex(정렬·중복제거). 평문 PII는 저장하지 않고 해시만 비교. */
-    private static String hashSpans(List<String> spans) {
-        if (spans == null || spans.isEmpty()) return null;
-        String joined = String.join("\n", new TreeSet<>(spans));
-        try {
-            byte[] dig = MessageDigest.getInstance("SHA-256").digest(joined.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(dig.length * 2);
-            for (byte b : dig) {
-                sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);   // SHA-256은 표준 보장
-        }
+        PiiDetector.Scan scan = PiiDetector.scan(content);   // 트랜잭션 밖 (CPU)
+        return flags.apply(nodeId, scan);                    // 트랜잭션 안 (DB만)
     }
 
     /** 사용자 예외 요청 — suspected/rejected에서만 허용. */
@@ -124,7 +68,7 @@ public class PiiService {
     @Transactional
     public void approve(String nodeId, String adminEmp) {
         PiiFlagRow cur = requireFlag(nodeId);
-        LinkedHashSet<String> exempt = parseHashes(cur.exemptHashes());
+        LinkedHashSet<String> exempt = PiiFlagStore.parseHashes(cur.exemptHashes());
         if (cur.matchedHash() != null) exempt.add(cur.matchedHash());
         String exemptCsv = exempt.isEmpty() ? null : String.join(",", exempt);
         mapper.updateFlag(new PiiFlagRow(nodeId, "exempted", cur.types(), cur.detectedAt(),
