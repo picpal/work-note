@@ -18,7 +18,9 @@ public final class PiiDetector {
 
     private static final Pattern RRN      = Pattern.compile("(?<!\\d)\\d{6}[- \\t]?[1-8]\\d{6}(?!\\d)");
     private static final Pattern PHONE    = Pattern.compile("(?<!\\d)01[016789][- \\t]?\\d{3,4}[- \\t]?\\d{4}(?!\\d)");
-    private static final Pattern EMAIL    = Pattern.compile("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}");
+    // 선두 lookbehind 필수 — 없으면 '@'가 없는 긴 문자열에서 시작위치마다 로컬파트를 다시 훑어 O(n²)가 된다.
+    // 로컬파트는 '@' 직전까지 연속이므로 런 중간에서 시작하는 매치는 런 선두 매치와 항상 동일 결과 → 의미 변화 없음.
+    private static final Pattern EMAIL    = Pattern.compile("(?<![A-Za-z0-9._%+\\-])[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}");
     private static final Pattern CARD     = Pattern.compile("(?<!\\d)(?:\\d[ -]?){15}\\d(?!\\d)");
     private static final Pattern BIZ      = Pattern.compile("(?<!\\d)\\d{3}-\\d{2}-\\d{5}(?!\\d)");
     private static final Pattern PASSPORT = Pattern.compile("(?<![A-Z0-9])[A-Z]\\d{8}(?![A-Z0-9])");

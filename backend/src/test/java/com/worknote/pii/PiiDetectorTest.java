@@ -1,6 +1,7 @@
 package com.worknote.pii;
 
 import org.junit.jupiter.api.Test;
+import java.time.Duration;
 import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -77,5 +78,33 @@ class PiiDetectorTest {
     @Test void 개행_가로지르면_미탐지() {   // [- \t]로 좁혀 \n은 구분자 아님 — 라인 포커스 정확성 보장
         assertFalse(PiiDetector.detect("010\n1234\n5678").contains(PiiType.PHONE));
         assertEquals(1, PiiDetector.scanMatches("전화 010-1234-5678").size());   // 한 줄 정상 표기는 그대로 탐지
+    }
+
+    // --- ReDoS 회귀 (2026-08-07 보안감사 H-1) ---
+    // EMAIL 로컬파트에 경계 lookbehind가 없으면 '@'가 없는 긴 문자열에서 시작위치마다 재시도 →
+    // O(n²). 10만자에 약 7초, 40만자에 약 113초가 측정됐다. 선형이면 수 ms.
+
+    @Test void 이메일_로컬파트_긴문자열_선형시간() {
+        String bomb = "a".repeat(100_000);   // '@' 없음 — 매치 실패 경로가 최악
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+            assertFalse(PiiDetector.detect(bomb).contains(PiiType.EMAIL)));
+    }
+
+    @Test void 이메일_도메인파트_긴문자열_선형시간() {
+        String bomb = "a@" + "x".repeat(100_000);   // 도메인에 '.' 없음 → 도메인 백트래킹 최악
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+            assertFalse(PiiDetector.detect(bomb).contains(PiiType.EMAIL)));
+    }
+
+    @Test void 긴본문_끝에_실제이메일이면_여전히_탐지() {   // 선형화가 탐지를 죽이지 않는지
+        String text = "a".repeat(50_000) + " user@example.com";
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+            assertTrue(PiiDetector.detect(text).contains(PiiType.EMAIL)));
+    }
+
+    @Test void 로컬파트_문자가_앞에_붙어도_원래_경계에서_매치() {   // lookbehind가 매치 범위를 바꾸지 않음
+        var ms = PiiDetector.scanMatches("x-a.b@c.com");
+        assertEquals(1, ms.size());
+        assertEquals("x-a.b@c.com", ms.get(0).value());   // 기존과 동일하게 최좌측에서 시작
     }
 }
