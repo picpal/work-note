@@ -63,7 +63,7 @@ public class VaultController {
     }
 
     @PatchMapping("/nodes/{id}")
-    public Map<String, Object> update(@PathVariable String id, @RequestBody UpdateNodeRequest body, HttpServletRequest req) {
+    public Map<String, Object> update(@PathVariable String id, @Valid @RequestBody UpdateNodeRequest body, HttpServletRequest req) {
         UserRow user = user(req);
         guard.requireEdit(user, id);
         svc.update(id, body.name(), body.content(), body.tags(), guard.who(user));
