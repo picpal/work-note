@@ -87,11 +87,11 @@ public class ShareLinkService {
             || (row.pinEmps() != null && viewerEmp != null && !fromJson(row.pinEmps()).contains(viewerEmp))) {
             throw invalidLink();
         }
-        // 상한 소진 후에도 CONTENT는 이 세션이 소비한 열람에 한해 통과 — 첨부는 열람수를
+        // 상한 소진 후에도 CONTENT는 이 세션의 이 계정이 소비한 열람에 한해 통과 — 첨부는 열람수를
         // 소모하지 않으므로(이미지 N개 = 열람 1회) 막으면 마지막 열람의 이미지가 전부 깨진다.
-        // 표식은 resolve만 남기므로 본문 재열람과 타 세션은 그대로 거부된다.
+        // 표식은 resolve만 남기므로 본문 재열람·타 세션·교대 로그인한 타 계정은 그대로 거부된다.
         if (row.maxViews() != null && row.viewCount() >= row.maxViews()
-            && (use == Use.VIEW || !viewed.hasViewed(row.id()))) {
+            && (use == Use.VIEW || !viewed.hasViewed(row.id(), viewerEmp))) {
             throw invalidLink();
         }
         NodeRow node = nodes.findById(row.nodeId());
@@ -107,7 +107,8 @@ public class ShareLinkService {
         ValidShare v = validate(token, viewerEmp, Use.VIEW);
         NodeRow node = v.node();
         mapper.incrementViewCount(v.link().id());
-        viewed.markViewed(v.link().id());   // 이 세션이 소비한 열람 — 첨부 서빙의 근거
+        // 이 세션의 이 계정이 소비한 열람 — 첨부 서빙의 근거 (TTL 만료까지)
+        viewed.markViewed(v.link().id(), viewerEmp);
         return new ShareView(v.link().id(), v.link().nodeId(), node.name(), node.content(),
             node.updatedAt() == null ? null : node.updatedAt().substring(0, 10));
     }

@@ -19,7 +19,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared")
+// 익명 file::memory:는 JVM 전역 단일 DB라 공통 노드 id를 심는 클래스끼리 PK가 충돌한다 — 클래스 전용 이름으로 격리
+@SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file:sharelinksvcmem?mode=memory&cache=shared")
 class ShareLinkServiceTest {
     @Autowired ShareLinkService service;
     @Autowired ShareLinkMapper mapper;

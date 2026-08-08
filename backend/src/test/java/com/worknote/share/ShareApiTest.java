@@ -68,7 +68,11 @@ class ShareApiTest {
     }
 
     private MockHttpSession login(String emp, String pw) throws Exception {
-        MockHttpSession session = new MockHttpSession();
+        return loginOn(new MockHttpSession(), emp, pw);
+    }
+
+    /** 기존 세션에 이어서 로그인 — 공용 PC 교대 로그인(changeSessionId는 내용을 유지한다) 재현용. */
+    private MockHttpSession loginOn(MockHttpSession session, String emp, String pw) throws Exception {
         mvc.perform(post("/api/auth/login").session(session).contentType(APPLICATION_JSON)
                 .content("{\"emp\":\"" + emp + "\",\"password\":\"" + pw + "\"}"))
             .andExpect(status().isOk());
@@ -288,6 +292,28 @@ class ShareApiTest {
         mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(other))
             .andExpect(status().isNotFound());
         mvc.perform(get("/api/share/" + token + "/attachments").session(other))
+            .andExpect(status().isNotFound());
+    }
+
+    // 16. 소진 링크의 첨부 자격은 열람을 소비한 "계정"의 것이다. 공용 PC 교대 로그인처럼 같은
+    //     세션에서 계정이 바뀌면(changeSessionId는 내용을 유지한다) 새 계정은 자기가 열지 않은
+    //     링크의 첨부를 물려받아선 안 된다.
+    @Test
+    void exhaustedLinkDoesNotLeakAttachmentsToNextAccountOnSameSession() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        String attId = JsonPath.read(upload(admin, "a.png", new byte[]{1, 2, 3}), "$.id");
+        String token = JsonPath.read(createShare(admin, "n1", "{\"maxViews\":1}"), "$.token");
+
+        MockHttpSession shared = login("10001", "pw-1234");
+        mvc.perform(post("/api/share/" + token + "/view").session(shared))
+            .andExpect(status().isOk());   // A가 마지막 열람 소진
+        mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(shared))
+            .andExpect(status().isOk());   // A 본인은 계속 열람 가능
+
+        loginOn(shared, "20002", "pw-1234");   // 같은 세션에서 B로 교대 로그인
+        mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(shared))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/share/" + token + "/attachments").session(shared))
             .andExpect(status().isNotFound());
     }
 
