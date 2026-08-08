@@ -47,36 +47,60 @@ class StoragePermissionsTest {
         assertThat(StoragePermissions.sqliteFile("jdbc:h2:mem:test")).isNull();
     }
 
-    // --- 디렉토리 700 ---
+    // --- 디렉토리 700: 없으면 생성, 있으면 그대로 ---
 
     @Test
-    void ensureDirectory_createsMissingWith700(@TempDir Path tmp) throws IOException {
+    void createDirectoryIfMissing_createsMissingWith700(@TempDir Path tmp) throws IOException {
         assumePosix(tmp);
         Path dir = tmp.resolve("data/worknote");
-        StoragePermissions.ensureDirectory(dir, true);
+        StoragePermissions.createDirectoryIfMissing(dir);
         assertThat(Files.isDirectory(dir)).isTrue();
         assertThat(Files.getPosixFilePermissions(dir))
             .isEqualTo(PosixFilePermissions.fromString("rwx------"));
     }
 
     @Test
-    void ensureDirectory_correctsExistingWhenEnforcing(@TempDir Path tmp) throws IOException {
-        assumePosix(tmp);
-        Path dir = Files.createDirectory(tmp.resolve("loose"));
-        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
-        StoragePermissions.ensureDirectory(dir, true);
-        assertThat(Files.getPosixFilePermissions(dir))
-            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
-    }
-
-    @Test
-    void ensureDirectory_leavesExistingAloneWhenNotEnforcing(@TempDir Path tmp) throws IOException {
+    void createDirectoryIfMissing_neverTouchesExistingPermissions(@TempDir Path tmp) throws IOException {
         assumePosix(tmp);
         Path dir = Files.createDirectory(tmp.resolve("shared"));
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
-        StoragePermissions.ensureDirectory(dir, false);
+        StoragePermissions.createDirectoryIfMissing(dir);
         assertThat(Files.getPosixFilePermissions(dir))
             .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
+
+    // --- 기존 디렉토리 검증(변경 없음) ---
+
+    @Test
+    void describeIfShared_returnsNullForOwnerOnlyDirectory(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("private"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
+        assertThat(StoragePermissions.describeIfShared(dir)).isNull();
+    }
+
+    @Test
+    void describeIfShared_flagsGroupOrWorldAccessWithChmodCommand(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("loose"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-x---"));   // 그룹만 열려도 지적
+        assertThat(StoragePermissions.describeIfShared(dir))
+            .contains(dir.toString())
+            .contains("chmod 700 " + dir);
+        assertThat(Files.getPosixFilePermissions(dir))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-x---"));   // 검증만 — 바꾸지 않는다
+    }
+
+    // --- 앱 소유 디렉토리(업로드 루트)는 보정한다 ---
+
+    @Test
+    void ensureAppOwnedDirectory_correctsExisting(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("attachments"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+        StoragePermissions.ensureAppOwnedDirectory(dir);
+        assertThat(Files.getPosixFilePermissions(dir))
+            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
     }
 
     // --- 파일 600 ---
@@ -115,6 +139,7 @@ class StoragePermissionsTest {
     void harden_correctsExistingDbFile(@TempDir Path tmp) throws IOException {
         assumePosix(tmp);
         Path dir = Files.createDirectory(tmp.resolve("data"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
         Path db = Files.createFile(dir.resolve("worknote.db"));
         Files.setPosixFilePermissions(db, PosixFilePermissions.fromString("rw-rw-r--"));
         StoragePermissions.harden(db, tmp.resolve("data/attachments"), true);
@@ -171,5 +196,113 @@ class StoragePermissionsTest {
     void harden_skipsSilentlyOnNonPosix(@TempDir Path tmp) {
         assumeTrue(!StoragePermissions.posixSupported(tmp), "POSIX 파일시스템 — 이 케이스 대상 아님");
         assertThat(StoragePermissions.harden(tmp.resolve("w.db"), tmp.resolve("att"), true)).isEmpty();
+    }
+
+    // --- P1: 이미 존재하는 디렉토리는 절대 chmod하지 않는다 ---
+
+    /**
+     * 핵심 회귀 — 기존 DB 부모 디렉토리는 앱 소유가 아닐 수 있다(기본 배치는 작업 디렉토리,
+     * WORKNOTE_DB=/tmp/worknote.db면 /tmp). server 모드라도 임의로 700을 씌우지 않고 기동을 세운다.
+     */
+    @Test
+    void harden_serverMode_doesNotChmodExistingDbParent_andFailsWithActionableMessage(@TempDir Path tmp)
+        throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("shared"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Path db = dir.resolve("worknote.db");
+
+        List<String> problems = StoragePermissions.harden(db, tmp.resolve("att"), true);
+
+        assertThat(Files.getPosixFilePermissions(dir))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(problems).hasSize(1);
+        assertThat(problems.get(0)).contains(dir.toString()).contains("chmod 700 " + dir);
+    }
+
+    /** 700보다 엄격/동일하면 문제 없음 — 정상 배치는 조용히 통과해야 한다. */
+    @Test
+    void harden_serverMode_acceptsExistingPrivateDbParent(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("private"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
+        assertThat(StoragePermissions.harden(dir.resolve("worknote.db"), tmp.resolve("att"), true)).isEmpty();
+    }
+
+    /** 없는 디렉토리는 우리가 만든 것이므로 700으로 생성한다(넓게 만들고 나중에 조이지 않는다). */
+    @Test
+    void harden_serverMode_createsMissingDbParentAt700(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path db = tmp.resolve("var/lib/worknote/worknote.db");
+        assertThat(StoragePermissions.harden(db, tmp.resolve("att"), true)).isEmpty();
+        assertThat(Files.getPosixFilePermissions(db.getParent()))
+            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
+    }
+
+    /** server 모드에서 상대 경로 DB는 거부 — 작업 디렉토리에 따라 위치가 달라지는 경로는 전용 저장소가 아니다. */
+    @Test
+    void harden_serverMode_rejectsRelativeDbPath(@TempDir Path tmp) {
+        assumePosix(tmp);
+        List<String> problems = StoragePermissions.harden(Paths.get("./worknote.db"), tmp.resolve("att"), true);
+        assertThat(problems).hasSize(1);
+        assertThat(problems.get(0)).contains("WORKNOTE_DB");
+    }
+
+    /** local 모드(개인 PC 기본값)는 무설정으로 계속 떠야 한다 — 상대 경로 DB도 문제 아님. */
+    @Test
+    void harden_localMode_acceptsRelativeDefaultDbPath(@TempDir Path tmp) {
+        assertThat(StoragePermissions.harden(Paths.get("./worknote.db"), tmp.resolve("att"), false)).isEmpty();
+    }
+
+    // --- P2: 심볼릭 링크를 따라가지 않는다 ---
+
+    /** DB 파일이 심링크면 chmod가 링크 타깃(우리 소유가 아닐 수 있는 파일)에 적용된다 — 거부. */
+    @Test
+    void harden_doesNotChmodSymlinkTarget(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("data"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
+        Path victim = Files.createFile(tmp.resolve("victim.txt"));
+        Files.setPosixFilePermissions(victim, PosixFilePermissions.fromString("rw-r--r--"));
+        Path link = Files.createSymbolicLink(dir.resolve("worknote.db"), victim);
+
+        List<String> problems = StoragePermissions.harden(link, tmp.resolve("att"), true);
+
+        assertThat(Files.getPosixFilePermissions(victim))
+            .isEqualTo(PosixFilePermissions.fromString("rw-r--r--"));
+        assertThat(problems).hasSize(1);
+        assertThat(problems.get(0)).contains("심볼릭 링크");
+    }
+
+    /** 업로드 루트가 심링크여도 타깃 디렉토리를 chmod하지 않는다. */
+    @Test
+    void harden_doesNotChmodSymlinkedUploadRoot(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path target = Files.createDirectory(tmp.resolve("elsewhere"));
+        Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Path link = Files.createSymbolicLink(tmp.resolve("attachments"), target);
+
+        List<String> problems = StoragePermissions.harden(null, link, true);
+
+        assertThat(Files.getPosixFilePermissions(target))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(problems).hasSize(1);
+        assertThat(problems.get(0)).contains("심볼릭 링크");
+    }
+
+    /**
+     * SQLite 사이드카(-wal/-shm/-journal)는 DB 경로 문자열 옆에 렉시컬하게 생긴다.
+     * 하드닝한 디렉토리가 그 렉시컬 부모의 실경로와 같아야 사이드카가 실제로 덮인다.
+     */
+    @Test
+    void harden_hardenedDirectoryActuallyContainsSqliteSidecars(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path db = tmp.resolve("data/worknote.db");
+        assertThat(StoragePermissions.harden(db, tmp.resolve("att"), true)).isEmpty();
+
+        Path wal = Files.createFile(db.resolveSibling(db.getFileName() + "-wal"));
+        assertThat(wal.getParent().toRealPath()).isEqualTo(db.getParent().toRealPath());
+        assertThat(Files.getPosixFilePermissions(wal.getParent().toRealPath()))
+            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
     }
 }

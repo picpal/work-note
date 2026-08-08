@@ -19,8 +19,11 @@ import org.springframework.stereotype.Component;
  * 처음부터 700 디렉토리 안에서 파일이 생긴다. ApplicationRunner는 이미 늦다.
  * (그래서 {@code @Value} 대신 {@link EnvironmentAware} — BFPP는 일반 BeanPostProcessor보다 먼저 만들어진다)
  *
- * <p>server 모드에서 보정까지 실패하면 기동을 세운다. 공용 서버에서 DB가 다른 계정에 읽히는 상태로
- * 조용히 뜨는 것보다 안 뜨는 게 낫다. local 모드(개인 PC·무인증)는 WARN만.
+ * <p>server 모드에서 저장소가 소유자 전용임을 확인하지 못하면 기동을 세운다. 공용 서버에서 DB가 다른 계정에
+ * 읽히는 상태로 조용히 뜨는 것보다 안 뜨는 게 낫다. local 모드(개인 PC·무인증)는 WARN만.
+ *
+ * <p>단, 이미 존재하는 DB 부모 디렉토리를 앱이 조여주지는 않는다({@link StoragePermissions} 원칙 1) —
+ * 실패 메시지에 경로와 실행할 {@code chmod} 명령이 들어 있으니 운영자가 한 줄로 해결한다.
  */
 @Component
 public class StoragePermissionGuard implements BeanFactoryPostProcessor, EnvironmentAware {
@@ -52,8 +55,9 @@ public class StoragePermissionGuard implements BeanFactoryPostProcessor, Environ
         }
         String detail = String.join(" / ", problems);
         if (serverMode) {
-            throw new IllegalStateException("저장소 권한을 700/600으로 보정하지 못했습니다: " + detail);
+            throw new IllegalStateException(
+                "저장소가 소유자 전용(700/600)임을 확인하지 못해 기동을 중단합니다: " + detail);
         }
-        log.warn("저장소 권한 보정 실패(local 모드라 기동은 계속): {}", detail);
+        log.warn("저장소 권한 점검 실패(local 모드라 기동은 계속): {}", detail);
     }
 }
