@@ -14,11 +14,17 @@ export const DETAIL_SEP = " · ";
 const SIGN_WORD: Record<string, string> = { "+": "추가", "−": "회수", "~": "변경" };
 
 /**
- * Excel·LibreOffice는 `= + - @`(및 선행 탭·CR)로 시작하는 칸을 수식으로 **실행**한다.
+ * Excel·LibreOffice는 `= + - @`(및 탭·CR·LF)로 시작하는 칸을 수식으로 **실행**한다(OWASP CSV Injection).
  * 따옴표로 감싸는 것은 방어가 아니다 — 파서가 따옴표를 벗긴 뒤 평가하기 때문이다.
  * 텍스트 마커(')를 앞에 붙여 무해화하고, 정상 값은 증적 원문 그대로 둔다.
+ *
+ * 선두 문자 하나만 보면 두 방향으로 뚫린다:
+ * ① 전각 `＝ ＋ － ＠`(U+FF1D/FF0B/FF0D/FF20) — 한글 IME로 쉽게 입력되고 Excel이 반각으로 접어 평가한다.
+ * ② 트리거 앞 공백 — Excel은 칸 선두 공백을 무시하므로 `" =1+1"`도 수식이다.
+ * 그래서 '공백 런 뒤의 트리거'까지 본다. `\s*`는 백트래킹하므로 탭·CR·LF 자체로 시작하는 칸도 그대로 걸린다.
+ * 반대로 공백만으로는 트리거가 아니다 — 사번·한글처럼 앞에 공백이 붙었을 뿐인 정상 값을 훼손하지 않기 위함.
  */
-const RISKY_PREFIX = /^[=+\-@\t\r]/;
+const RISKY_PREFIX = /^\s*[=+\-@\t\r\n＝＋－＠]/;
 
 export function csvCell(value: unknown): string {
   const s = value == null ? "" : String(value);

@@ -90,7 +90,8 @@ java -jar worknote-0.1.0.jar
 | `WORKNOTE_SMTP_USER` / `WORKNOTE_SMTP_PASSWORD` | (없음) | SMTP 인증 계정(필요 시) |
 | `WORKNOTE_SMTP_STARTTLS` | `false` | STARTTLS 사용 여부 |
 | `SERVER_PORT` | `8080` | 서비스 포트 (`--server.port=` 인자도 가능) |
-| `WORKNOTE_TLS_KEYSTORE` | (없음) | **TLS 스위치.** PKCS12 키스토어 경로. 지정하면 HTTPS로 기동 + 세션 쿠키 `Secure` 자동 활성 |
+| `WORKNOTE_TLS_ENABLED` | `false` | **TLS 스위치.** `true`면 HTTPS로 기동. 자재(키스토어·번들·PEM) 없이 켜면 기동 실패 |
+| `WORKNOTE_TLS_KEYSTORE` | (없음) | PKCS12 키스토어 경로. 이걸 지정하고 `WORKNOTE_TLS_ENABLED`를 켜지 않으면 **기동 실패**(평문으로 뜨면서 TLS라 착각하는 사고 방지) |
 | `WORKNOTE_TLS_KEYSTORE_PASSWORD` | (없음) | 키스토어 비밀번호 |
 | `WORKNOTE_TLS_KEYSTORE_TYPE` | `PKCS12` | 키스토어 형식(`JKS`도 가능하나 PKCS12 권장) |
 | `WORKNOTE_TLS_KEY_ALIAS` | `worknote` | 키스토어 안의 키 별칭. 변환 시 `-name`으로 지정한 값과 맞추세요 |
@@ -110,15 +111,52 @@ java -jar worknote-0.1.0.jar
 | 업로드 루트(`WORKNOTE_UPLOAD_DIR`) | `700` | 없으면 그 권한으로 생성 |
 | 첨부 파일·샤딩 디렉토리 | `600` / `700` | **생성 시점에** 부여(넓게 만든 뒤 조이지 않음) |
 
-- **server 모드**에서 권한 보정에 실패하면 기동이 중단됩니다(공용 서버가 DB를 노출한 채 조용히 뜨는 것보다 낫습니다).
-- local 모드(개인 PC·무인증)에서는 경고만 남기고 계속 기동하며, **이미 존재하는 DB 부모 디렉토리의 권한은 바꾸지 않습니다** — 기본 배치(`./worknote.db`)에서는 부모가 사용자의 작업 디렉토리이기 때문입니다. 서버 배치에서는 `WORKNOTE_DB`를 `/data/worknote/worknote.db`처럼 **전용 디렉토리**로 지정하세요.
-- 프로세스 실행 계정과 백업 계정만 이 디렉토리에 접근할 수 있어야 합니다.
+원칙은 두 가지입니다.
+
+1. **앱이 만든 것만 앱이 바꿉니다.** 디렉토리가 없으면 `700`으로 만들지만, **이미 존재하는 디렉토리의 권한은 바꾸지 않습니다**. 대신 server 모드에서 그 디렉토리가 그룹·타인에게 열려 있으면 기동을 중단하고 실행할 `chmod` 명령을 알려줍니다.
+2. **권한 변경은 심볼릭 링크를 따라가지 않습니다.** DB 파일이나 업로드 루트가 링크면 거부합니다(링크 타깃의 권한을 앱이 말없이 바꾸지 않기 위해서). 경로 중간의 링크(예: macOS `/var`→`/private/var`)는 정상 배치이므로 허용합니다.
+
+local 모드(개인 PC·무인증)는 위 검증을 하지 않고 경고만 남긴 뒤 계속 기동합니다 — 무설정으로 그냥 동작해야 하기 때문입니다.
+
+> #### ⚠️ 업그레이드 시 server 모드 기동이 막히는 경우
+>
+> 이전 버전은 기존 디렉토리도 말없이 `700`으로 바꿨습니다. 그 동작을 없앴기 때문에, 아래에 해당하면 **업그레이드 후 기동이 실패합니다.** 미리 확인하세요.
+>
+> | 상황 | 조치 |
+> | --- | --- |
+> | `WORKNOTE_DB` 미지정(기본 `./worknote.db`) 또는 **상대 경로** | 전용 디렉토리를 만들고 `worknote.db`와 `-wal`·`-shm`(있으면)을 **함께** 옮긴 뒤 `WORKNOTE_DB=/var/lib/worknote/worknote.db` 지정 |
+> | DB 부모 디렉토리가 이미 있고 `755` 등으로 열려 있음 | 메시지가 알려주는 `chmod 700 <dir>` 실행 |
+> | `WORKNOTE_DB=/tmp/worknote.db` 처럼 **공용 디렉토리** | **`chmod 700 /tmp`를 실행하지 마세요.** 전용 디렉토리로 이전하세요(위 첫 항목과 동일) |
+> | `WORKNOTE_DB` 또는 `WORKNOTE_UPLOAD_DIR`가 **심볼릭 링크** | 링크가 아닌 실제 경로를 지정. 별도 볼륨을 링크로 붙인 배치가 여기 걸립니다 |
+>
+> **백업 계정이 그룹 권한으로 DB를 읽고 있었다면** 이 시점에 백업 경로를 먼저 정리해야 합니다. 다만 이전 버전도 실제로는 디렉토리를 `700`으로 바꿔 그 접근을 이미 끊고 있었습니다 — 달라진 것은 그 사실이 조용히 넘어가지 않고 드러난다는 점뿐입니다.
+>
+> 상대 경로를 막는 이유는 위치가 실행 계정의 작업 디렉토리에 따라 달라지기 때문입니다. 그대로 두면 앱이 작업 디렉토리 전체를 `700`으로 바꾸는 사고로 이어집니다.
+
+프로세스 실행 계정과 백업 계정만 이 디렉토리에 접근할 수 있어야 합니다.
 
 ### TLS(HTTPS) 적용
 
-스위치는 `WORKNOTE_TLS_KEYSTORE` **하나**입니다. 지정하면 내장 Tomcat이 HTTPS로 뜨고 세션 쿠키에 `Secure`가 **함께** 붙습니다. 지정하지 않으면 지금까지와 동일하게 HTTP로 뜹니다(설정 변경 불필요).
+스위치는 `WORKNOTE_TLS_ENABLED=true` 이고, 여기에 자재(키스토어 또는 `server.ssl.bundle`/`server.ssl.certificate`)를 함께 지정합니다. 아무것도 설정하지 않으면 지금까지와 동일하게 HTTP로 뜹니다(설정 변경 불필요).
 
-> 쿠키 `Secure`를 따로 켜게 두지 않는 이유: HTTP 배포에서 `Secure`가 켜지면 브라우저가 세션 쿠키를 아예 보내지 않아 전면 장애가 납니다. 반대로 HTTPS인데 안 켜면 평문 유출 창이 남습니다. 둘을 한 스위치에 묶어 어느 쪽도 빠뜨릴 수 없게 했습니다.
+세션 쿠키 `Secure`는 **직접 설정하지 않습니다.** 실효 TLS 상태 또는 `WORKNOTE_CANONICAL_ORIGIN`이 `https://`인지에서 자동으로 유도됩니다.
+
+> 쿠키 `Secure`를 손으로 켜게 두지 않는 이유: HTTP 배포에서 `Secure`가 켜지면 브라우저가 세션 쿠키를 아예 보내지 않아 **로그인 전면 장애**가 납니다. 반대로 HTTPS인데 안 켜면 평문 유출 창이 남습니다.
+
+#### 모순되는 설정은 기동을 막습니다
+
+조용히 잘못된 상태로 뜨는 것보다 안 뜨는 편이 낫다는 원칙입니다. 아래 조합은 전부 기동 시점에 한국어 조치 문구와 함께 실패합니다.
+
+| 조합 | 조치 |
+| --- | --- |
+| 키스토어·번들·PEM 지정 + `WORKNOTE_TLS_ENABLED` 미설정 | `WORKNOTE_TLS_ENABLED=true` 설정, 또는 자재 설정 제거 |
+| `WORKNOTE_TLS_ENABLED=true` + 자재 전무 | 키스토어(+비밀번호) 또는 번들·PEM 지정 |
+| TLS 활성 + `WORKNOTE_CANONICAL_ORIGIN`이 `http://…` | canonical-origin을 `https://`로 고치거나 비우기 |
+| 실효 HTTPS + 쿠키 `secure=false` 오버라이드 | 오버라이드 제거(자동으로 켜집니다) |
+| 평문 HTTP + 쿠키 `secure=true` 오버라이드 | `WORKNOTE_CANONICAL_ORIGIN=https://…` 또는 `SERVER_FORWARD_HEADERS_STRATEGY=framework` 설정, 아니면 오버라이드 제거 |
+| `WORKNOTE_CANONICAL_ORIGIN` 형식 불량 | `https://host[:port]` 절대 오리진으로 고치거나 비우기 |
+
+마지막 항목이 중요합니다 — 이전에는 형식이 깨진 값이 **조용히 무시되고** CSRF 기준이 요청에서 유도된 값으로 되돌아갔습니다. 이제는 기동 시점에 걸립니다.
 
 #### 1) 사내 CA에 CSR 제출
 
@@ -153,6 +191,7 @@ shred -u worknote.key   # .p12로 옮긴 뒤 원본 개인키 제거
 
 ```bash
 WORKNOTE_MODE=server \
+WORKNOTE_TLS_ENABLED=true \
 WORKNOTE_TLS_KEYSTORE=/etc/worknote/worknote.p12 \
 WORKNOTE_TLS_KEYSTORE_PASSWORD='키스토어-비밀번호' \
 SERVER_PORT=8443 \
@@ -168,7 +207,7 @@ java -jar worknote-0.1.0.jar
 
 #### 리버스 프록시가 TLS를 종단하는 경우 — 반드시 읽으세요
 
-프록시가 HTTPS를 받고 앱에는 평문 HTTP로 넘기는 구성이라면 `WORKNOTE_TLS_KEYSTORE`를 쓰지 않습니다. 대신 아래 설정이 **필수**입니다. 빠뜨리면 **로그인을 포함한 모든 상태 변경 요청이 403 `invalid_origin`으로 막혀 앱이 통째로 멈춥니다.**
+프록시가 HTTPS를 받고 앱에는 평문 HTTP로 넘기는 구성이라면 `WORKNOTE_TLS_ENABLED`를 켜지 않습니다. 대신 아래 설정이 **필수**입니다. 빠뜨리면 **로그인을 포함한 모든 상태 변경 요청이 403 `invalid_origin`으로 막혀 앱이 통째로 멈춥니다.**
 
 이유: CSRF 방어가 브라우저의 `Origin` 헤더를 서버가 인식한 자기 오리진과 비교하는데, 프록시 뒤에서는 서버가 보는 스킴이 `http`, 브라우저가 보낸 Origin은 `https://...`라 **항상 불일치**합니다.
 
@@ -376,7 +415,7 @@ rsync -a /data/worknote/attachments/ /backup/attachments-$(date +%F)/
 | 쿠키 | `HttpOnly`, `SameSite=lax`, TLS 활성 시 `Secure` 자동 부여 |
 | CSRF | 상태 변경 요청의 `Origin`(없으면 `Referer`) 검증. 프록시 TLS 종단 시 `WORKNOTE_CANONICAL_ORIGIN` 필수 |
 | 저장소 파일 권한 | DB 부모 디렉토리·업로드 루트 `700`, DB 파일·첨부 `600`(첨부는 생성 시점 부여) |
-| 전송 구간 | 기본 HTTP. 사내 CA 인증서로 HTTPS 전환 가능(`WORKNOTE_TLS_KEYSTORE`) |
+| 전송 구간 | 기본 HTTP. 사내 CA 인증서로 HTTPS 전환 가능(`WORKNOTE_TLS_ENABLED`+키스토어) |
 | 가입 | 관리자 승인제 (승인 전 로그인 불가) |
 | 2FA | TOTP(SHA1·6자리·30초), 시드 AES-256-GCM 암호화 보관, 오프라인 검증(외부 통신 0) |
 | 2FA 강제 | 관리 능력 보유 계정은 유예(기본 7일, `app_setting`의 `2fa.grace_days`) 후 미등록 시 기능 차단 |

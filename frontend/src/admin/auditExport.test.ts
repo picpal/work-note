@@ -30,9 +30,26 @@ describe("csvCell — 수식 주입(CSV injection) 차단", () => {
     expect(csvCell("@SUM(A1:A9)")).toBe('"\'@SUM(A1:A9)"');
   });
 
-  it("선행 탭·CR도 수식 트리거라 동일 처리", () => {
+  it("선행 탭·CR·LF도 수식 트리거라 동일 처리", () => {
     expect(csvCell("\t=1+1")).toBe('"\'\t=1+1"');
     expect(csvCell("\r=1+1")).toBe('"\'\r=1+1"');
+    expect(csvCell("\n=1+1")).toBe('"\'\n=1+1"');
+  });
+
+  it("전각 변형(＝ ＋ － ＠)도 무해화한다", () => {
+    // 한글 IME에서 쉽게 입력되고, Excel은 전각을 반각으로 접어 수식으로 평가한다.
+    expect(csvCell("＝1+1")).toBe('"\'＝1+1"');
+    expect(csvCell("＋1+1")).toBe('"\'＋1+1"');
+    expect(csvCell("－2+3")).toBe('"\'－2+3"');
+    expect(csvCell("＠SUM(A1:A9)")).toBe('"\'＠SUM(A1:A9)"');
+  });
+
+  it("트리거 앞의 공백은 방어를 우회하지 못한다", () => {
+    // Excel은 칸 선두 공백을 무시하고 그 뒤를 수식으로 본다 — 선두 문자만 보면 뚫린다.
+    expect(csvCell(" =1+1")).toBe('"\' =1+1"');
+    expect(csvCell("  \t =cmd|'/c calc'!A1")).toBe('"\'  \t =cmd|\'/c calc\'!A1"');
+    expect(csvCell(" ＝1+1")).toBe('"\' ＝1+1"');
+    expect(csvCell("\n  @SUM(A1)")).toBe('"\'\n  @SUM(A1)"');
   });
 
   it("정상 값에는 접두어를 붙이지 않는다 (증적 원문 보존)", () => {
@@ -41,6 +58,13 @@ describe("csvCell — 수식 주입(CSV injection) 차단", () => {
     expect(csvCell("—")).toBe('"—"');            // em dash(U+2014)는 하이픈이 아니다
     expect(csvCell("권한 설정")).toBe('"권한 설정"');
     expect(csvCell("f1 (1건)")).toBe('"f1 (1건)"');
+  });
+
+  it("공백은 그 자체로 트리거가 아니다 (과잉 무해화 방지)", () => {
+    // 선행 공백 규칙이 '공백으로 시작하면 무조건'으로 넓어지면 정상 값이 훼손된다.
+    expect(csvCell(" 10001")).toBe('" 10001"');
+    expect(csvCell("   ")).toBe('"   "');
+    expect(csvCell(" 권한 설정")).toBe('" 권한 설정"');
   });
 });
 
