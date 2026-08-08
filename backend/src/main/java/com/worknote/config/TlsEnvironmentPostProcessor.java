@@ -25,9 +25,11 @@ import org.springframework.core.env.MapPropertySource;
  * {@code worknote.canonical-origin}이 {@code https://}로 선언된 경우다. 후자는 추측이 아니라 선언이다 —
  * canonical-origin은 브라우저가 보는 오리진 그 자체이고, 그 배포는 CSRF 검증 때문에 어차피 필수 설정이다.
  *
- * <p>유도값은 <b>가장 낮은 우선순위</b>로 넣어 명시 설정이 이긴다. 다만 위험한 모순
- * (HTTPS인데 {@code secure=false}, 평문 HTTP인데 {@code secure=true})은 여기서 기동을 실패시킨다 —
- * 조용한 로그인 장애·세션 노출보다 뜨지 않는 편이 낫다.
+ * <p>유도값은 <b>가장 낮은 우선순위</b>로 넣어 명시 설정이 이긴다. 다만 <b>선언끼리 모순</b>인 조합은
+ * 여기서 기동을 실패시킨다 — HTTPS인데 {@code secure=false}(세션 노출), 평문 HTTP인데
+ * {@code secure=true}(쿠키 미전송 장애), HTTPS라고 선언해 놓고 canonical-origin은 {@code http}
+ * (CSRF 검증이 전 요청을 403으로 막음). 조용히 망가진 채 뜨는 것보다 안 뜨는 편이 낫다.
+ * 전 조합의 기동 여부는 {@code TlsEnvironmentPostProcessorTest}의 배포 조합 전수표에 명세돼 있다.
  */
 public class TlsEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
@@ -62,15 +64,24 @@ public class TlsEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
                 + "WORKNOTE_TLS_KEYSTORE(+WORKNOTE_TLS_KEYSTORE_PASSWORD) 또는 "
                 + "server.ssl.bundle / server.ssl.certificate 중 하나를 지정하십시오.");
         }
-        // 앱이 HTTPS를 종단하는데 선언된 오리진이 http면 CSRF 기준과 쿠키가 동시에 어긋난다.
-        if (tlsEnabled && canonical != null && !canonicalHttps) {
+        Boolean explicitSecure = environment.getProperty(COOKIE_SECURE, Boolean.class);
+
+        // "브라우저가 HTTPS로 본다"는 주장은 두 경로로 들어온다: 앱이 직접 종단하거나(tlsEnabled),
+        // 쿠키 Secure를 명시로 켜거나(그 자체가 HTTPS 주장이다). forward-headers-strategy는 여기 없다 —
+        // 그건 프록시 헤더를 믿는다는 뜻이지 프록시가 HTTPS를 쓴다는 증거가 아니다.
+        boolean claimsHttps = tlsEnabled || Boolean.TRUE.equals(explicitSecure);
+
+        // 그 주장과 canonical-origin=http는 정면으로 모순된다. 그대로 뜨면 OriginValidator가 브라우저의
+        // https Origin을 http 기준과 비교해 로그인 포함 모든 상태 변경 요청을 403으로 막는다.
+        if (claimsHttps && canonical != null && !canonicalHttps) {
             throw new IllegalStateException(
-                "TLS를 켰는데 worknote.canonical-origin이 http 입니다: " + canonical + ". "
-                + "WORKNOTE_CANONICAL_ORIGIN을 https:// 로 고치거나, 프록시 종단이 아니라면 비워 두십시오.");
+                "HTTPS 배포로 설정했는데(" + (tlsEnabled ? TLS_ENABLED + "=true" : COOKIE_SECURE + "=true")
+                + ") worknote.canonical-origin이 http 입니다: " + canonical + ". "
+                + "이대로 뜨면 CSRF 오리진 검증이 전 요청을 403 invalid_origin으로 막습니다. "
+                + "WORKNOTE_CANONICAL_ORIGIN을 https:// 로 고치거나, 평문 HTTP 배포라면 HTTPS 설정을 되돌리십시오.");
         }
 
         boolean externalHttps = tlsEnabled || canonicalHttps;
-        Boolean explicitSecure = environment.getProperty(COOKIE_SECURE, Boolean.class);
 
         if (externalHttps && Boolean.FALSE.equals(explicitSecure)) {
             throw new IllegalStateException(
