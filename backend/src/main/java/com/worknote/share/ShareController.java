@@ -59,8 +59,13 @@ public class ShareController {
             .stream().map(this::dto).toList();
     }
 
-    /** 가드 없음 — server 모드 인증은 AuthFilter가 보장(ALLOWLIST 미포함). 무효는 전부 404 단일화. */
-    @GetMapping("/share/{token}")
+    /**
+     * 열람 소비 — 열람수를 증가시키는 상태 변경이라 GET이 아니라 POST다. GET이면 링크를 건
+     * cross-site 내비게이션만으로 남은 열람수를 태울 수 있고, Origin 검증은 안전한 메서드를
+     * 대상으로 하지 않는다. 가드 없음 — server 모드 인증은 AuthFilter가 보장(ALLOWLIST 미포함).
+     * 무효는 전부 404 단일화.
+     */
+    @PostMapping("/share/{token}/view")
     public Map<String, Object> view(@PathVariable String token, HttpServletRequest req) {
         UserRow user = user(req);
         ShareView v = svc.resolve(token, user == null ? null : user.emp());

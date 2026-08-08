@@ -35,8 +35,9 @@ export const ShareApi = {
     req<ShareLink[]>(`/nodes/${encodeURIComponent(nodeId)}/shares`),
   revoke: (id: string) =>
     req<void>(`/shares/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  // 열람은 열람수를 소비하는 상태 변경 — 백엔드가 POST만 받는다(cross-site 내비게이션 차단).
   view: (token: string) =>
-    req<ShareView>(`/share/${encodeURIComponent(token)}`),
+    req<ShareView>(`/share/${encodeURIComponent(token)}/view`, { method: "POST" }),
 };
 
 /** 링크 URL 조립 — 백엔드는 token만 반환(결정 S8). base "./" 배포라 현재 디렉토리 기준. */

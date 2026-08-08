@@ -52,7 +52,7 @@ cd backend
 |--------|------|------|-----------|
 | POST | `/api/nodes/{id}/share` | `res.share ∧ read(N)`, 노트만 | 201 `{id, token, expiresAt}` — body `{days?=7, maxViews?, pinEmps?}` |
 | GET | `/api/nodes/{id}/shares` | 동일 | 200 활성 링크 목록(관리자=전체, 그 외 본인 생성분) |
-| GET | `/api/share/{token}` | 인증만 (read 권한 불요) | 200 `{name, content, updatedAt}` — 무효 사유는 전부 404 단일 |
+| POST | `/api/share/{token}/view` | 인증만 (read 권한 불요) | 200 `{name, content, updatedAt}` — 무효 사유는 전부 404 단일. 열람수를 소비하는 상태 변경이라 GET이 아니다 |
 | DELETE | `/api/shares/{id}` | 생성자 본인 ∨ 관리자 | 204 (재취소 409) |
 | GET | `/api/admin/shares` | 관리자 | 200 활성 링크 전체(+nodeName·suspended) |
 

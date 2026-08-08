@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -221,5 +224,29 @@ class ShareLinkServiceTest {
     void nodeIdForAttachment_invalidToken_throws() {
         assertThrows(() -> service.nodeIdForAttachment("bogus", null),
             VaultException.Status.NOT_FOUND, "유효하지 않습니다");
+    }
+
+    // 11. T13-b — 첨부는 열람수를 소모하지 않으므로(이미지 N개 = 열람 1회) 소진된 링크라도
+    //     그 열람을 소비한 세션에는 서빙해야 한다. 상한은 본문 재열람·타 세션에서 그대로 유지된다.
+    @Test
+    void 소진된_링크의_첨부는_그_열람을_소비한_세션에만_허용된다() {
+        note("ss-n1");
+        ShareLinkRow link = service.create("ss-n1", "emp1", null, 1, null);
+        try {
+            RequestContextHolder.setRequestAttributes(
+                new ServletRequestAttributes(new MockHttpServletRequest()));
+            service.resolve(link.token(), null);   // 열람 1회 = 소진
+
+            assertThat(service.nodeIdForAttachment(link.token(), null)).isEqualTo("ss-n1");
+            assertThrows(() -> service.resolve(link.token(), null),
+                VaultException.Status.NOT_FOUND, "유효하지 않습니다");
+
+            RequestContextHolder.setRequestAttributes(   // 소비하지 않은 다른 세션
+                new ServletRequestAttributes(new MockHttpServletRequest()));
+            assertThrows(() -> service.nodeIdForAttachment(link.token(), null),
+                VaultException.Status.NOT_FOUND, "유효하지 않습니다");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 }
