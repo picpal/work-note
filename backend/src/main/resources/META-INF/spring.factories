@@ -1,0 +1,2 @@
+# TLS 파생 설정 — EnvironmentPostProcessor는 .imports가 아니라 spring.factories로만 등록된다(Boot 3.5).
+org.springframework.boot.env.EnvironmentPostProcessor=com.worknote.config.TlsEnvironmentPostProcessor

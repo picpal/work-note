@@ -3,14 +3,18 @@ package com.worknote.attachment;
 import com.worknote.setting.SettingService;
 import com.worknote.vault.VaultException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -52,8 +56,7 @@ public class AttachmentService {
             throw VaultException.invalid("잘못된 저장 경로"); // 방어
         }
         try {
-            Files.createDirectories(target.getParent());
-            Files.write(target, bytes, StandardOpenOption.CREATE_NEW);
+            writeOwnerOnly(target, bytes);
         } catch (IOException e) {
             // 경로·권한 등 내부 정보가 응답에 새지 않도록 상세는 서버 로그로만, 클라엔 일반 메시지.
             log.warn("첨부 저장 실패 nodeId={} rel={}", nodeId, relPath, e);
@@ -121,6 +124,27 @@ public class AttachmentService {
             }
         }
         mapper.deleteByNodeIds(nodeIds);
+    }
+
+    /**
+     * 첨부는 <b>생성 시점에</b> 600, 샤딩 디렉토리는 700. 넓게 만들고 나중에 chmod 하면 그 사이에 창이 열리고,
+     * 디렉토리가 열려 있으면 파일 권한만 조여도 목록·경로 추측이 남는다 (감사 M-6).
+     * POSIX 미지원 파일시스템에선 속성 없이 생성 — 권한 강화 실패로 업로드를 막지는 않는다.
+     */
+    private static void writeOwnerOnly(Path target, byte[] bytes) throws IOException {
+        boolean posix = target.getFileSystem().supportedFileAttributeViews().contains("posix");
+        if (!posix) {
+            Files.createDirectories(target.getParent());
+            Files.write(target, bytes, StandardOpenOption.CREATE_NEW);
+            return;
+        }
+        Files.createDirectories(target.getParent(),
+            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+        try (SeekableByteChannel ch = Files.newByteChannel(target,
+                Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
+            ch.write(ByteBuffer.wrap(bytes));
+        }
     }
 
     private static String guessMime(String ext) {
