@@ -1,6 +1,7 @@
 package com.worknote.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
@@ -47,28 +48,6 @@ class StoragePermissionsTest {
         assertThat(StoragePermissions.sqliteFile("jdbc:h2:mem:test")).isNull();
     }
 
-    // --- 디렉토리 700: 없으면 생성, 있으면 그대로 ---
-
-    @Test
-    void createDirectoryIfMissing_createsMissingWith700(@TempDir Path tmp) throws IOException {
-        assumePosix(tmp);
-        Path dir = tmp.resolve("data/worknote");
-        StoragePermissions.createDirectoryIfMissing(dir);
-        assertThat(Files.isDirectory(dir)).isTrue();
-        assertThat(Files.getPosixFilePermissions(dir))
-            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
-    }
-
-    @Test
-    void createDirectoryIfMissing_neverTouchesExistingPermissions(@TempDir Path tmp) throws IOException {
-        assumePosix(tmp);
-        Path dir = Files.createDirectory(tmp.resolve("shared"));
-        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
-        StoragePermissions.createDirectoryIfMissing(dir);
-        assertThat(Files.getPosixFilePermissions(dir))
-            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
-    }
-
     // --- 기존 디렉토리 검증(변경 없음) ---
 
     @Test
@@ -91,15 +70,38 @@ class StoragePermissionsTest {
             .isEqualTo(PosixFilePermissions.fromString("rwxr-x---"));   // 검증만 — 바꾸지 않는다
     }
 
-    // --- 앱 소유 디렉토리(업로드 루트)는 보정한다 ---
+    // --- 관리 대상 디렉토리 단일 규칙 (DB 부모·업로드 루트 공통) ---
 
     @Test
-    void ensureAppOwnedDirectory_correctsExisting(@TempDir Path tmp) throws IOException {
+    void ensureManagedDirectory_createsMissingAt700(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = tmp.resolve("data/attachments");   // 중간 디렉토리까지 만든다
+        StoragePermissions.ensureManagedDirectory(dir, "WORKNOTE_UPLOAD_DIR");
+        assertThat(Files.isDirectory(dir)).isTrue();
+        assertThat(Files.getPosixFilePermissions(dir))
+            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
+    }
+
+    @Test
+    void ensureManagedDirectory_rejectsExistingPermissiveWithoutChanging(@TempDir Path tmp) throws IOException {
         assumePosix(tmp);
         Path dir = Files.createDirectory(tmp.resolve("attachments"));
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
-        StoragePermissions.ensureAppOwnedDirectory(dir);
+        assertThatThrownBy(() -> StoragePermissions.ensureManagedDirectory(dir, "WORKNOTE_UPLOAD_DIR"))
+            .hasMessageContaining("chmod 700 " + dir);
         assertThat(Files.getPosixFilePermissions(dir))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
+
+    /** 디렉토리는 chmod하지 않으므로 심링크여도 거부하지 않는다 — 실경로를 해석해 검증한다. */
+    @Test
+    void ensureManagedDirectory_acceptsSymlinkWhenRealTargetIsPrivate(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path target = Files.createDirectory(tmp.resolve("volume"));
+        Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rwx------"));
+        Path link = Files.createSymbolicLink(tmp.resolve("attachments"), target);
+        StoragePermissions.ensureManagedDirectory(link, "WORKNOTE_UPLOAD_DIR");   // 예외 없음
+        assertThat(Files.getPosixFilePermissions(target))
             .isEqualTo(PosixFilePermissions.fromString("rwx------"));
     }
 
@@ -148,8 +150,9 @@ class StoragePermissionsTest {
     }
 
     /**
-     * local 모드(개인 PC·무인증)에선 이미 존재하는 DB 부모 디렉토리를 건드리지 않는다 —
+     * local 모드(개인 PC·무인증)에서도 이미 존재하는 DB 부모 디렉토리를 건드리지 않는다 —
      * 기본 배치가 `./worknote.db`라 부모가 사용자의 작업 디렉토리다. 거길 700으로 바꾸면 사고다.
+     * (보고만 하고 기동을 세우지 않는 건 호출부 판단 — StoragePermissionGuardTest)
      */
     @Test
     void harden_leavesExistingDbParentAloneInLocalMode(@TempDir Path tmp) throws IOException {
@@ -163,19 +166,9 @@ class StoragePermissionsTest {
 
         assertThat(Files.getPosixFilePermissions(dir))
             .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
-        // 앱이 만든 산출물(DB 파일·업로드 루트)은 local 모드에서도 보정한다
+        // DB 파일은 앱이 만든 산출물이자 실제 데이터라 두 모드 모두 600으로 조인다
         assertThat(Files.getPosixFilePermissions(db))
             .isEqualTo(PosixFilePermissions.fromString("rw-------"));
-    }
-
-    @Test
-    void harden_correctsExistingUploadRootInBothModes(@TempDir Path tmp) throws IOException {
-        assumePosix(tmp);
-        Path uploads = Files.createDirectory(tmp.resolve("attachments"));
-        Files.setPosixFilePermissions(uploads, PosixFilePermissions.fromString("rwxr-xr-x"));
-        StoragePermissions.harden(null, uploads, false);
-        assertThat(Files.getPosixFilePermissions(uploads))
-            .isEqualTo(PosixFilePermissions.fromString("rwx------"));
     }
 
     @Test
@@ -248,7 +241,7 @@ class StoragePermissionsTest {
         assertThat(problems.get(0)).contains("WORKNOTE_DB");
     }
 
-    /** local 모드(개인 PC 기본값)는 무설정으로 계속 떠야 한다 — 상대 경로 DB도 문제 아님. */
+    /** local 모드(개인 PC 기본값)는 무설정으로 계속 떠야 한다 — 상대 경로 DB 자체는 문제 삼지 않는다. */
     @Test
     void harden_localMode_acceptsRelativeDefaultDbPath(@TempDir Path tmp) {
         assertThat(StoragePermissions.harden(Paths.get("./worknote.db"), tmp.resolve("att"), false)).isEmpty();
@@ -274,7 +267,55 @@ class StoragePermissionsTest {
         assertThat(problems.get(0)).contains("심볼릭 링크");
     }
 
-    /** 업로드 루트가 심링크여도 타깃 디렉토리를 chmod하지 않는다. */
+    /**
+     * 업로드 루트도 DB 부모와 같은 규칙 — WORKNOTE_UPLOAD_DIR는 운영자가 주는 값이라
+     * `/data`·`/srv/shared`처럼 앱 전용이 아닐 수 있다. 이미 있으면 검증만 한다.
+     */
+    @Test
+    void harden_serverMode_doesNotChmodExistingUploadRoot_andFailsWithActionableMessage(@TempDir Path tmp)
+        throws IOException {
+        assumePosix(tmp);
+        Path uploads = Files.createDirectory(tmp.resolve("shared-uploads"));
+        Files.setPosixFilePermissions(uploads, PosixFilePermissions.fromString("rwxr-xr-x"));
+
+        List<String> problems = StoragePermissions.harden(null, uploads, true);
+
+        assertThat(Files.getPosixFilePermissions(uploads))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(problems).hasSize(1);
+        assertThat(problems.get(0)).contains(uploads.toString()).contains("chmod 700 " + uploads);
+    }
+
+    /**
+     * local 모드는 chmod도 하지 않고 <b>보고도 하지 않는다</b>. 개인 PC에서 작업 디렉토리·기존 폴더가 755인 건
+     * 정상이고(DB 파일은 600이라 내용은 안전), 매 기동 "chmod 700 내 프로젝트 폴더" 경고는 로그를 무디게 만든다.
+     */
+    @Test
+    void harden_localMode_doesNotReportOrChmodExistingPermissiveDirectories(@TempDir Path tmp)
+        throws IOException {
+        assumePosix(tmp);
+        Path cwd = Files.createDirectory(tmp.resolve("cwd"));
+        Files.setPosixFilePermissions(cwd, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Path uploads = Files.createDirectory(tmp.resolve("shared-uploads"));
+        Files.setPosixFilePermissions(uploads, PosixFilePermissions.fromString("rwxr-xr-x"));
+
+        assertThat(StoragePermissions.harden(cwd.resolve("worknote.db"), uploads, false)).isEmpty();
+
+        assertThat(Files.getPosixFilePermissions(cwd))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(Files.getPosixFilePermissions(uploads))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
+
+    /** 반면 진짜 오작동(업로드 루트를 만들 수 없음)은 local 모드에서도 보고한다 — 침묵시키는 건 권한 넓음뿐. */
+    @Test
+    void harden_localMode_stillReportsRealMalfunctions(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path blocker = Files.createFile(tmp.resolve("attachments"));
+        assertThat(StoragePermissions.harden(null, blocker, false)).hasSize(1);
+    }
+
+    /** 업로드 루트가 심링크면 타깃을 chmod하지 않고, 타깃의 실제 권한을 검증해 실경로까지 알려준다. */
     @Test
     void harden_doesNotChmodSymlinkedUploadRoot(@TempDir Path tmp) throws IOException {
         assumePosix(tmp);
@@ -287,7 +328,7 @@ class StoragePermissionsTest {
         assertThat(Files.getPosixFilePermissions(target))
             .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
         assertThat(problems).hasSize(1);
-        assertThat(problems.get(0)).contains("심볼릭 링크");
+        assertThat(problems.get(0)).contains(target.toRealPath().toString());
     }
 
     /**
