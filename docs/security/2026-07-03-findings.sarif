@@ -1,0 +1,2052 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "secscan",
+          "informationUri": "https://github.com/local/secscan",
+          "version": "0.0.1",
+          "rules": [
+            {
+              "id": "CVE-2025-11226",
+              "name": "ch.qos.logback/logback-core: Conditional abitrary code execution in logback-core",
+              "shortDescription": {
+                "text": "ch.qos.logback/logback-core: Conditional abitrary code execution in logback-core"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-20"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-1225",
+              "name": "ch.qos.logback/logback-core: Malicious logback.xml configuration file allows instantiation of arbitrary classes",
+              "shortDescription": {
+                "text": "ch.qos.logback/logback-core: Malicious logback.xml configuration file allows instantiation of arbitrary classes"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-20"
+                ],
+                "security-severity": "3.0"
+              }
+            },
+            {
+              "id": "CVE-2026-9828",
+              "name": "Deserialization of untrusted data vulnerability in QOS.CH Sarl logback ...",
+              "shortDescription": {
+                "text": "Deserialization of untrusted data vulnerability in QOS.CH Sarl logback ..."
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-502"
+                ],
+                "security-severity": "3.0"
+              }
+            },
+            {
+              "id": "GHSA-72hv-8253-57qq",
+              "name": "jackson-core: Number Length Constraint Bypass in Async Parser Leads to Potential DoS Condition",
+              "shortDescription": {
+                "text": "jackson-core: Number Length Constraint Bypass in Async Parser Leads to Potential DoS Condition"
+              },
+              "properties": {
+                "tags": [
+                  "sca"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-54512",
+              "name": "jackson-databind: jackson-databind: Arbitrary code execution via PolymorphicTypeValidator bypass",
+              "shortDescription": {
+                "text": "jackson-databind: jackson-databind: Arbitrary code execution via PolymorphicTypeValidator bypass"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-184",
+                  "CWE-502"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-54513",
+              "name": "jackson-databind: Jackson-databind: Security bypass allows arbitrary code execution",
+              "shortDescription": {
+                "text": "jackson-databind: Jackson-databind: Security bypass allows arbitrary code execution"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-184"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-54514",
+              "name": "jackson-databind: jackson-databind: Information Disclosure via Eager DNS Resolution",
+              "shortDescription": {
+                "text": "jackson-databind: jackson-databind: Information Disclosure via Eager DNS Resolution"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-918"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-54515",
+              "name": "jackson-databind: jackson-databind: Ignored properties can be unexpectedly modified",
+              "shortDescription": {
+                "text": "jackson-databind: jackson-databind: Ignored properties can be unexpectedly modified"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-915"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-41293",
+              "name": "tomcat-coyote: Apache Tomcat: HTTP/2 request headers not validated",
+              "shortDescription": {
+                "text": "tomcat-coyote: Apache Tomcat: HTTP/2 request headers not validated"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-20"
+                ],
+                "security-severity": "9.0"
+              }
+            },
+            {
+              "id": "CVE-2026-43512",
+              "name": "tomcat-coyote: Apache Tomcat: Authentication bypass via digest authentication",
+              "shortDescription": {
+                "text": "tomcat-coyote: Apache Tomcat: Authentication bypass via digest authentication"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-592"
+                ],
+                "security-severity": "9.0"
+              }
+            },
+            {
+              "id": "CVE-2026-43515",
+              "name": "tomcat-coyote: tomcat: Improper Authorization allows security bypass",
+              "shortDescription": {
+                "text": "tomcat-coyote: tomcat: Improper Authorization allows security bypass"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-285"
+                ],
+                "security-severity": "9.0"
+              }
+            },
+            {
+              "id": "CVE-2025-48988",
+              "name": "tomcat: Apache Tomcat DoS in multipart upload",
+              "shortDescription": {
+                "text": "tomcat: Apache Tomcat DoS in multipart upload"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-770"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-48989",
+              "name": "tomcat: http/2 \"MadeYouReset\" DoS attack through HTTP/2 control frames",
+              "shortDescription": {
+                "text": "tomcat: http/2 \"MadeYouReset\" DoS attack through HTTP/2 control frames"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-404"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-52520",
+              "name": "tomcat: Apache Tomcat denial of service",
+              "shortDescription": {
+                "text": "tomcat: Apache Tomcat denial of service"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-190"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-53506",
+              "name": "tomcat: Apache Tomcat denial of service",
+              "shortDescription": {
+                "text": "tomcat: Apache Tomcat denial of service"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-400"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-55752",
+              "name": "tomcat: org.apache.tomcat/tomcat-catalina: Apache Tomcat: Directory traversal via rewrite with possible RCE",
+              "shortDescription": {
+                "text": "tomcat: org.apache.tomcat/tomcat-catalina: Apache Tomcat: Directory traversal via rewrite with possible RCE"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-23"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-24734",
+              "name": "tomcat: Apache Tomcat: Certificate revocation bypass due to improper OCSP response validation",
+              "shortDescription": {
+                "text": "tomcat: Apache Tomcat: Certificate revocation bypass due to improper OCSP response validation"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-20",
+                  "CWE-295"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-24880",
+              "name": "Apache Tomcat: Apache Tomcat: HTTP Request/Response Smuggling via invalid chunk extension",
+              "shortDescription": {
+                "text": "Apache Tomcat: Apache Tomcat: HTTP Request/Response Smuggling via invalid chunk extension"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-444"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-34483",
+              "name": "Apache Tomcat: Apache Tomcat: Information disclosure due to improper encoding in JsonAccessLogValve",
+              "shortDescription": {
+                "text": "Apache Tomcat: Apache Tomcat: Information disclosure due to improper encoding in JsonAccessLogValve"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-116"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-41284",
+              "name": "Allocation of Resources Without Limits or Throttling vulnerability in  ...",
+              "shortDescription": {
+                "text": "Allocation of Resources Without Limits or Throttling vulnerability in  ..."
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-770"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-42498",
+              "name": "tomcat-coyote: Apache Tomcat: Information disclosure due to HTTP Authentication Header exposure during WebSocket authentication.",
+              "shortDescription": {
+                "text": "tomcat-coyote: Apache Tomcat: Information disclosure due to HTTP Authentication Header exposure during WebSocket authentication."
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-200"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-43513",
+              "name": "tomcat-catalina: Apache Tomcat: Improper Handling of Case Sensitivity in LockOutRealm",
+              "shortDescription": {
+                "text": "tomcat-catalina: Apache Tomcat: Improper Handling of Case Sensitivity in LockOutRealm"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-178"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-49124",
+              "name": "Apache Tomcat installer for Windows has an untrusted search path vulnerability",
+              "shortDescription": {
+                "text": "Apache Tomcat installer for Windows has an untrusted search path vulnerability"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-426"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2025-49125",
+              "name": "tomcat: Apache Tomcat: Security constraint bypass for pre/post-resources",
+              "shortDescription": {
+                "text": "tomcat: Apache Tomcat: Security constraint bypass for pre/post-resources"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-288"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2025-55668",
+              "name": "org.apache.tomcat/tomcat-catalina: tomcat: Apache Tomcat: session fixation via rewrite valve",
+              "shortDescription": {
+                "text": "org.apache.tomcat/tomcat-catalina: tomcat: Apache Tomcat: session fixation via rewrite valve"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-384"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2025-66614",
+              "name": "tomcat: Client certificate verification bypass due to virtual host mapping",
+              "shortDescription": {
+                "text": "tomcat: Client certificate verification bypass due to virtual host mapping"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-20",
+                  "CWE-295"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-25854",
+              "name": "Apache Tomcat: Apache Tomcat: Open Redirect vulnerability via LoadBalancerDrainingValve",
+              "shortDescription": {
+                "text": "Apache Tomcat: Apache Tomcat: Open Redirect vulnerability via LoadBalancerDrainingValve"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-601"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2025-55754",
+              "name": "org.apache.tomcat/tomcat-juli: tomcat: Apache Tomcat: console manipulation",
+              "shortDescription": {
+                "text": "org.apache.tomcat/tomcat-juli: tomcat: Apache Tomcat: console manipulation"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-150"
+                ],
+                "security-severity": "3.0"
+              }
+            },
+            {
+              "id": "CVE-2025-61795",
+              "name": "tomcat: org.apache.tomcat/tomcat-catalina: Apache Tomcat: Denial of service",
+              "shortDescription": {
+                "text": "tomcat: org.apache.tomcat/tomcat-catalina: Apache Tomcat: Denial of service"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-404"
+                ],
+                "security-severity": "3.0"
+              }
+            },
+            {
+              "id": "CVE-2026-43514",
+              "name": "tomcat-coyote: Apache Tomcat: Information disclosure via AJP secret timing discrepancy",
+              "shortDescription": {
+                "text": "tomcat-coyote: Apache Tomcat: Information disclosure via AJP secret timing discrepancy"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-208"
+                ],
+                "security-severity": "3.0"
+              }
+            },
+            {
+              "id": "CVE-2026-24400",
+              "name": "assertj: AssertJ: Information disclosure and denial of service via XML External Entity (XXE)",
+              "shortDescription": {
+                "text": "assertj: AssertJ: Information disclosure and denial of service via XML External Entity (XXE)"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-611"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2026-40973",
+              "name": "Spring Boot: Spring Boot: Arbitrary Code Execution and Session Hijacking via predictable temporary directory",
+              "shortDescription": {
+                "text": "Spring Boot: Spring Boot: Arbitrary Code Execution and Session Hijacking via predictable temporary directory"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-377"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-41249",
+              "name": "org.springframework/spring-core: Spring Framework Annotation Detection Vulnerability",
+              "shortDescription": {
+                "text": "org.springframework/spring-core: Spring Framework Annotation Detection Vulnerability"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-285"
+                ],
+                "security-severity": "7.0"
+              }
+            },
+            {
+              "id": "CVE-2025-41234",
+              "name": "springframework: Reflected download attack in Spring Framework with non-ASCII headers",
+              "shortDescription": {
+                "text": "springframework: Reflected download attack in Spring Framework with non-ASCII headers"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-113"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2025-41242",
+              "name": "org.springframework/spring-webmvc: Spring Framework MVC path traversal vulnerability",
+              "shortDescription": {
+                "text": "org.springframework/spring-webmvc: Spring Framework MVC path traversal vulnerability"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-22"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-22737",
+              "name": "Spring Framework: Spring Framework: Information disclosure via Java scripting engine enabled template views",
+              "shortDescription": {
+                "text": "Spring Framework: Spring Framework: Information disclosure via Java scripting engine enabled template views"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-22"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-22745",
+              "name": "spring-webflux: Spring MVC and Spring WebFlux: Denial of Service via slow static resource resolution on Windows",
+              "shortDescription": {
+                "text": "spring-webflux: Spring MVC and Spring WebFlux: Denial of Service via slow static resource resolution on Windows"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-400"
+                ],
+                "security-severity": "5.0"
+              }
+            },
+            {
+              "id": "CVE-2026-22735",
+              "name": "org.springframework/spring-webmvc: org.springframework/spring-webflux: Spring MVC and WebFlux: Stream corruption vulnerability when using Server-Sent Events",
+              "shortDescription": {
+                "text": "org.springframework/spring-webmvc: org.springframework/spring-webflux: Spring MVC and WebFlux: Stream corruption vulnerability when using Server-Sent Events"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-667"
+                ],
+                "security-severity": "3.0"
+              }
+            },
+            {
+              "id": "CVE-2026-22741",
+              "name": "Spring MVC: Spring WebFlux: Spring MVC and Spring WebFlux: Denial of Service via cache poisoning",
+              "shortDescription": {
+                "text": "Spring MVC: Spring WebFlux: Spring MVC and Spring WebFlux: Denial of Service via cache poisoning"
+              },
+              "properties": {
+                "tags": [
+                  "sca",
+                  "CWE-524"
+                ],
+                "security-severity": "3.0"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2025-11226",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-11226 in ch.qos.logback:logback-core@1.5.18"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-20"
+            ],
+            "package": "ch.qos.logback:logback-core",
+            "version": "1.5.18",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "1.5.19",
+              "1.3.16"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-1225",
+          "level": "note",
+          "message": {
+            "text": "CVE-2026-1225 in ch.qos.logback:logback-core@1.5.18"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-20"
+            ],
+            "package": "ch.qos.logback:logback-core",
+            "version": "1.5.18",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "1.5.25"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-9828",
+          "level": "note",
+          "message": {
+            "text": "CVE-2026-9828 in ch.qos.logback:logback-core@1.5.18"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-502"
+            ],
+            "package": "ch.qos.logback:logback-core",
+            "version": "1.5.18",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "1.5.33"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "CE-05",
+                  "category": "코드오류",
+                  "name": "신뢰할 수 없는 데이터의 역직렬화"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — injection"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "GHSA-72hv-8253-57qq",
+          "level": "warning",
+          "message": {
+            "text": "GHSA-72hv-8253-57qq in com.fasterxml.jackson.core:jackson-core@2.19.0"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "package": "com.fasterxml.jackson.core:jackson-core",
+            "version": "2.19.0",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "2.21.1",
+              "2.18.6"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-54512",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-54512 in com.fasterxml.jackson.core:jackson-databind@2.19.0"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-184",
+              "CWE-502"
+            ],
+            "package": "com.fasterxml.jackson.core:jackson-databind",
+            "version": "2.19.0",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "2.18.8",
+              "3.1.4",
+              "2.21.4"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "CE-05",
+                  "category": "코드오류",
+                  "name": "신뢰할 수 없는 데이터의 역직렬화"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — injection"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-54513",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-54513 in com.fasterxml.jackson.core:jackson-databind@2.19.0"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-184"
+            ],
+            "package": "com.fasterxml.jackson.core:jackson-databind",
+            "version": "2.19.0",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "2.18.8",
+              "2.21.4",
+              "3.1.4"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-54514",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2026-54514 in com.fasterxml.jackson.core:jackson-databind@2.19.0"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-918"
+            ],
+            "package": "com.fasterxml.jackson.core:jackson-databind",
+            "version": "2.19.0",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "2.18.8",
+              "2.21.4",
+              "3.1.4"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-12",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "서버사이드 요청 위조(SSRF)"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — business logic"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-54515",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2026-54515 in com.fasterxml.jackson.core:jackson-databind@2.19.0"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-915"
+            ],
+            "package": "com.fasterxml.jackson.core:jackson-databind",
+            "version": "2.19.0",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "3.1.4",
+              "2.18.9",
+              "2.21.5",
+              "2.22.1"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-41293",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-41293 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "critical",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-20"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-43512",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-43512 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "critical",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-592"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-43515",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-43515 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "critical",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-285"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "SF-02",
+                  "category": "보안기능",
+                  "name": "부적절한 인가"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — access control"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-48988",
+          "level": "error",
+          "message": {
+            "text": "CVE-2025-48988 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-770"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.8",
+              "10.1.42",
+              "9.0.106"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-48989",
+          "level": "error",
+          "message": {
+            "text": "CVE-2025-48989 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-404"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.10",
+              "10.1.44",
+              "9.0.108"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "CE-02",
+                  "category": "코드오류",
+                  "name": "부적절한 자원 해제"
+                }
+              ],
+              "pci": []
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-52520",
+          "level": "error",
+          "message": {
+            "text": "CVE-2025-52520 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-190"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.9",
+              "10.1.43",
+              "9.0.107"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-14",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "정수형 오버플로우"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — data/buffer manipulation"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-53506",
+          "level": "error",
+          "message": {
+            "text": "CVE-2025-53506 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-400"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.107",
+              "10.1.43",
+              "11.0.9"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-55752",
+          "level": "error",
+          "message": {
+            "text": "CVE-2025-55752 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-23"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.11",
+              "10.1.45",
+              "9.0.109"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-24734",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-24734 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-20",
+              "CWE-295"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.18",
+              "10.1.52",
+              "9.0.115"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "SF-11",
+                  "category": "보안기능",
+                  "name": "부적절한 인증서 유효성 검증"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — cryptography"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-24880",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-24880 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-444"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.116",
+              "10.1.52",
+              "11.0.20"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-34483",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-34483 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-116"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.116",
+              "10.1.54",
+              "11.0.21"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-41284",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-41284 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-770"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-42498",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-42498 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-200"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-43513",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-43513 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-178"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-49124",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-49124 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-426"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.8",
+              "10.1.42",
+              "9.0.106"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-49125",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-49125 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-288"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.8",
+              "10.1.42",
+              "9.0.106"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-55668",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-55668 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-384"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.8",
+              "10.1.42",
+              "9.0.106"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-66614",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-66614 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-20",
+              "CWE-295"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.15",
+              "10.1.50",
+              "9.0.113"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "SF-11",
+                  "category": "보안기능",
+                  "name": "부적절한 인증서 유효성 검증"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — cryptography"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-25854",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2026-25854 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-601"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.116",
+              "10.1.53",
+              "11.0.20"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-07",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "신뢰되지 않는 URL 주소로 자동접속 연결"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — business logic"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-55754",
+          "level": "note",
+          "message": {
+            "text": "CVE-2025-55754 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-150"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.11",
+              "10.1.45",
+              "9.0.109"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-61795",
+          "level": "note",
+          "message": {
+            "text": "CVE-2025-61795 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-404"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "11.0.12",
+              "10.1.47",
+              "9.0.110"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "CE-02",
+                  "category": "코드오류",
+                  "name": "부적절한 자원 해제"
+                }
+              ],
+              "pci": []
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-43514",
+          "level": "note",
+          "message": {
+            "text": "CVE-2026-43514 in org.apache.tomcat.embed:tomcat-embed-core@10.1.41"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-208"
+            ],
+            "package": "org.apache.tomcat.embed:tomcat-embed-core",
+            "version": "10.1.41",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "9.0.118",
+              "10.1.55",
+              "11.0.22"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-24400",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-24400 in org.assertj:assertj-core@3.27.3"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-611"
+            ],
+            "package": "org.assertj:assertj-core",
+            "version": "3.27.3",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "3.27.7"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-08",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "부적절한 XML 외부 개체 참조(XXE)"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — injection"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-40973",
+          "level": "error",
+          "message": {
+            "text": "CVE-2026-40973 in org.springframework.boot:spring-boot@3.5.0"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-377"
+            ],
+            "package": "org.springframework.boot:spring-boot",
+            "version": "3.5.0",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "4.0.6",
+              "3.5.14"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-41249",
+          "level": "error",
+          "message": {
+            "text": "CVE-2025-41249 in org.springframework:spring-core@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "high",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-285"
+            ],
+            "package": "org.springframework:spring-core",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "6.2.11"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "SF-02",
+                  "category": "보안기능",
+                  "name": "부적절한 인가"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — access control"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-41234",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-41234 in org.springframework:spring-web@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-113"
+            ],
+            "package": "org.springframework:spring-web",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "6.2.8",
+              "6.1.21"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-13",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "HTTP 응답분할"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — injection"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2025-41242",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2025-41242 in org.springframework:spring-webmvc@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-22"
+            ],
+            "package": "org.springframework:spring-webmvc",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "6.2.10"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-03",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "경로 조작 및 자원 삽입"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — injection"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-22737",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2026-22737 in org.springframework:spring-webmvc@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-22"
+            ],
+            "package": "org.springframework:spring-webmvc",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "7.0.6",
+              "6.2.17"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            },
+            "compliance": {
+              "kisa": [
+                {
+                  "code": "IV-03",
+                  "category": "입력데이터 검증 및 표현",
+                  "name": "경로 조작 및 자원 삽입"
+                }
+              ],
+              "pci": [
+                "PCI-DSS 6.2.4 — injection"
+              ]
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-22745",
+          "level": "warning",
+          "message": {
+            "text": "CVE-2026-22745 in org.springframework:spring-webmvc@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "medium",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-400"
+            ],
+            "package": "org.springframework:spring-webmvc",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "7.0.7",
+              "6.2.18"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-22735",
+          "level": "note",
+          "message": {
+            "text": "CVE-2026-22735 in org.springframework:spring-webmvc@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-667"
+            ],
+            "package": "org.springframework:spring-webmvc",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "7.0.6",
+              "6.2.17"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        },
+        {
+          "ruleId": "CVE-2026-22741",
+          "level": "note",
+          "message": {
+            "text": "CVE-2026-22741 in org.springframework:spring-webmvc@6.2.7"
+          },
+          "properties": {
+            "category": "sca",
+            "severity": "low",
+            "tools": [
+              "trivy"
+            ],
+            "cwe": [
+              "CWE-524"
+            ],
+            "package": "org.springframework:spring-webmvc",
+            "version": "6.2.7",
+            "ecosystem": "maven",
+            "fixedVersions": [
+              "7.0.7",
+              "6.2.18"
+            ],
+            "reachability": "unreachable",
+            "reachabilitySource": "dep-scan",
+            "consensus": {
+              "tools": [
+                "trivy"
+              ],
+              "score": 1
+            }
+          },
+          "suppressions": []
+        }
+      ]
+    }
+  ]
+}
