@@ -30,6 +30,38 @@ describe("parseHeadings — ATX 닫는 # 시퀀스 (특성화)", () => {
   });
 });
 
+// content는 "\n"으로만 쪼개므로 CRLF 문서에서는 모든 줄이 "\r"을 달고 들어온다.
+// 옛 정규식의 본문 그룹 `.+?`는 줄 종결자를 매치하지 못했고 `\s`는 매치했다 —
+// 그 비대칭을 놓치면 '## ' 줄이 개요에 빈 항목으로 새로 끼어든다.
+describe("parseHeadings — CRLF(줄 끝 \\r) (특성화)", () => {
+  it("6개 기준 케이스는 \\r이 붙어도 동일하게 동작한다", () => {
+    expect(textOf("## foo # bar #\r")).toBe("foo # bar");
+    expect(textOf("## ###\r")).toBe("#");
+    expect(textOf("##   \r")).toBe("");
+    expect(textOf("## \r")).toBeNull();
+    expect(textOf("## C#\r")).toBe("C#"); // 유일한 의도적 변경(GFM), \r 유무와 무관
+    expect(textOf("## C# #\r")).toBe("C#");
+  });
+  it("'## '와 '## \\r'은 같은 줄이므로 판정도 같아야 한다", () => {
+    expect(textOf("## ")).toBeNull();
+    expect(textOf("## \r")).toBeNull();
+  });
+  it("빈 헤딩 경계는 줄 종결자가 아닌 공백 개수로 정해진다", () => {
+    expect(textOf("##  ")).toBe("");   // 공백 2칸
+    expect(textOf("##  \r")).toBe(""); // 공백 2칸 + \r
+    expect(textOf("## \r\r")).toBeNull(); // 공백 1칸 + 종결자뿐
+    expect(textOf("##\r")).toBeNull();
+  });
+  it("본문은 줄 종결자를 넘지 못한다 — 줄 가운데 \\r이면 헤딩 아님", () => {
+    expect(textOf("## a\r")).toBe("a");
+    expect(textOf("## a\rb")).toBeNull();
+  });
+  it("\\u2028/\\u2029도 같은 줄 종결자로 취급된다", () => {
+    expect(textOf("## \u2028")).toBeNull();
+    expect(textOf("## 제목\u2029")).toBe("제목");
+  });
+});
+
 describe("parseHeadings — 기본", () => {
   it("레벨·줄번호·펜스 내부 무시", () => {
     const src = ["# 제목", "본문", "```", "## 코드 안 헤딩", "```", "### 세 번째"].join("\n");
