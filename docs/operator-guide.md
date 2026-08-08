@@ -114,7 +114,7 @@ java -jar worknote-0.1.0.jar
 원칙은 두 가지입니다.
 
 1. **앱이 만든 것만 앱이 바꿉니다.** 디렉토리가 없으면 `700`으로 만들지만, **이미 존재하는 디렉토리의 권한은 바꾸지 않습니다**. 대신 server 모드에서 그 디렉토리가 그룹·타인에게 열려 있으면 기동을 중단하고 실행할 `chmod` 명령을 알려줍니다.
-2. **권한 변경은 심볼릭 링크를 따라가지 않습니다.** DB 파일이나 업로드 루트가 링크면 거부합니다(링크 타깃의 권한을 앱이 말없이 바꾸지 않기 위해서). 경로 중간의 링크(예: macOS `/var`→`/private/var`)는 정상 배치이므로 허용합니다.
+2. **권한을 바꾸는 곳은 심볼릭 링크를 거부하고, 검증만 하는 곳은 링크를 해석합니다.** 실제로 권한을 바꾸는 지점은 DB 파일(`600`) 하나뿐이라 거기서만 링크를 거부합니다. 디렉토리는 권한을 바꾸지 않으므로 링크를 그대로 허용하고 실경로를 기준으로 검증합니다 — 별도 볼륨을 링크로 붙인 배치가 깨지지 않습니다.
 
 local 모드(개인 PC·무인증)는 위 검증을 하지 않고 경고만 남긴 뒤 계속 기동합니다 — 무설정으로 그냥 동작해야 하기 때문입니다.
 
@@ -124,10 +124,16 @@ local 모드(개인 PC·무인증)는 위 검증을 하지 않고 경고만 남�
 >
 > | 상황 | 조치 |
 > | --- | --- |
+> | **`WORKNOTE_UPLOAD_DIR`가 이미 있고 `755` 등으로 열려 있음** | `chmod 700 <dir>`. **umask 022로 만든 디렉토리는 전부 755이므로 기존 server 배포 대부분이 여기 걸립니다** |
 > | `WORKNOTE_DB` 미지정(기본 `./worknote.db`) 또는 **상대 경로** | 전용 디렉토리를 만들고 `worknote.db`와 `-wal`·`-shm`(있으면)을 **함께** 옮긴 뒤 `WORKNOTE_DB=/var/lib/worknote/worknote.db` 지정 |
-> | DB 부모 디렉토리가 이미 있고 `755` 등으로 열려 있음 | 메시지가 알려주는 `chmod 700 <dir>` 실행 |
-> | `WORKNOTE_DB=/tmp/worknote.db` 처럼 **공용 디렉토리** | **`chmod 700 /tmp`를 실행하지 마세요.** 전용 디렉토리로 이전하세요(위 첫 항목과 동일) |
-> | `WORKNOTE_DB` 또는 `WORKNOTE_UPLOAD_DIR`가 **심볼릭 링크** | 링크가 아닌 실제 경로를 지정. 별도 볼륨을 링크로 붙인 배치가 여기 걸립니다 |
+> | DB 부모 디렉토리가 이미 있고 `755` 등으로 열려 있음 | `chmod 700 <dir>` |
+> | `WORKNOTE_DB=/tmp/worknote.db` 처럼 **공용 디렉토리** | **`chmod 700 /tmp`를 실행하지 마세요.** 전용 디렉토리로 이전하세요(위 두 번째 항목과 동일) |
+> | `WORKNOTE_DB`가 **심볼릭 링크 파일** | 링크가 아닌 실제 파일 경로를 지정. SQLite가 `-wal`을 링크 옆에 두는지 타깃 옆에 두는지가 구현 의존이라 보호 보장이 깨집니다 |
+> | DB 부모·업로드 루트 자리에 **디렉토리가 아닌 항목** | 해당 환경변수에 앱 전용 디렉토리 경로를 지정 (이전에도 실패했고 메시지만 개선됨) |
+>
+> **디렉토리 심볼릭 링크는 실패 사유가 아닙니다** — 별도 볼륨을 링크로 붙인 배치는 그대로 동작합니다. 권한을 바꾸지 않는 대상은 링크를 해석해 검증만 하기 때문입니다. 위 메시지에는 `(실경로 <target>)`이 함께 표기되고, `chmod`는 링크를 따라가 같은 실디렉토리에 적용되므로 안내된 명령을 그대로 쓰면 됩니다.
+>
+> **local 모드는 위 어느 것도 기동을 막지 않습니다.** 기존 디렉토리가 `755`여도 chmod도 경고도 하지 않습니다 — 개인 PC의 프로젝트·홈 폴더가 `755`인 건 정상이고, DB 파일이 `600`이라 내용은 보호됩니다. 앱이 만드는 디렉토리는 `700`, DB 파일은 `600`이 그대로 적용되며, 진짜 오작동(업로드 루트 생성 실패 등)만 경고로 남습니다.
 >
 > **백업 계정이 그룹 권한으로 DB를 읽고 있었다면** 이 시점에 백업 경로를 먼저 정리해야 합니다. 다만 이전 버전도 실제로는 디렉토리를 `700`으로 바꿔 그 접근을 이미 끊고 있었습니다 — 달라진 것은 그 사실이 조용히 넘어가지 않고 드러난다는 점뿐입니다.
 >
@@ -151,9 +157,9 @@ local 모드(개인 PC·무인증)는 위 검증을 하지 않고 경고만 남�
 | --- | --- |
 | 키스토어·번들·PEM 지정 + `WORKNOTE_TLS_ENABLED` 미설정 | `WORKNOTE_TLS_ENABLED=true` 설정, 또는 자재 설정 제거 |
 | `WORKNOTE_TLS_ENABLED=true` + 자재 전무 | 키스토어(+비밀번호) 또는 번들·PEM 지정 |
-| TLS 활성 + `WORKNOTE_CANONICAL_ORIGIN`이 `http://…` | canonical-origin을 `https://`로 고치거나 비우기 |
+| HTTPS로 설정(`WORKNOTE_TLS_ENABLED=true` **또는** 쿠키 `secure=true` 명시) + `WORKNOTE_CANONICAL_ORIGIN`이 `http://…` | canonical-origin을 `https://`로 고치거나, 평문 HTTP 배포라면 HTTPS 설정을 되돌리기. **`SERVER_FORWARD_HEADERS_STRATEGY`를 설정해도 이 실패는 회피되지 않습니다** — 그대로 두면 `403 invalid_origin`으로 전 요청이 막히기 때문입니다 |
 | 실효 HTTPS + 쿠키 `secure=false` 오버라이드 | 오버라이드 제거(자동으로 켜집니다) |
-| 평문 HTTP + 쿠키 `secure=true` 오버라이드 | `WORKNOTE_CANONICAL_ORIGIN=https://…` 또는 `SERVER_FORWARD_HEADERS_STRATEGY=framework` 설정, 아니면 오버라이드 제거 |
+| 평문 HTTP + 쿠키 `secure=true` 오버라이드 | `WORKNOTE_CANONICAL_ORIGIN=https://…` 또는 `SERVER_FORWARD_HEADERS_STRATEGY=framework` 설정, 아니면 오버라이드 제거. 단 **`SERVER_FORWARD_HEADERS_STRATEGY`는 canonical-origin이 비어 있거나 `https://`일 때만 유효한 회피책**입니다 — `http://…`면 위 행에 걸려 그대로 실패하므로 canonical-origin을 고쳐야 합니다 |
 | `WORKNOTE_CANONICAL_ORIGIN` 형식 불량 | `https://host[:port]` 절대 오리진으로 고치거나 비우기 |
 
 마지막 항목이 중요합니다 — 이전에는 형식이 깨진 값이 **조용히 무시되고** CSRF 기준이 요청에서 유도된 값으로 되돌아갔습니다. 이제는 기동 시점에 걸립니다.
