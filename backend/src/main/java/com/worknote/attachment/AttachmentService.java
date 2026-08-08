@@ -5,6 +5,7 @@ import com.worknote.vault.VaultException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -58,6 +59,13 @@ public class AttachmentService {
         try {
             writeOwnerOnly(target, bytes);
         } catch (IOException e) {
+            // 부분 기록된 파일을 남기지 않는다 — DB 행이 없어 purge(deleteForNodes)가 영영 회수하지 못하고
+            // 반복 실패 시 디스크에 무한 누적된다. 정리 실패가 원래 원인을 덮지 않도록 suppressed로만 붙인다.
+            try {
+                Files.deleteIfExists(target);
+            } catch (IOException | RuntimeException cleanupFailed) {
+                e.addSuppressed(cleanupFailed);
+            }
             // 경로·권한 등 내부 정보가 응답에 새지 않도록 상세는 서버 로그로만, 클라엔 일반 메시지.
             log.warn("첨부 저장 실패 nodeId={} rel={}", nodeId, relPath, e);
             throw VaultException.invalid("파일을 저장하지 못했습니다");
@@ -131,7 +139,7 @@ public class AttachmentService {
      * 디렉토리가 열려 있으면 파일 권한만 조여도 목록·경로 추측이 남는다 (감사 M-6).
      * POSIX 미지원 파일시스템에선 속성 없이 생성 — 권한 강화 실패로 업로드를 막지는 않는다.
      */
-    private static void writeOwnerOnly(Path target, byte[] bytes) throws IOException {
+    void writeOwnerOnly(Path target, byte[] bytes) throws IOException {
         boolean posix = target.getFileSystem().supportedFileAttributeViews().contains("posix");
         if (!posix) {
             Files.createDirectories(target.getParent());
@@ -143,7 +151,19 @@ public class AttachmentService {
         try (SeekableByteChannel ch = Files.newByteChannel(target,
                 Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
-            ch.write(ByteBuffer.wrap(bytes));
+            writeFully(ch, bytes);
+        }
+    }
+
+    /**
+     * 버퍼가 빌 때까지 반복 — {@code write}는 계약상 버퍼 일부만 쓰고 그 개수를 돌려줄 수 있다.
+     * 한 번만 호출하면 첨부가 잘린 채 저장되고 DB의 size와 디스크가 어긋난다(무음 손상).
+     * (앞서 쓰던 {@code Files.write}는 내부에서 이 루프를 돌아준다 — 채널로 바꾸며 잃은 보장을 복원)
+     */
+    static void writeFully(WritableByteChannel ch, byte[] bytes) throws IOException {
+        ByteBuffer buf = ByteBuffer.wrap(bytes);
+        while (buf.hasRemaining()) {
+            ch.write(buf);
         }
     }
 

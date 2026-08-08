@@ -65,4 +65,16 @@ class AttachmentPermissionTest {
         AttachmentRow row = svc.store("n1", "c.png", new byte[]{1, 2, 3, 4, 5}, "local");
         assertThat(svc.read(row)).containsExactly(1, 2, 3, 4, 5);
     }
+
+    /** 실채널 경로도 잘리지 않는지 — 부분 쓰기 불변식 자체는 AttachmentWriteFullyTest가 스텁으로 증명한다. */
+    @Test
+    void storedLargeContentIsIntact() {
+        byte[] big = new byte[2 * 1024 * 1024];
+        for (int i = 0; i < big.length; i++) {
+            big[i] = (byte) (i % 251);
+        }
+        AttachmentRow row = svc.store("n1", "big.pdf", big, "local");
+        assertThat(row.size()).isEqualTo(big.length);
+        assertThat(svc.read(row)).isEqualTo(big);
+    }
 }
