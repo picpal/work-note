@@ -15,3 +15,5 @@ backend/seed_*.py
 # 보안 스캔 산출물 — 재생성 가능, 커밋 금지
 .scan-reports/
 .scannerwork/
+.context/
+backend/attachments/
