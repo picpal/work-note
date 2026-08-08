@@ -4,7 +4,6 @@ import com.worknote.acl.AclRow;
 import com.worknote.acl.PublicFlagRow;
 import com.worknote.admin.dto.PublicRequest;
 import com.worknote.admin.dto.SetAclRequest;
-import com.worknote.audit.AuditService;
 import com.worknote.auth.AuthFilter;
 import com.worknote.auth.UserRow;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,12 +20,10 @@ public class AdminAclController {
 
     private final AdminGuard guard;
     private final AclAdminService svc;
-    private final AuditService audit;
 
-    public AdminAclController(AdminGuard guard, AclAdminService svc, AuditService audit) {
+    public AdminAclController(AdminGuard guard, AclAdminService svc) {
         this.guard = guard;
         this.svc = svc;
-        this.audit = audit;
     }
 
     private static UserRow user(HttpServletRequest req) {
@@ -56,8 +53,7 @@ public class AdminAclController {
     public void replace(@PathVariable String id, @Valid @RequestBody SetAclRequest body, HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        String suffix = svc.replace(id, body.entries());
-        audit.log(actor, "acl.set", id + " (" + body.entries().size() + "건)" + suffix, req.getRemoteAddr());
+        svc.replace(id, body.entries(), actor, req.getRemoteAddr());   // 감사 기록은 서비스 트랜잭션 안(T7-a)
     }
 
     @PutMapping("/nodes/{id}/public")
@@ -66,8 +62,7 @@ public class AdminAclController {
                           HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        svc.setPublic(id, body.mode());
-        audit.log(actor, "public.set", id + " " + body.mode(), req.getRemoteAddr());
+        svc.setPublic(id, body.mode(), actor, req.getRemoteAddr());
     }
 
     @DeleteMapping("/nodes/{id}/public")
@@ -75,7 +70,6 @@ public class AdminAclController {
     public void unsetPublic(@PathVariable String id, HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        svc.unsetPublic(id);
-        audit.log(actor, "public.unset", id, req.getRemoteAddr());
+        svc.unsetPublic(id, actor, req.getRemoteAddr());
     }
 }

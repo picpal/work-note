@@ -3,10 +3,12 @@ package com.worknote.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.worknote.acl.AclResolver;
 import com.worknote.acl.PermissionService;
+import com.worknote.audit.AuditService;
 import com.worknote.auth.RoleCaps;
 import com.worknote.auth.RoleMapper;
 import com.worknote.auth.RoleRow;
 import com.worknote.auth.UserMapper;
+import com.worknote.auth.UserRow;
 import com.worknote.vault.VaultException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -16,7 +18,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** 역할 관리. caps는 KNOWN_CAPS 화이트리스트 검증 — RoleCaps가 DB JSON을 신뢰하므로 쓰기 시점에 fail-fast. */
+/**
+ * 역할 관리. caps는 KNOWN_CAPS 화이트리스트 검증 — RoleCaps가 DB JSON을 신뢰하므로 쓰기 시점에 fail-fast.
+ *
+ * <p>update만 감사 기록을 서비스 안에서 수행한다(T7-a) — 능력 상한 변경은 사후 재구성이 필요한 권한 변경 경로라
+ * 변경·델타·감사가 한 트랜잭션이어야 한다. create/delete는 기존 정책(컨트롤러 사후 기록) 유지.
+ */
 @Service
 public class RoleAdminService {
 
@@ -38,14 +45,19 @@ public class RoleAdminService {
     private final UserMapper users;
     private final PermissionService perm;
     private final ObjectMapper json;
+    private final AuditService audit;
+    private final AuditDelta delta;
 
     public RoleAdminService(RoleMapper roles, RoleCaps roleCaps, UserMapper users,
-                            PermissionService perm, ObjectMapper json) {
+                            PermissionService perm, ObjectMapper json,
+                            AuditService audit, AuditDelta delta) {
         this.roles = roles;
         this.roleCaps = roleCaps;
         this.users = users;
         this.perm = perm;
         this.json = json;
+        this.audit = audit;
+        this.delta = delta;
     }
 
     public List<RoleView> list() {
@@ -67,7 +79,7 @@ public class RoleAdminService {
     }
 
     @Transactional
-    public RoleView update(String id, String name, List<String> caps) {
+    public RoleView update(String id, String name, List<String> caps, UserRow actor, String ip) {
         RoleRow row = require(id);
         if (row.system() == 1) {
             throw VaultException.invalid("시스템 역할은 수정할 수 없습니다: " + id);
@@ -76,13 +88,17 @@ public class RoleAdminService {
             throw VaultException.invalid("name은 빈 값일 수 없습니다");
         }
         String mergedName = name != null ? name : row.name();
+        Set<String> capsBefore = roleCaps.of(id);
+        Set<String> capsAfter = capsBefore;
         String mergedCaps = row.caps();
         if (caps != null) {
             Set<String> next = validated(caps);
             requireNotLastAdminRoleDowngrade(id, next);
             mergedCaps = toJson(next);
+            capsAfter = next;
         }
         roles.update(new RoleRow(id, mergedName, row.system(), mergedCaps));
+        audit.log(actor, "role.update", id, ip, delta.role(row.name(), mergedName, capsBefore, capsAfter));
         return toView(roles.findById(id));
     }
 
