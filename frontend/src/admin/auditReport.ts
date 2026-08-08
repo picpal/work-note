@@ -250,7 +250,10 @@ export function buildAuditReport(i: ReportInput): string {
 // ---- PDF용 HTML 변환 ----
 // 리포트 마크다운은 이 모듈이 직접 생성하는 한정된 부분집합(#/## 헤딩·- 불릿·| 표·**굵게**·_본문_·---)만
 // 쓰므로 범용 마크다운 엔진을 끌어오지 않고 그 부분집합만 변환한다(번들 경량·동작 예측 가능).
-const PH = " "; // 셀 내 이스케이프된 \| 임시 치환자
+// 셀 내 이스케이프된 \| 임시 치환자. 값은 U+0000 그대로지만 반드시 이스케이프 표기로 둘 것 —
+// 원시 NUL 바이트를 소스에 박으면 grep/rg가 이 파일을 바이너리로 판정해 "매치 없음"을 조용히
+// 반환한다(2026-08-08 점검 중 이 파일이 검색에서 통째로 누락됐다).
+const PH = "\u0000";
 
 function splitTableRow(line: string): string[] {
   return line.replace(/\\\|/g, PH).trim().replace(/^\||\|$/g, "").split("|")
@@ -278,7 +281,9 @@ export function reportMarkdownToHtml(md: string): string {
     if (/^---\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
     if (line.trim() === "") { i++; continue; }
     // 표 블록: | 로 시작 + 다음 줄이 구분선
-    if (line.startsWith("|") && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1])) {
+    // 끝의 `\|?\s*`는 |·공백이 이미 문자 클래스 안에 있어 중복이었고, 같은 문자를 두고
+    // 경쟁해 백트래킹만 유발했다(매치 결과는 동일).
+    if (line.startsWith("|") && i + 1 < lines.length && /^\|[\s:|-]+$/.test(lines[i + 1])) {
       const header = splitTableRow(line);
       const aligns = alignsFromSeparator(lines[i + 1]);
       const cls = (k: number) => (aligns[k] ? ` class="${aligns[k]}"` : "");
