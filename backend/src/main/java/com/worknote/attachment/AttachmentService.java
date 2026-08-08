@@ -20,6 +20,8 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 첨부 디스크 저장/삭제 + 정책 강제. 메타는 DB, 바이너리는 worknote.upload.dir 아래. */
 @Service
@@ -70,6 +72,7 @@ public class AttachmentService {
             log.warn("첨부 저장 실패 nodeId={} rel={}", nodeId, relPath, e);
             throw VaultException.invalid("파일을 저장하지 못했습니다");
         }
+        deleteIfRolledBack(target);
         String ext = UploadPolicy.ext(filename);
         String mime = guessMime(ext);
         AttachmentRow row = new AttachmentRow("att-" + uuid, nodeId, filename, ext, mime,
@@ -132,6 +135,36 @@ public class AttachmentService {
             }
         }
         mapper.deleteByNodeIds(nodeIds);
+    }
+
+    /**
+     * 커밋되지 못한 트랜잭션이 남긴 파일을 지운다.
+     *
+     * <p>파일은 트랜잭션 안에서 쓰이고 DB 행은 그 뒤에 들어간다. insert 실패·제약 위반·호출부 롤백 중
+     * 무엇이든 트랜잭션이 뒤집히면 행은 사라지지만 파일은 남는데, purge({@code deleteForNodes})는
+     * DB 행 기준이라 그 파일을 영영 회수하지 못한다.
+     *
+     * <p>{@code STATUS_ROLLED_BACK}만 지운다. {@code STATUS_UNKNOWN}(휴리스틱 종료)은 커밋됐을 수도 있어,
+     * 지웠다가 행만 남기는 쪽이 파일이 남는 쪽보다 나쁘다 — 확실할 때만 지운다.
+     */
+    private void deleteIfRolledBack(Path target) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;   // 트랜잭션 밖 호출 — 뒤집힐 것이 없으니 등록할 것도 없다
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_ROLLED_BACK) {
+                    return;
+                }
+                try {
+                    Files.deleteIfExists(target);
+                } catch (IOException | RuntimeException e) {
+                    // 콜백에서 예외를 던지면 다른 동기화 콜백까지 말린다 — 로그만 남기고 삼킨다.
+                    log.warn("롤백 후 첨부 파일 정리 실패 path={}", target, e);
+                }
+            }
+        });
     }
 
     /**
