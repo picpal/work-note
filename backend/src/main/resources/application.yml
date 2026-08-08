@@ -16,16 +16,25 @@ mybatis:
     map-underscore-to-camel-case: true
 server:
   port: 8080
+  # TLS 스위치는 WORKNOTE_TLS_KEYSTORE 하나. 비우면 server.ssl.enabled=false + 쿠키 secure=false로
+  # 기존 HTTP 동작 그대로다(TlsEnvironmentPostProcessor가 유도). 발급·배포 절차는 운영자 가이드 §2 참조.
+  ssl:
+    key-store: ${WORKNOTE_TLS_KEYSTORE:}                   # 예: /etc/worknote/worknote.p12 (PKCS12)
+    key-store-password: ${WORKNOTE_TLS_KEYSTORE_PASSWORD:}
+    key-store-type: ${WORKNOTE_TLS_KEYSTORE_TYPE:PKCS12}
+    key-alias: ${WORKNOTE_TLS_KEY_ALIAS:worknote}
   servlet:
     session:
       timeout: 30m           # server 모드 세션 타임아웃 (스펙 §7 보안 정책)
       cookie:
         same-site: lax       # CSRF 방어 — 교차 사이트 POST/PATCH/DELETE에 세션 쿠키 미전송 (multipart 업로드 갭 차단)
         http-only: true      # XSS 시에도 JS가 세션 쿠키를 못 읽게 (Tomcat 기본 true지만 명시)
-        # secure: true       # TLS(HTTPS) 종단 시 활성화 — 폐쇄망 HTTP 배포에선 false 유지(true면 HTTP에서 쿠키 미전송)
+        # secure는 여기에 쓰지 않는다 — 하드코딩하면 HTTP 배포에서 쿠키가 안 실려 전면 장애.
+        # TLS 활성(keystore 지정) 또는 canonical-origin이 https일 때만 자동으로 켜진다.
 worknote:
   mode: ${WORKNOTE_MODE:local}                     # local=1단계(무인증), server=2단계(인증+권한)
   admin-password: ${WORKNOTE_ADMIN_PASSWORD:}      # server 모드 최초 기동 시 관리자 비밀번호 (필수)
+  canonical-origin: ${WORKNOTE_CANONICAL_ORIGIN:}  # CSRF Origin 검증 기준(예: https://note.domain.co.kr). 비우면 요청에서 유도 — 프록시가 TLS 종단 시에만 지정
   upload:
     dir: ${WORKNOTE_UPLOAD_DIR:./attachments}      # 첨부 바이너리 루트 (기본 DB와 같은 작업 디렉토리 → 백업 한 폴더)
   purge:
