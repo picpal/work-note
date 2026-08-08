@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** T5 — Origin 검증 순수 로직. 배포별 호스트·포트 유도와 canonical 오버라이드 규칙. */
 class OriginValidatorTest {
@@ -116,5 +117,31 @@ class OriginValidatorTest {
         MockHttpServletRequest r = req("POST");
         r.addHeader("Origin", "http://localhost");
         assertThat(blank.allowed(r)).isTrue();
+    }
+
+    /**
+     * 형식이 깨진 canonical-origin은 생성 시점에 거부한다. 조용히 요청 유도 오리진으로 폴백하면
+     * 프록시 뒤 배포가 잘못된 CSRF 기준으로 도는데 아무 신호도 남지 않는다.
+     */
+    @Test
+    void malformedCanonicalOriginIsRejectedAtConstruction() {
+        for (String bad : new String[]{"https://", "note.domain.co.kr", ":::not a url:::", "ftp://note.domain.co.kr"}) {
+            assertThatThrownBy(() -> new OriginValidator(bad))
+                .as(bad)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("WORKNOTE_CANONICAL_ORIGIN");
+        }
+    }
+
+    @Test
+    void canonicalOriginKeepsExplicitNonDefaultPort() {
+        OriginValidator canonical = new OriginValidator("https://note.domain.co.kr:8443");
+        MockHttpServletRequest onDefault = req("POST");
+        onDefault.addHeader("Origin", "https://note.domain.co.kr");
+        assertThat(canonical.allowed(onDefault)).isFalse();
+
+        MockHttpServletRequest onPort = req("POST");
+        onPort.addHeader("Origin", "https://note.domain.co.kr:8443");
+        assertThat(canonical.allowed(onPort)).isTrue();
     }
 }

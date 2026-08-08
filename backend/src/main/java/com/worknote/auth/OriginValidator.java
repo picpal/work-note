@@ -23,9 +23,30 @@ public final class OriginValidator {
     /** null이면 요청 자체에서 유도 — 배포마다 호스트·포트가 달라 하드코딩할 수 없다. */
     private final String canonicalOrigin;
 
+    /** 비어 있으면 요청 유도, 값이 있으면 형식 검증 후 정규화 — 깨진 값을 조용히 폴백시키지 않는다. */
     public OriginValidator(String canonicalOrigin) {
-        String c = canonicalOrigin == null ? null : canonicalOrigin.trim();
-        this.canonicalOrigin = (c == null || c.isEmpty()) ? null : normalize(c);
+        String c = canonicalOrigin == null ? "" : canonicalOrigin.trim();
+        this.canonicalOrigin = c.isEmpty() ? null : requireCanonicalOrigin(c);
+    }
+
+    /**
+     * 설정된 canonical-origin을 검증·정규화한다. 형식이 깨졌으면 예외 — 예전엔 파싱 실패 시 null이 되어
+     * 요청 유도 오리진으로 조용히 되돌아갔고, 프록시 뒤 배포가 잘못된 CSRF 기준으로 도는데 신호가 없었다.
+     *
+     * <p>기동 시점(TlsEnvironmentPostProcessor)과 필터 생성 시점 양쪽에서 같은 규칙을 쓰도록 static으로 노출.
+     */
+    public static String requireCanonicalOrigin(String value) {
+        String raw = value == null ? "" : value.trim();
+        String normalized = normalize(raw);
+        // 브라우저 Origin 헤더는 http/https만 — 다른 스킴은 어떤 요청과도 일치하지 않아 전면 403이 된다.
+        if (normalized == null
+                || !(normalized.startsWith("http://") || normalized.startsWith("https://"))) {
+            throw new IllegalArgumentException(
+                "WORKNOTE_CANONICAL_ORIGIN 형식이 올바르지 않습니다: \"" + raw + "\". "
+                + "스킴+호스트[:포트] 형태의 절대 오리진이어야 합니다 (예: https://note.domain.co.kr). "
+                + "프록시가 TLS를 종단하지 않는 배포라면 값을 비워 두십시오 — 요청에서 유도합니다.");
+        }
+        return normalized;
     }
 
     public boolean allowed(HttpServletRequest req) {
