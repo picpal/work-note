@@ -115,6 +115,90 @@ class AuthRateLimiterTest {
         assertThat(limiter.entryCount()).isLessThanOrEqualTo(AuthRateLimiter.MAX_ENTRIES);
     }
 
+    /** 배리어로 동시에 출발시켜 서로 다른 키를 쏟아붓고, 관측 스레드로 그동안의 최대 항목 수를 잰다. */
+    private int burst(int threads, int perThread, String keyPrefix) throws Exception {
+        var peak = new java.util.concurrent.atomic.AtomicInteger();
+        var observing = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var observer = new Thread(() -> {
+            while (observing.get()) peak.accumulateAndGet(limiter.entryCount(), Math::max);
+        });
+        observer.start();
+
+        var start = new java.util.concurrent.CyclicBarrier(threads);
+        var done = new java.util.concurrent.CountDownLatch(threads);
+        var failure = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        try {
+            for (int t = 0; t < threads; t++) {
+                int tid = t;
+                pool.execute(() -> {
+                    try {
+                        start.await();   // 동시 출발
+                        for (int i = 0; i < perThread; i++) {
+                            // 계정·IP 모두 매번 새 키 = 호출당 2항목 유입 (분산 스프레이 최악치)
+                            limiter.recordFailure("login", keyPrefix + tid + "-" + i, tid + "." + i);
+                        }
+                    } catch (Throwable e) {
+                        failure.compareAndSet(null, e);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            assertThat(done.await(120, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
+        observing.set(false);
+        observer.join();
+        assertThat(failure.get()).isNull();
+        return peak.get();
+    }
+
+    /**
+     * 동시 버스트에서도 상한이 '실제로' 지켜지는지 — 버스트가 끝난 뒤가 아니라 진행 '중'을 관측한다.
+     * 끝난 뒤만 보면 안 되는 이유: 마지막 호출자가 정리하고 나가므로 사후 크기는 늘 얌전해 보인다.
+     * 힙이 실제로 눌리는 건 버스트 도중이고, 상한은 그 시점에 성립해야 의미가 있다.
+     * (락 없는 구현에서는 이 지점이 7배 넘게 초과했다 — 삽입이 축출보다 빠르면 상한이 성립하지 않는다.)
+     */
+    @Test void concurrentKeyBomb_boundHoldsDuringBurst() throws Exception {
+        for (int round = 0; round < 3; round++) {
+            limiter.clearAll();
+            int peak = burst(32, 1_200, "ghost-" + round + "-");
+            assertThat(peak)
+                .as("round %d — 버스트 진행 중 관측된 최대 항목 수", round)
+                .isLessThanOrEqualTo(AuthRateLimiter.MAX_ENTRIES);
+            // 모든 호출자가 반환한 뒤 = 더 이상 정리 기회가 없는 시점
+            assertThat(limiter.entryCount()).isLessThanOrEqualTo(AuthRateLimiter.MAX_ENTRIES);
+        }
+    }
+
+    /** 동시 버스트 중에도 축출 정책은 그대로 — 잠긴 피해자 카운터는 살아남는다. */
+    @Test void concurrentKeyBomb_lockedVictimSurvives() throws Exception {
+        for (int i = 0; i < 5; i++) limiter.recordFailure("login", "victim", "10.0.0.1");
+        assertThat(limiter.isLocked("login", "victim", "10.0.0.1")).isTrue();
+
+        int peak = burst(16, 1_500, "zzz-");
+
+        assertThat(limiter.isLocked("login", "victim", "10.0.0.2")).isTrue();   // 계정 키 잠금 유지
+        assertThat(peak).isLessThanOrEqualTo(AuthRateLimiter.MAX_ENTRIES);
+    }
+
+    /**
+     * 전부 잠금 상태여도 상한은 지켜진다 — 최후 수단 경로(미잠금이 하나도 없으면 잠금 항목도 축출).
+     * 여기서도 순서는 LRU: 가장 오래된 잠금부터 밀리고 최근 잠금은 살아남는다.
+     */
+    @Test void allEntriesLocked_boundStillHolds() {
+        int accounts = 12_000;
+        for (int i = 0; i < accounts; i++) {
+            for (int f = 0; f < 5; f++) limiter.recordFailure("login", "locked-" + i, "10.0.0.9");
+        }
+        assertThat(limiter.entryCount()).isLessThanOrEqualTo(AuthRateLimiter.MAX_ENTRIES);
+        // 두 번째 인자 IP는 존재하지 않는 키 — 계정 키 단독 판정이 되게
+        assertThat(limiter.isLocked("login", "locked-" + (accounts - 1), "10.0.0.1")).isTrue();
+        assertThat(limiter.isLocked("login", "locked-0", "10.0.0.1")).isFalse();
+    }
+
     /** 축출이 핵심 계약(5회 잠금 / LOCK_DURATION 후 해제)을 깨지 않는지. */
     @Test void coreLockContract_survivesEviction() {
         int bomb = AuthRateLimiter.MAX_ENTRIES + 2_000;
