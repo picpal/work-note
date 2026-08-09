@@ -15,14 +15,21 @@
 
 ```bash
 cd frontend && pnpm build && cd ../backend && ./gradlew bootJar
-rm -f /tmp/wn-att.db*; rm -rf /tmp/wn-att-uploads
+
+# QA 전용 디렉토리 — server 모드는 DB가 절대 경로여야 하고, DB 부모·업로드 루트가
+# 그룹/타인에게 열려 있으면 기동을 거부한다. /tmp는 1777(전체 쓰기)이라 쓸 수 없다.
+QA_DIR="$HOME/worknote-qa-att"
+mkdir -p "$QA_DIR" && chmod 700 "$QA_DIR"   # QA 전용 디렉토리이므로 chmod 가능
+rm -f "$QA_DIR"/wn-att.db*; rm -rf "$QA_DIR/uploads"
+
 WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 \
-  WORKNOTE_DB=/tmp/wn-att.db WORKNOTE_UPLOAD_DIR=/tmp/wn-att-uploads \
+  WORKNOTE_DB="$QA_DIR/wn-att.db" WORKNOTE_UPLOAD_DIR="$QA_DIR/uploads" \
   java -jar build/libs/worknote-0.1.0.jar &
 # 헬스: curl --retry-connrefused --retry 40 --retry-delay 1 http://localhost:8080/api/health
 ```
 - 로그인: 사번 `admin` / 비번 `qa-admin-1234`
-- 업로드 디렉토리: `/tmp/wn-att-uploads` (DB는 `/tmp/wn-att.db`)
+- 업로드 디렉토리: `$QA_DIR/uploads` (DB는 `$QA_DIR/wn-att.db`) — 업로드 루트는 지운 뒤 앱이 `700`으로 다시 만든다.
+- `/tmp` 아래 경로나 `WORKNOTE_DB` 미지정으로는 **기동 자체가 실패**한다. 상세는 [운영자 가이드 — 데이터 파일 권한](operator-guide.md#데이터-파일-권한).
 - **첨부는 http(server) 모드 전용.** 순수 localStorage 모드에는 백엔드가 없어 업로드 비활성(B12).
 
 > 백엔드 통합(업로드→서빙 헤더→확장자/0바이트 거부→관리자 정책 라운드트립→공유 토큰 서빙→404 단일화→디스크 샤딩)은 구현 시 curl 스모크로 라이브 검증 완료. 아래는 **화면(UI) 관점** 재현 시나리오.
@@ -38,7 +45,7 @@ WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 \
 3. 본문에 `![파일명](/api/attachments/att-...)` 텍스트 삽입 확인.
 4. 커서를 다른 줄로 이동(라이브프리뷰가 이미지 렌더).
 
-**기대결과:** 본문에 이미지가 인라인으로 렌더. 네트워크 탭에 `GET /api/attachments/att-...` 200(image/png, `X-Content-Type-Options: nosniff`). `/tmp/wn-att-uploads/xx/yy/...`에 파일 생성.
+**기대결과:** 본문에 이미지가 인라인으로 렌더. 네트워크 탭에 `GET /api/attachments/att-...` 200(image/png, `X-Content-Type-Options: nosniff`). `$QA_DIR/uploads/xx/yy/...`에 파일 생성.
 **비고:** 합성 drop 이벤트(DataTransfer.files)는 브라우저 자동화가 까다로움 → ⚠️. API 업로드는 🔧로 대체 검증됨.
 
 ## Batch 2 — `<img>` 태그 수동 작성 미리보기 + width ✅
@@ -120,7 +127,7 @@ WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 \
 
 **사전조건:** 첨부 있는 노트를 휴지통으로 이동.
 **단계:** purge(영구 삭제) 실행(또는 보존기한 경과 스케줄러).
-**기대결과:** `attachment` 메타 + `/tmp/wn-att-uploads`의 파일 함께 삭제(고아 0). node DELETE 전 정리.
+**기대결과:** `attachment` 메타 + `$QA_DIR/uploads`의 파일 함께 삭제(고아 0). node DELETE 전 정리.
 **검증됨(🔧):** `AttachmentService.deleteForNodes` 단위/통합 테스트.
 
 ## Batch 12 — local 모드 업로드 비활성 ⚠️

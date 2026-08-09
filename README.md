@@ -51,12 +51,22 @@ cd ../backend
 java -jar build/libs/worknote-0.1.0.jar
 
 # 3-b) server 모드 실행 (인증 + 권한)
+#      server 모드는 DB 경로가 절대 경로여야 하고, 저장 디렉토리는 소유자 전용(700)이어야 합니다.
+WN_DATA="$HOME/worknote-data"
+mkdir -p "$WN_DATA" && chmod 700 "$WN_DATA"    # 앱 전용 디렉토리일 때만 chmod (공용 경로 금지)
+
 WORKNOTE_MODE=server \
 WORKNOTE_ADMIN_PASSWORD='10자-이상-비밀번호' \
+WORKNOTE_DB="$WN_DATA/worknote.db" \
+WORKNOTE_UPLOAD_DIR="$WN_DATA/attachments" \
 java -jar build/libs/worknote-0.1.0.jar
 ```
 
-접속: `http://localhost:8080` — server 모드 최초 기동 시 `admin` 계정이 자동 생성됩니다. DB 경로(`WORKNOTE_DB`), 첨부 저장 경로(`WORKNOTE_UPLOAD_DIR`) 등 전체 환경변수는 [운영자 가이드](docs/operator-guide.md#환경변수)를 참고하세요.
+접속: `http://localhost:8080` — server 모드 최초 기동 시 `admin` 계정이 자동 생성됩니다.
+
+> server 모드에서 `WORKNOTE_DB`를 생략하면 기본값이 상대 경로(`./worknote.db`)라 **기동이 실패합니다.** 저장 디렉토리가 그룹·타인에게 열려 있어도(`755` 등) 실패합니다 — `/tmp` 같은 공용 디렉토리는 쓸 수 없습니다. 자세한 규칙과 업그레이드 시 조치는 [데이터 파일 권한](docs/operator-guide.md#데이터-파일-권한)을 참고하세요. local 모드는 이 제약이 없습니다.
+
+전체 환경변수는 [운영자 가이드](docs/operator-guide.md#환경변수)를 참고하세요.
 
 ### 개발 모드
 

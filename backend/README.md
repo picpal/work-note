@@ -24,9 +24,9 @@ cd backend
 | 모드 | 기동 | 동작 |
 |------|------|------|
 | `local` (기본) | `java -jar worknote-0.1.0.jar` | **1단계 동작 그대로** — 무인증, 모든 요청을 합성 `local` admin 주체로 처리, vault 감사 생략 |
-| `server` | `WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar worknote-0.1.0.jar` | 세션 인증 강제(미인증 401) + 권한 엔진 enforcement + 감사 로그 |
+| `server` | `WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... WORKNOTE_DB=/절대/경로/worknote.db java -jar worknote-0.1.0.jar` | 세션 인증 강제(미인증 401) + 권한 엔진 enforcement + 감사 로그 |
 
-- env: `WORKNOTE_MODE`(local\|server), `WORKNOTE_ADMIN_PASSWORD`(server 최초 기동 시 필수 — 없으면 fail-fast로 기동 거부)
+- env: `WORKNOTE_MODE`(local\|server), `WORKNOTE_ADMIN_PASSWORD`(server 최초 기동 시 필수 — 없으면 fail-fast로 기동 거부), `WORKNOTE_DB`(server 모드 **필수** — 절대 경로가 아니면 기동 거부)
 - `worknote.mode`에 오타 등 미지의 값이 들어오면 기동 자체를 거부한다(WorknoteModeCheck — fail-open 방지)
 
 ## API
@@ -218,7 +218,12 @@ cd ../backend && ./gradlew bootJar   # dist를 classpath:/static으로 포함 �
 
 ```bash
 java -jar build/libs/worknote-0.1.0.jar                                            # local 모드 (무인증)
-WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar build/libs/worknote-0.1.0.jar   # server 모드
+
+# server 모드 — DB는 절대 경로, 저장 디렉토리는 소유자 전용(700)이어야 한다
+WN_DATA="$HOME/worknote-data"; mkdir -p "$WN_DATA" && chmod 700 "$WN_DATA"
+WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... \
+  WORKNOTE_DB="$WN_DATA/worknote.db" WORKNOTE_UPLOAD_DIR="$WN_DATA/attachments" \
+  java -jar build/libs/worknote-0.1.0.jar
 # http://localhost:8080/           → index.html (에디터)
 # http://localhost:8080/login.html, /admin.html
 # http://localhost:8080/api/*     → REST API
@@ -232,7 +237,9 @@ SQLite 파일 경로. 미지정 시 `./worknote.db` (실행 cwd 기준).
 WORKNOTE_DB=/var/lib/worknote/worknote.db java -jar worknote-0.1.0.jar
 ```
 
-> **운영에선 절대경로 권장** — 상대경로는 실행 위치(cwd)에 따라 DB 파일이 달라진다.
+> **server 모드에서는 절대 경로가 필수다(권장이 아니라 요구사항).** 상대 경로면 실행 위치(cwd)에 따라 DB 파일이 달라져 전용 저장소라고 볼 수 없으므로, `StoragePermissions.hardenDb`가 기동을 거부한다. 기본값 `./worknote.db`도 상대 경로라 **`WORKNOTE_DB` 미지정 server 모드는 기동하지 않는다.** local 모드는 기본값 그대로 동작한다.
+>
+> 추가로 server 모드에서는 **DB 부모 디렉토리와 업로드 루트가 그룹·타인에게 열려 있으면 기동이 실패**한다(앱은 기존 디렉토리 권한을 바꾸지 않고 검증만 한다 — 없으면 700으로 생성). 규칙과 조치는 [운영자 가이드 — 데이터 파일 권한](../docs/operator-guide.md#데이터-파일-권한) 참조.
 
 ### 폐쇄망 노트
 

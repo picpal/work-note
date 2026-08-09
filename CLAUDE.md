@@ -14,7 +14,8 @@ work-note/
                                1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API + 5단계(30일 purge·공유 링크 §6) + 6단계(이동 노출 경고 §7) + 관리자 2FA(TOTP, opt-in·admin 유예강제·폐쇄망 오프라인 검증) 구현 완료
                                파일 첨부: 디스크 저장(WORKNOTE_UPLOAD_DIR, DB는 메타·경로만) · 노트 종속(read/write 상속) · 공유 토큰 스코프 서빙 · 관리자 업로드 정책(확장자·용량, app_setting) · purge 시 파일 정리
                                worknote.mode로 스위치(기본 local=무인증)
-                               server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar ...
+                               server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... WORKNOTE_DB=/절대/경로/worknote.db java -jar ...
+                               (server 모드는 DB 절대 경로 필수 + 저장소 디렉토리 700 검증 — 위반 시 기동 실패. WORKNOTE_STORAGE_STRICT=false로 WARN 강등 가능)
                                공유 링크 = deny를 넘는 유일 read 예외(만료·취소·pin·감사), 휴지통 30일 자동 purge(WORKNOTE_PURGE_RETENTION_DAYS)
                                이동 시 노출(접근 집합) 변경 = move-preview로 사전 경고(공개 노출/cross-space 강한 경고) + 감사 target 부기
   docs/
@@ -52,7 +53,10 @@ cd backend
 ./gradlew test       # 테스트
 ./gradlew bootJar    # 단일 jar (frontend dist를 classpath:/static으로 포함 — pnpm build 선행 필요)
 java -jar build/libs/worknote-0.1.0.jar   # 실행 (WORKNOTE_DB 환경변수로 DB 경로 지정, 기본 local 모드=무인증)
-WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... java -jar build/libs/worknote-0.1.0.jar   # server 모드 (인증+권한 enforce)
+# server 모드 (인증+권한 enforce). DB는 절대 경로 필수, 부모 디렉토리는 700이어야 기동한다
+mkdir -m 700 -p /var/lib/worknote
+WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... WORKNOTE_DB=/var/lib/worknote/worknote.db \
+  java -jar build/libs/worknote-0.1.0.jar
 ```
 
 ## 핵심 설계 결정

@@ -13,14 +13,23 @@
 
 ## 0. 실행 준비
 
-### 0.1 server 모드 기동 (임시 DB 권장)
+### 0.1 server 모드 기동 (전용 QA 디렉토리)
 ```bash
 cd frontend && pnpm build && cd ../backend && ./gradlew bootJar
-rm -f /tmp/wn-qa.db*
-WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 WORKNOTE_DB=/tmp/wn-qa.db \
+
+# QA 전용 디렉토리 — server 모드는 DB가 절대 경로여야 하고, 저장 디렉토리가
+# 그룹/타인에게 열려 있으면 기동을 거부한다. /tmp는 1777(전체 쓰기)이라 쓸 수 없다.
+QA_DIR="$HOME/worknote-qa"
+mkdir -p "$QA_DIR" && chmod 700 "$QA_DIR"   # QA 전용 디렉토리이므로 chmod 가능
+rm -f "$QA_DIR"/wn-qa.db*
+
+WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 \
+  WORKNOTE_DB="$QA_DIR/wn-qa.db" WORKNOTE_UPLOAD_DIR="$QA_DIR/uploads" \
   java -jar build/libs/worknote-0.1.0.jar   # 백그라운드 기동
 # 헬스: curl --retry-connrefused --retry 40 --retry-delay 1 http://localhost:8080/api/health
 ```
+- `WORKNOTE_DB`를 빼거나 `/tmp/...`로 두면 **기동 단계에서 실패**한다(절대 경로 요구 + 공용 디렉토리 거부). 상세는 [운영자 가이드 — 데이터 파일 권한](operator-guide.md#데이터-파일-권한).
+- `uploads`는 없으면 앱이 `700`으로 만든다. 재실행 시 남아 있어도 그대로 통과한다.
 - 로그인 계정: 사번 `admin` / 비번 `qa-admin-1234` (부트스트랩 관리자)
 - 빈 DB면 첫 진입 시 시드 vault 자동 업로드(시작하기/아키텍처/운영 가이드/회의록/README)
 
