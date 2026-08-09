@@ -8,6 +8,8 @@ import com.worknote.vault.NodeRow;
 import com.worknote.vault.VaultException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -108,7 +110,7 @@ public class ShareLinkService {
         NodeRow node = v.node();
         mapper.incrementViewCount(v.link().id());
         // 이 세션의 이 계정이 소비한 열람 — 첨부 서빙의 근거 (TTL 만료까지)
-        viewed.markViewed(v.link().id(), viewerEmp);
+        markViewedAfterCommit(v.link().id(), viewerEmp);
         return new ShareView(v.link().id(), v.link().nodeId(), node.name(), node.content(),
             node.updatedAt() == null ? null : node.updatedAt().substring(0, 10));
     }
@@ -121,6 +123,31 @@ public class ShareLinkService {
 
     /** validate 내부 결과 — 검증된 링크 행 + 노드. */
     private record ValidShare(ShareLinkRow link, NodeRow node) {}
+
+    /**
+     * 소비한 열람의 표식을 <b>커밋된 뒤에</b> 남긴다.
+     *
+     * <p>표식은 HttpSession에 있어 트랜잭션에 참여하지 않는다. 열람수 증가와 나란히 남기면 커밋 실패·
+     * 호출부 롤백 때 view_count는 되돌아가는데 표식만 살아남는다 — 열람을 소비하지도, 본문을 받지도
+     * 못한 세션이 소진된 링크의 첨부를 계속 가져가는 자격이 된다(롤백을 넘어 살아남는 권한 부여).
+     *
+     * <p>{@code AttachmentService.deleteIfRolledBack}과 가드의 방향이 <b>반대</b>다. 저쪽은 동기화가
+     * 없으면 뒤집힐 트랜잭션도 없으니 그냥 빠져나가지만, 여기서 빠져나가면 표식이 조용히 사라져
+     * 정당한 열람자의 이미지가 깨진다 — 되돌아갈 것이 없다면 지금 남기는 것이 맞다. 합치지 말 것.
+     */
+    private void markViewedAfterCommit(String linkId, String viewerEmp) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            viewed.markViewed(linkId, viewerEmp);   // 트랜잭션 밖 호출 — 되돌아갈 것이 없다
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 요청 스레드가 아직 바인딩된 채로 실행된다 — markViewed의 RequestContextHolder가 그대로 해석된다
+                viewed.markViewed(linkId, viewerEmp);
+            }
+        });
+    }
 
     /** @return 취소된 행(감사 target 구성용). privileged = 관리자 또는 local 모드. */
     @Transactional
