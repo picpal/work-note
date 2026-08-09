@@ -8,6 +8,8 @@ import com.worknote.vault.NodeRow;
 import com.worknote.vault.VaultException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -31,12 +33,15 @@ public class ShareLinkService {
     private final NodeMapper nodes;
     private final ObjectMapper json;
     private final Clock clock;
+    private final ShareViewSession viewed;
 
-    public ShareLinkService(ShareLinkMapper mapper, NodeMapper nodes, ObjectMapper json, Clock clock) {
+    public ShareLinkService(ShareLinkMapper mapper, NodeMapper nodes, ObjectMapper json, Clock clock,
+                            ShareViewSession viewed) {
         this.mapper = mapper;
         this.nodes = nodes;
         this.json = json;
         this.clock = clock;
+        this.viewed = viewed;
     }
 
     @Transactional
@@ -67,16 +72,28 @@ public class ShareLinkService {
     }
 
     /**
+     * 검증 대상 — 열람 소비(VIEW)와 이미 소비한 열람의 콘텐츠 접근(CONTENT)을 나눈다.
+     * 열람수 상한만 다르게 보고 나머지(취소·만료·pin·휴지통)는 동일하다.
+     */
+    private enum Use { VIEW, CONTENT }
+
+    /**
      * 공통 검증 — 무효 사유 전부 404 단일화(존재·사유 비노출, 결정 S2).
      * 활성·미만료·열람수·pin·노드 존재 확인. viewer=null은 local 모드(pin 생략, 결정 S5).
      * @return 검증을 통과한 행 + 노드 (열람수는 증가시키지 않음 — 증가는 resolve 책임).
      */
-    private ValidShare validate(String token, String viewerEmp) {
+    private ValidShare validate(String token, String viewerEmp, Use use) {
         ShareLinkRow row = mapper.findByToken(token);
         if (row == null || row.revokedAt() != null
             || row.expiresAt().compareTo(iso(LocalDateTime.now(clock))) <= 0
-            || (row.maxViews() != null && row.viewCount() >= row.maxViews())
             || (row.pinEmps() != null && viewerEmp != null && !fromJson(row.pinEmps()).contains(viewerEmp))) {
+            throw invalidLink();
+        }
+        // 상한 소진 후에도 CONTENT는 이 세션의 이 계정이 소비한 열람에 한해 통과 — 첨부는 열람수를
+        // 소모하지 않으므로(이미지 N개 = 열람 1회) 막으면 마지막 열람의 이미지가 전부 깨진다.
+        // 표식은 resolve만 남기므로 본문 재열람·타 세션·교대 로그인한 타 계정은 그대로 거부된다.
+        if (row.maxViews() != null && row.viewCount() >= row.maxViews()
+            && (use == Use.VIEW || !viewed.hasViewed(row.id(), viewerEmp))) {
             throw invalidLink();
         }
         NodeRow node = nodes.findById(row.nodeId());
@@ -86,12 +103,14 @@ public class ShareLinkService {
         return new ValidShare(row, node);
     }
 
-    /** 열람 — 검증 통과 시 열람수 증가 + 노트 내용 반환. */
+    /** 열람 — 검증 통과 시 열람수 증가 + 노트 내용 반환. 상태를 바꾸므로 호출부는 POST다. */
     @Transactional
     public ShareView resolve(String token, String viewerEmp) {
-        ValidShare v = validate(token, viewerEmp);
+        ValidShare v = validate(token, viewerEmp, Use.VIEW);
         NodeRow node = v.node();
         mapper.incrementViewCount(v.link().id());
+        // 이 세션의 이 계정이 소비한 열람 — 첨부 서빙의 근거 (TTL 만료까지)
+        markViewedAfterCommit(v.link().id(), viewerEmp);
         return new ShareView(v.link().id(), v.link().nodeId(), node.name(), node.content(),
             node.updatedAt() == null ? null : node.updatedAt().substring(0, 10));
     }
@@ -99,11 +118,36 @@ public class ShareLinkService {
     /** 첨부 이미지 서빙용 — 검증만, 열람수 미증가. 노드 id 반환. */
     @Transactional(readOnly = true)
     public String nodeIdForAttachment(String token, String viewerEmp) {
-        return validate(token, viewerEmp).link().nodeId();
+        return validate(token, viewerEmp, Use.CONTENT).link().nodeId();
     }
 
     /** validate 내부 결과 — 검증된 링크 행 + 노드. */
     private record ValidShare(ShareLinkRow link, NodeRow node) {}
+
+    /**
+     * 소비한 열람의 표식을 <b>커밋된 뒤에</b> 남긴다.
+     *
+     * <p>표식은 HttpSession에 있어 트랜잭션에 참여하지 않는다. 열람수 증가와 나란히 남기면 커밋 실패·
+     * 호출부 롤백 때 view_count는 되돌아가는데 표식만 살아남는다 — 열람을 소비하지도, 본문을 받지도
+     * 못한 세션이 소진된 링크의 첨부를 계속 가져가는 자격이 된다(롤백을 넘어 살아남는 권한 부여).
+     *
+     * <p>{@code AttachmentService.deleteIfRolledBack}과 가드의 방향이 <b>반대</b>다. 저쪽은 동기화가
+     * 없으면 뒤집힐 트랜잭션도 없으니 그냥 빠져나가지만, 여기서 빠져나가면 표식이 조용히 사라져
+     * 정당한 열람자의 이미지가 깨진다 — 되돌아갈 것이 없다면 지금 남기는 것이 맞다. 합치지 말 것.
+     */
+    private void markViewedAfterCommit(String linkId, String viewerEmp) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            viewed.markViewed(linkId, viewerEmp);   // 트랜잭션 밖 호출 — 되돌아갈 것이 없다
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 요청 스레드가 아직 바인딩된 채로 실행된다 — markViewed의 RequestContextHolder가 그대로 해석된다
+                viewed.markViewed(linkId, viewerEmp);
+            }
+        });
+    }
 
     /** @return 취소된 행(감사 target 구성용). privileged = 관리자 또는 local 모드. */
     @Transactional

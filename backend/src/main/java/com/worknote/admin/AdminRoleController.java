@@ -60,9 +60,8 @@ public class AdminRoleController {
                                             HttpServletRequest req) {
         UserRow actor = user(req);
         guard.requireAdmin(actor);
-        RoleAdminService.RoleView updated = svc.update(id, body.name(), body.caps());
-        audit.log(actor, "role.update", id, req.getRemoteAddr());
-        return updated;
+        // 감사 기록은 서비스 트랜잭션 안(T7-a) — 감사 실패 시 능력 변경도 함께 롤백
+        return svc.update(id, body.name(), body.caps(), actor, req.getRemoteAddr());
     }
 
     @DeleteMapping("/{id}")

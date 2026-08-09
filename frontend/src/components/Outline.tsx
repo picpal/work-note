@@ -4,19 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import React from "react";
 import type { EditorView } from "@codemirror/view";
-
-function parseHeadings(src: string) {
-  const lines = (src || "").split("\n");
-  let inFence = false;
-  const out: Array<{ level: number; text: string; line: number }> = [];
-  lines.forEach((ln, i) => {
-    if (/^\s*(```|~~~)/.test(ln)) { inFence = !inFence; return; }
-    if (inFence) return;
-    const m = ln.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
-    if (m) out.push({ level: m[1].length, text: m[2].trim(), line: i + 1 });
-  });
-  return out;
-}
+import { parseHeadings } from "./outlineParse";
 
 const SCROLLER = ".doc-scroll";
 

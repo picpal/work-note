@@ -39,6 +39,17 @@ class AuditServiceTest {
     }
 
     @Test
+    void detailIsNullUnlessGiven() {
+        UserRow user = new UserRow("u1", "10001", null, "홍길동", "operator", "active", null);
+        // 기존 4-인자 호출부 수십 곳은 detail=null로 위임 — 시그니처 추가가 조용히 값을 채우지 않는다
+        audit.log(user, "node.create", "n-123", "10.0.0.5");
+        assertThat(jdbc.queryForMap("SELECT * FROM audit_log").get("detail")).isNull();
+        jdbc.update("DELETE FROM audit_log");
+        audit.log(user, "acl.set", "n-123", "10.0.0.5", "{\"added\":[]}");
+        assertThat(jdbc.queryForMap("SELECT * FROM audit_log").get("detail")).isEqualTo("{\"added\":[]}");
+    }
+
+    @Test
     void logRawWritesWithoutUser() {
         // logRaw는 who NOT NULL 제약에 직접 노출되는 유일 경로 — 값까지 단언
         audit.logRaw("10001", "login.fail", null, "10.0.0.5");

@@ -138,6 +138,25 @@ describe("reportMarkdownToHtml — PDF용 부분집합 변환", () => {
     expect(html).toContain('<th class="r">조회수</th>');
     expect(html).toContain('<td class="r">5</td>');
   });
+  // 구분선 정규식에서 중복·모호하던 `\|?\s*`를 걷어냈다(T4). 닫는 파이프 유무·후행 공백
+  // 어느 조합에서도 표로 인식되어야 한다.
+  it("표 구분선 — 닫는 파이프/후행 공백 조합 전부 인식", () => {
+    for (const sep of ["| --- | --- |", "| --- | ---", "| --- | --- |   ", "| --- | ---   ", "|:---:|---:|"]) {
+      const html = reportMarkdownToHtml(`| a | b |\n${sep}\n| 1 | 2 |`);
+      expect(html, sep).toContain("<table>");
+      expect(html, sep).toContain(">a</th>"); // 정렬 콜론이 있으면 class 속성이 붙는다
+      expect(html, sep).toContain(">1</td>");
+    }
+  });
+  it("표 구분선 아님 — 다음 줄이 일반 행이면 표로 열지 않는다", () => {
+    const html = reportMarkdownToHtml("| a | b |\n| 본문 | 2 |");
+    expect(html).not.toContain("<table>");
+  });
+  it("구분선 정규식 — 긴 병리 입력에서도 즉시 판정", () => {
+    const t0 = performance.now();
+    reportMarkdownToHtml(`| a |\n|${" -".repeat(20_000)}x\n| 1 |`);
+    expect(performance.now() - t0).toBeLessThan(50);
+  });
   it("굵게 + HTML 이스케이프", () => {
     expect(reportMarkdownToHtml("- 계정 수: **3개**")).toContain("<strong>3개</strong>");
     expect(reportMarkdownToHtml("- a<b>&c")).toContain("a&lt;b&gt;&amp;c");

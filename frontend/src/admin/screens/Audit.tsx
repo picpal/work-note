@@ -2,6 +2,8 @@
 import React from "react";
 import { AdminApi, ApiAudit } from "../api";
 import { buildAuditReport, buildReportHtmlDoc, monthBounds } from "../auditReport";
+import { auditDetailLines } from "../auditDetail";
+import { buildAuditCsv, fmtAuditAt } from "../auditExport";
 import { actLabel, actType, KNOWN_ACTS } from "../mappers";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, SkeletonTable } from "../common";
@@ -11,6 +13,9 @@ const { useState, useEffect } = React;
 const h = React.createElement;
 
 const LIMIT = 50;
+
+/** 델타 부호 색 — 회수(−)만 경고색. 모노톤 유지를 위해 나머지는 절제. */
+const SIGN_COLOR: Record<string, string> = { "+": "#1b6e3c", "−": "#b3261e", "~": "var(--ink)" };
 
 function adminDownload(filename: string, text: string, mime?: string) {
   const blob = new Blob(["﻿" + text], { type: (mime || "text/plain") + ";charset=utf-8" });
@@ -31,6 +36,7 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
   const [rows, setRows] = useState<ApiAudit[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});   // 권한 변경 델타 펼침 상태(행 id 기준)
 
   // 월간 리포트 모달 — 년/월 선택 후 그 달 전건을 집계해 .md 생성.
   const nowY = new Date().getFullYear();
@@ -53,7 +59,8 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
     setLoading(true);
     // to는 그날 끝까지 포함(at은 ISO 문자열 사전순 비교), from은 YYYY-MM-DD 그대로 충분.
     AdminApi.audit({ who, act, from, to: to ? to + "T23:59:59" : "", limit: LIMIT, offset })
-      .then((res) => { if (alive) { setRows(res.rows); setTotal(res.total); } })
+      // 행 id는 페이지가 바뀌면 다른 행을 가리키므로 펼침 상태도 함께 리셋
+      .then((res) => { if (alive) { setRows(res.rows); setTotal(res.total); setExpanded({}); } })
       .catch((e) => { if (alive) { setRows([]); setTotal(0); toast(e instanceof ApiError ? e.message : "감사 로그 조회 실패"); } })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -66,15 +73,11 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
     return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
   };
   const fileStamp = () => new Date().toISOString().slice(0, 10);
-  // at은 ISO_LOCAL_DATE_TIME(마이크로초 포함 가능) — 초 단위까지만 표시
-  const fmtAt = (at: string) => at.replace("T", " ").slice(0, 19);
+  const fmtAt = fmtAuditAt;   // 표·CSV 동일 표기(auditExport 단일 출처)
 
+  /** 인증 심사 제출용 증적물 — 권한 변경 델타 열까지 포함하고 수식 주입은 buildAuditCsv가 무해화한다. */
   const exportCsv = () => {
-    const esc = (s: unknown) => '"' + String(s).replace(/"/g, '""') + '"';
-    const head = ["일시", "행위자", "행위", "대상", "IP/단말"];
-    const lines = [head.map(esc).join(",")].concat(
-      rows.map((r) => [fmtAt(r.at), r.who, actLabel(r.act), r.target ?? "—", r.ip].map(esc).join(",")));
-    adminDownload("audit-log_" + fileStamp() + ".csv", lines.join("\r\n"), "text/csv");
+    adminDownload("audit-log_" + fileStamp() + ".csv", buildAuditCsv(rows), "text/csv");
     toast && toast(rows.length + "건을 CSV로 내보냈습니다", "download");
   };
 
@@ -155,12 +158,28 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
                 h("th", null, "일시"), h("th", null, "행위자"), h("th", null, "행위"),
                 h("th", null, "대상"), h("th", null, "IP / 단말"))),
               h("tbody", null,
-                rows.map((r) => h("tr", { key: r.id },
-                  h("td", { className: "mono muted" }, fmtAt(r.at)),
-                  h("td", { className: "mono" }, r.who),
-                  h("td", null, h("span", { style: { fontWeight: 550, color: actType(r.act) === "loginfail" ? "#b3261e" : "var(--ink)" } }, actLabel(r.act))),
-                  h("td", { className: "muted" }, r.target ?? "—"),
-                  h("td", { className: "mono muted" }, r.ip)))))),
+                rows.map((r) => {
+                  // 권한 변경(acl.set/role.update/public.*)만 델타가 있다 — 있는 행에만 펼치기 토글.
+                  const lines = auditDetailLines(r.act, r.detail);
+                  const open = !!expanded[r.id];
+                  return h(React.Fragment, { key: r.id },
+                    h("tr", null,
+                      h("td", { className: "mono muted" }, fmtAt(r.at)),
+                      h("td", { className: "mono" }, r.who),
+                      h("td", null, h("span", { style: { fontWeight: 550, color: actType(r.act) === "loginfail" ? "#b3261e" : "var(--ink)" } }, actLabel(r.act))),
+                      h("td", { className: "muted" }, r.target ?? "—",
+                        lines.length > 0 && h("button", {
+                          className: "btn sm", style: { marginLeft: 8, padding: "1px 6px" },
+                          title: open ? "변경 내역 접기" : "변경 내역 펼치기",
+                          onClick: () => setExpanded((m) => ({ ...m, [r.id]: !m[r.id] })),
+                        }, h(Icon, { name: open ? "chevronDown" : "chevron" }), lines.length + "건")),
+                      h("td", { className: "mono muted" }, r.ip)),
+                    open && lines.length > 0 && h("tr", null,
+                      h("td", { colSpan: 5, style: { textAlign: "left", background: "var(--bg-sunken)" } },
+                        lines.map((ln, i) => h("div", { key: i, className: "mono", style: { fontSize: 12.5, lineHeight: 1.7 } },
+                          h("span", { style: { display: "inline-block", width: 16, fontWeight: 700, color: SIGN_COLOR[ln.sign] } }, ln.sign),
+                          ln.text)))));
+                })))),
     h("div", { className: "atoolbar", style: { marginTop: 12, marginBottom: 0 } },
       h("span", { className: "muted", style: { fontSize: 12.5 } },
         loading ? "불러오는 중…" : total + "건 중 " + first + "–" + last),

@@ -11,7 +11,9 @@ export interface ApiSpace { nodeId: string; teamId: string | null; }
 export interface ApiAclEntry { principalType: "user" | "team" | "all"; principalId: string; grantType: "read" | "edit" | "deny"; }
 export interface ApiAclRow extends ApiAclEntry { nodeId: string; }
 export interface ApiPublicFlag { nodeId: string; mode: "public" | "exclude"; }
-export interface ApiAudit { id: number; at: string; who: string; act: string; target: string | null; ip: string; }
+/** detail = 권한 변경 델타 JSON(acl.set/role.update/public.*만 채워짐). 표시 변환은 auditDetail.ts.
+    선택 필드인 이유: 백엔드는 항상 내려주지만, 테스트 픽스처처럼 detail을 모르는 호출부가 깨지지 않게. */
+export interface ApiAudit { id: number; at: string; who: string; act: string; target: string | null; ip: string; detail?: string | null; }
 export interface ApiShare {
   id: string;
   token: string;

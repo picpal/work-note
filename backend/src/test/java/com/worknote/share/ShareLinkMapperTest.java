@@ -10,7 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file::memory:?cache=shared")
+// 익명 file::memory:는 JVM 전역 단일 DB다 — 아래 clean()의 DELETE FROM node가 남의 시드까지 지운다. 클래스 전용 이름으로 격리
+@SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite:file:sharelinkmappermem?mode=memory&cache=shared")
 class ShareLinkMapperTest {
     @Autowired ShareLinkMapper mapper;
     @Autowired NodeMapper nodes;

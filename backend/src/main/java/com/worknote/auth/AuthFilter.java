@@ -34,9 +34,14 @@ public class AuthFilter extends OncePerRequestFilter {
     /** 부분 인증(pending) 세션도 통과 허용 — pending 사용자의 로그아웃 지원. */
     private static final Set<String> PENDING_ALLOWLIST = Set.of("/api/auth/logout");
 
-    /** enforced admin이 grace 만료 후에도 접근 가능한 경로 (2FA 등록 플로우). */
+    /**
+     * enforced admin이 grace 만료 후에도 접근 가능한 경로 (2FA 등록 플로우 + 본인 자기관리).
+     * update-profile: 이메일이 TOTP setup의 선행 조건이라 막으면 등록 자체가 불가능.
+     * change-password: 현재 비밀번호를 검증하므로 등록 게이트 우회가 아니고, 막으면 탈취 의심 비밀번호를 못 바꾼다.
+     */
     private static final Set<String> ENFORCE_ALLOWLIST = Set.of(
         "/api/auth/me", "/api/auth/logout",
+        "/api/auth/update-profile", "/api/auth/change-password",
         "/api/me/2fa/setup", "/api/me/2fa/qr", "/api/me/2fa/confirm", "/api/me/2fa");
 
     private final UserMapper users;
@@ -45,21 +50,33 @@ public class AuthFilter extends OncePerRequestFilter {
     private final RoleCaps roleCaps;
     private final SettingService settings;
     private final Clock clock;
+    private final OriginValidator origins;
 
     public AuthFilter(UserMapper users, ObjectMapper json,
                       TotpService totpService, RoleCaps roleCaps,
-                      SettingService settings, Clock clock) {
+                      SettingService settings, Clock clock,
+                      OriginValidator origins) {
         this.users = users;
         this.json = json;
         this.totpService = totpService;
         this.roleCaps = roleCaps;
         this.settings = settings;
         this.clock = clock;
+        this.origins = origins;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
+        // CSRF 오리진 검증은 ALLOWLIST보다 먼저 — 뒤에 두면 로그인·가입·2FA 검증·복구가 미검증으로 남아
+        // 강제 로그인 CSRF(공격자 계정으로 피해자를 로그인시켜 작성 내용을 회수)가 열린다.
+        if (!origins.allowed(req)) {
+            res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            res.setContentType("application/json;charset=UTF-8");
+            res.getWriter().write(json.writeValueAsString(Map.of("error", "invalid_origin")));
+            return;
+        }
+
         // contextPath 분리 — non-root context 배포 시 allowlist 불일치로 인한 전면 락아웃 방지
         String path = req.getRequestURI().substring(req.getContextPath().length());
         if (ALLOWLIST.contains(path)) {

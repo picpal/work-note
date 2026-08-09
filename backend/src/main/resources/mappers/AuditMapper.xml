@@ -2,7 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.worknote.audit.AuditMapper">
   <insert id="insert">
-    INSERT INTO audit_log (at, who, act, target, ip) VALUES (#{at}, #{who}, #{act}, #{target}, #{ip})
+    INSERT INTO audit_log (at, who, act, target, ip, detail)
+    VALUES (#{at}, #{who}, #{act}, #{target}, #{ip}, #{detail})
   </insert>
 
   <!-- at은 ISO_LOCAL_DATE_TIME TEXT — 사전순 비교 = 시간순 비교 (확정 결정 #10) -->
@@ -17,7 +18,7 @@
 
   <!-- 명시 컬럼 — record 위치 기반 매핑의 컬럼 순서 의존 제거 (Oracle 전환 대비) -->
   <select id="find" resultType="com.worknote.audit.AuditRow">
-    SELECT id, at, who, act, target, ip FROM audit_log
+    SELECT id, at, who, act, target, ip, detail FROM audit_log
     <include refid="auditFilter"/>
     ORDER BY at DESC, id DESC
     LIMIT #{limit} OFFSET #{offset}

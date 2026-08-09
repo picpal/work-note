@@ -102,12 +102,16 @@ public class AuthController {
             audit.logRaw(result.user().emp(), "2fa.grace_start", null, http.getRemoteAddr());
         }
 
+        // changeSessionId()는 id만 교체하고 내용을 유지하므로(:93) 같은 세션에서 계정을 바꿔 로그인하면
+        // 직전 로그인의 인증 상태가 잔류한다 — 두 분기 모두에서 반대편 마커를 명시적으로 지운다.
         if (totpService.isEnabled(result.user().id())) {
             session.setAttribute(SESSION_2FA_PENDING, Boolean.TRUE);   // 부분 인증 — SESSION_CRED 미설정
+            session.removeAttribute(SESSION_CRED);                     // 이전 완전 인증 잔류 제거
             audit.logRaw(result.user().emp(), "2fa.challenge", null, http.getRemoteAddr());
             return Map.of("status", "2fa_required");
         }
         session.setAttribute(SESSION_CRED, result.credSalt());
+        session.removeAttribute(SESSION_2FA_PENDING);   // 이전 부분 인증 잔류 제거 (남으면 AuthFilter가 이 세션을 차단)
         audit.logRaw(result.user().emp(), "login.success", null, http.getRemoteAddr());
         return toMe(result.user(), result.caps());
     }

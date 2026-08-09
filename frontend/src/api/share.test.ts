@@ -35,16 +35,18 @@ describe("ShareApi", () => {
     await expect(ShareApi.revoke("s1")).resolves.toBeUndefined();
     expect(fetch).toHaveBeenCalledWith("/api/shares/s1", expect.objectContaining({ method: "DELETE" }));
 
+    // 열람은 열람수를 소비하므로 POST — GET이면 cross-site 내비게이션으로 소모 가능
     mockJson({ name: "노트", content: "# 본문", updatedAt: null });
     const view = await ShareApi.view("tok1");
     expect(view.name).toBe("노트");
-    expect(fetch).toHaveBeenCalledWith("/api/share/tok1", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/share/tok1/view",
+      expect.objectContaining({ method: "POST" }));
   });
 
   it("특수문자는 경로에 인코딩한다", async () => {
     mockJson({ name: "n", content: "", updatedAt: null });
     await ShareApi.view("a/b");
-    expect(fetch).toHaveBeenCalledWith("/api/share/a%2Fb", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/share/a%2Fb/view", expect.anything());
   });
 
   it("shareUrl은 현재 디렉토리 기준으로 share.html 링크를 조립한다", () => {

@@ -16,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:shareapimem?mode=memory&cache=shared",
     "worknote.mode=server",
-    "worknote.admin-password=boot-pass-1"
+    "worknote.admin-password=boot-pass-1",
+    "worknote.upload.dir=build/test-share-attachments"
 })
 @AutoConfigureMockMvc
 class ShareApiTest {
@@ -42,6 +44,7 @@ class ShareApiTest {
     @BeforeEach
     void clean() {
         jdbc.update("DELETE FROM audit_log");
+        jdbc.update("DELETE FROM attachment");
         jdbc.update("DELETE FROM share_link");
         jdbc.update("DELETE FROM acl");
         jdbc.update("DELETE FROM public_flag");
@@ -65,7 +68,11 @@ class ShareApiTest {
     }
 
     private MockHttpSession login(String emp, String pw) throws Exception {
-        MockHttpSession session = new MockHttpSession();
+        return loginOn(new MockHttpSession(), emp, pw);
+    }
+
+    /** 기존 세션에 이어서 로그인 — 공용 PC 교대 로그인(changeSessionId는 내용을 유지한다) 재현용. */
+    private MockHttpSession loginOn(MockHttpSession session, String emp, String pw) throws Exception {
         mvc.perform(post("/api/auth/login").session(session).contentType(APPLICATION_JSON)
                 .content("{\"emp\":\"" + emp + "\",\"password\":\"" + pw + "\"}"))
             .andExpect(status().isOk());
@@ -123,7 +130,7 @@ class ShareApiTest {
         MockHttpSession admin = login("admin", "boot-pass-1");
         String token = JsonPath.read(createShare(admin, "n1", null), "$.token");
         MockHttpSession denied = login("10001", "pw-1234");
-        mvc.perform(get("/api/share/" + token).session(denied))
+        mvc.perform(post("/api/share/" + token + "/view").session(denied))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("N1"))
             .andExpect(jsonPath("$.content").value("body"))
@@ -148,7 +155,7 @@ class ShareApiTest {
     void viewWithoutSessionIs401() throws Exception {
         MockHttpSession admin = login("admin", "boot-pass-1");
         String token = JsonPath.read(createShare(admin, "n1", null), "$.token");
-        mvc.perform(get("/api/share/" + token))
+        mvc.perform(post("/api/share/" + token + "/view"))
             .andExpect(status().isUnauthorized());
     }
 
@@ -159,10 +166,10 @@ class ShareApiTest {
         String token = JsonPath.read(
             createShare(admin, "n1", "{\"pinEmps\":[\"10001\"]}"), "$.token");
         MockHttpSession other = login("20002", "pw-1234");
-        mvc.perform(get("/api/share/" + token).session(other))
+        mvc.perform(post("/api/share/" + token + "/view").session(other))
             .andExpect(status().isNotFound());
         MockHttpSession pinned = login("10001", "pw-1234");
-        mvc.perform(get("/api/share/" + token).session(pinned))
+        mvc.perform(post("/api/share/" + token + "/view").session(pinned))
             .andExpect(status().isOk());
     }
 
@@ -210,10 +217,10 @@ class ShareApiTest {
         MockHttpSession admin = login("admin", "boot-pass-1");
         String token = JsonPath.read(createShare(admin, "n1", null), "$.token");
         mvc.perform(delete("/api/nodes/n1").session(admin)).andExpect(status().isNoContent());
-        mvc.perform(get("/api/share/" + token).session(admin))
+        mvc.perform(post("/api/share/" + token + "/view").session(admin))
             .andExpect(status().isNotFound());
         mvc.perform(post("/api/trash/n1/restore").session(admin)).andExpect(status().isNoContent());
-        mvc.perform(get("/api/share/" + token).session(admin))
+        mvc.perform(post("/api/share/" + token + "/view").session(admin))
             .andExpect(status().isOk());
     }
 
@@ -248,5 +255,86 @@ class ShareApiTest {
             .andExpect(jsonPath("$[?(@.createdBy=='admin')].maxViews").value(5))
             .andExpect(jsonPath("$[?(@.createdBy=='admin')].pinEmps[0]").value("10001"))
             .andExpect(jsonPath("$[?(@.createdBy=='admin')].pinEmps[1]").value("20002"));
+    }
+
+    // 13. T13-b — maxViews 소진 시점의 첨부. 프런트는 본문 로드 후 이미지를 요청하므로,
+    //     첨부가 열람수 검사에 걸리면 "본문은 보이는데 이미지만 전부 깨지는" 상태가 된다.
+    @Test
+    void lastViewStillServesAttachmentsToTheSameSession() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        String attId = JsonPath.read(upload(admin, "a.png", new byte[]{1, 2, 3}), "$.id");
+        String token = JsonPath.read(createShare(admin, "n1", "{\"maxViews\":1}"), "$.token");
+
+        MockHttpSession viewer = login("10001", "pw-1234");
+        mvc.perform(post("/api/share/" + token + "/view").session(viewer))
+            .andExpect(status().isOk());   // 마지막 열람 소진
+        mvc.perform(get("/api/share/" + token + "/attachments").session(viewer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(1)));
+        mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(viewer))
+            .andExpect(status().isOk());
+    }
+
+    // 14. T13-b 뒷면 — 상한은 약화되지 않는다. 본문 재열람도, 소비하지 않은 세션의 첨부도 404.
+    @Test
+    void exhaustedLinkRefusesSecondViewAndOtherSessions() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        String attId = JsonPath.read(upload(admin, "a.png", new byte[]{1, 2, 3}), "$.id");
+        String token = JsonPath.read(createShare(admin, "n1", "{\"maxViews\":1}"), "$.token");
+
+        MockHttpSession viewer = login("10001", "pw-1234");
+        mvc.perform(post("/api/share/" + token + "/view").session(viewer))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/share/" + token + "/view").session(viewer))
+            .andExpect(status().isNotFound());
+
+        MockHttpSession other = login("20002", "pw-1234");
+        mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(other))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/share/" + token + "/attachments").session(other))
+            .andExpect(status().isNotFound());
+    }
+
+    // 16. 소진 링크의 첨부 자격은 열람을 소비한 "계정"의 것이다. 공용 PC 교대 로그인처럼 같은
+    //     세션에서 계정이 바뀌면(changeSessionId는 내용을 유지한다) 새 계정은 자기가 열지 않은
+    //     링크의 첨부를 물려받아선 안 된다.
+    @Test
+    void exhaustedLinkDoesNotLeakAttachmentsToNextAccountOnSameSession() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        String attId = JsonPath.read(upload(admin, "a.png", new byte[]{1, 2, 3}), "$.id");
+        String token = JsonPath.read(createShare(admin, "n1", "{\"maxViews\":1}"), "$.token");
+
+        MockHttpSession shared = login("10001", "pw-1234");
+        mvc.perform(post("/api/share/" + token + "/view").session(shared))
+            .andExpect(status().isOk());   // A가 마지막 열람 소진
+        mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(shared))
+            .andExpect(status().isOk());   // A 본인은 계속 열람 가능
+
+        loginOn(shared, "20002", "pw-1234");   // 같은 세션에서 B로 교대 로그인
+        mvc.perform(get("/api/share/" + token + "/attachments/" + attId).session(shared))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/share/" + token + "/attachments").session(shared))
+            .andExpect(status().isNotFound());
+    }
+
+    // 15. T13-a — 열람 소진은 GET으로 못 한다(cross-site 내비게이션으로 열람수 소모 불가).
+    @Test
+    void viewIsNotReachableByGet() throws Exception {
+        MockHttpSession admin = login("admin", "boot-pass-1");
+        String token = JsonPath.read(createShare(admin, "n1", "{\"maxViews\":1}"), "$.token");
+
+        mvc.perform(get("/api/share/" + token).session(admin))
+            .andExpect(status().is4xxClientError());
+        mvc.perform(get("/api/share/" + token + "/view").session(admin))
+            .andExpect(status().is4xxClientError());
+        assertThat(jdbc.queryForObject(
+            "SELECT view_count FROM share_link WHERE token = ?", Integer.class, token)).isZero();
+    }
+
+    private String upload(MockHttpSession session, String name, byte[] body) throws Exception {
+        return mvc.perform(multipart("/api/nodes/n1/attachments")
+                .file(new MockMultipartFile("file", name, null, body)).session(session))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
     }
 }
