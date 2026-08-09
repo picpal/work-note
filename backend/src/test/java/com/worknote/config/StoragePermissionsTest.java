@@ -122,6 +122,33 @@ class StoragePermissionsTest {
         StoragePermissions.ensureFile(tmp.resolve("does-not-exist.db"));   // 예외 없음
     }
 
+    /**
+     * 후반 패스용 단독 진입점 — 스키마 생성 뒤 다시 도는 대상은 파일 600뿐이다.
+     * 디렉토리는 손대지 않으므로 부모가 넓어도 여기서는 지적하지 않는다(전반 패스가 이미 판단했다).
+     */
+    @Test
+    void hardenFile_correctsFileWithoutTouchingParent(@TempDir Path tmp) throws IOException {
+        assumePosix(tmp);
+        Path dir = Files.createDirectory(tmp.resolve("data"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Path db = Files.createFile(dir.resolve("worknote.db"));
+        Files.setPosixFilePermissions(db, PosixFilePermissions.fromString("rw-r--r--"));
+
+        assertThat(StoragePermissions.hardenFile(db)).isEmpty();
+
+        assertThat(Files.getPosixFilePermissions(db))
+            .isEqualTo(PosixFilePermissions.fromString("rw-------"));
+        assertThat(Files.getPosixFilePermissions(dir))
+            .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
+
+    /** 인메모리 DB(null)·아직 없는 파일 모두 조용히 통과 — 후반 패스가 매 기동 소음을 내면 안 된다. */
+    @Test
+    void hardenFile_toleratesNullAndMissing(@TempDir Path tmp) {
+        assertThat(StoragePermissions.hardenFile(null)).isEmpty();
+        assertThat(StoragePermissions.hardenFile(tmp.resolve("nope.db"))).isEmpty();
+    }
+
     // --- harden() 통합 ---
 
     @Test

@@ -165,6 +165,23 @@ public final class StoragePermissions {
     }
 
     /**
+     * DB 파일 하나만 600으로. 반환값은 {@link #harden}과 같은 성격의 "운영자가 읽고 조치할 수 있는" 문제 목록.
+     *
+     * <p>따로 뽑아둔 이유: 이 동작은 <b>두 번</b> 실행돼야 한다. 기동 전 패스는 <i>이미 있는</i> DB만 조일 수 있고
+     * (신규 설치에선 파일이 아직 없다), 파일을 실제로 만드는 건 그 뒤의 DataSource/Flyway다.
+     * 나머지 규칙(디렉토리 생성·검증)은 두 번 돌 이유가 없으므로 재실행 대상은 이 한 가지뿐이다.
+     * 자세한 근거는 {@code StoragePermissionGuard}의 2패스 주석 참조.
+     */
+    public static List<String> hardenFile(Path file) {
+        List<String> problems = new ArrayList<>();
+        if (file != null) {
+            Path abs = file.toAbsolutePath();
+            attempt(problems, abs, () -> ensureFile(abs));
+        }
+        return problems;
+    }
+
+    /**
      * DB 부모 디렉토리·업로드 루트를 700으로, 기존 DB 파일을 600으로 만든다.
      * 반환값은 <b>운영자가 읽고 조치할 수 있는</b> 문제 설명 — 호출부가 모드에 따라 WARN/기동실패를 결정한다.
      *
@@ -220,7 +237,7 @@ public final class StoragePermissions {
         if (parent != null) {
             hardenDirectory(problems, parent, "WORKNOTE_DB", serverMode);
         }
-        attempt(problems, abs, () -> ensureFile(abs));
+        problems.addAll(hardenFile(abs));   // 후반 패스와 문자 그대로 같은 동작이어야 한다
     }
 
     /** 우리가 만든, 경로와 조치가 이미 들어 있는 설명. JDK 예외 메시지(경로만 있는 경우가 많다)와 구분한다. */
