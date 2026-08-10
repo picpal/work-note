@@ -24,6 +24,10 @@
     <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>
   </select>
 
+  <select id="findAllRelPaths" resultType="java.lang.String">
+    SELECT rel_path FROM attachment
+  </select>
+
   <delete id="deleteByNodeIds">
     DELETE FROM attachment WHERE node_id IN
     <foreach item="i" collection="ids" open="(" separator="," close=")">#{i}</foreach>

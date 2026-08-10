@@ -17,4 +17,7 @@ public interface AttachmentMapper {
     List<AttachmentRow> findByNodeIds(@Param("ids") List<String> ids);
 
     void deleteByNodeIds(@Param("ids") List<String> ids);
+
+    /** 고아 파일 회수용 — 참조 중인 rel_path 전체. */
+    List<String> findAllRelPaths();
 }
