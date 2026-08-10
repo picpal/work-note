@@ -42,9 +42,11 @@ worknote:
     dir: ${WORKNOTE_UPLOAD_DIR:./attachments}      # 첨부 바이너리 루트 (기본 DB와 같은 작업 디렉토리 → 백업 한 폴더)
   attachment:
     reap:
-      # 행 없는 첨부 파일(파일 기록과 DB 커밋 사이에 프로세스가 죽으면 남는다) 회수 유예. 0 이하 = 리퍼 끔.
-      # 이 시간보다 최근에 수정된 파일은 커밋 전 업로드일 수 있어 건드리지 않는다 — 유예가 유일한 경합 방어.
-      grace-hours: ${WORKNOTE_ATTACHMENT_REAP_GRACE_HOURS:24}
+      # 행 없는 첨부 파일(파일 기록과 DB 커밋 사이에 프로세스가 죽으면 남는다) 회수 유예 시간.
+      # 기본 0 = 끔. 양수로 켜는 행위가 "upload.dir는 이 앱 전용 디렉토리"라는 운영자의 단언이다 —
+      # 우리 샤딩 모양은 MD5 기반 저장소 레이아웃과 겹쳐서, 루트 전용성은 프로세스 안에서 증명할 수 없다.
+      # 이 시간보다 최근에 수정된 파일은 커밋 전 업로드일 수 있어 건드리지 않는다(권장 24 이상, 6 미만이면 경고).
+      grace-hours: ${WORKNOTE_ATTACHMENT_REAP_GRACE_HOURS:0}
   storage:
     # 저장소(DB 부모·업로드 루트)가 소유자 전용이 아니면 server 모드는 기동 실패. false로 끄면 같은 문제를 WARN만 남기고 뜬다.
     # 백업 계정이 정당하게 그룹 권한을 갖는 배치 등 chmod 700이 답이 아닌 경우의 탈출구 — 기본은 fail-closed.

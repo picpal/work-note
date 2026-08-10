@@ -1,6 +1,7 @@
 package com.worknote.attachment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -14,6 +15,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -193,12 +195,10 @@ class AttachmentReapServiceTest {
     }
 
     /**
-     * 스캔 중 사용자가 첨부를 지우는 정상 조작 — {@code delete()}는 행을 지우고 파일을 지우므로,
-     * 목록에 잡힌 뒤 처리 전에 파일이 사라진다. 이건 원하는 최종 상태이지 실패가 아니다.
-     *
-     * <p>목록과 삭제 사이라는 시점을 만들 유일한 정직한 방법이라 {@code listOurFiles}만 갈아끼운다
+     * 목록에 잡힌 뒤 처리 전에 파일이 사라진 상태를 <b>이음매로 흉내낸다</b>.
+     * 실제 동시 삭제를 재현하는 것이 아니라, "후보 경로가 이미 없을 때 삭제 경로가 어떻게 처리하는가"만 고정한다
      * (AttachmentOrphanCleanupTest가 {@code writeOwnerOnly}에 쓰는 것과 같은 이음매).
-     * 나머지 경로(유예 판정·rel 계산·삭제·집계)는 실제 코드가 돈다.
+     * 그 상태를 만드는 현실의 원인은 사용자의 정상 삭제 — {@code delete()}는 행을 지우고 파일을 지운다.
      */
     private static class VanishesAfterListing extends AttachmentReapService {
         VanishesAfterListing(AttachmentMapper m, Clock c, String root, int graceHours) {
@@ -206,11 +206,11 @@ class AttachmentReapServiceTest {
         }
 
         @Override
-        List<Path> listOurFiles() {
-            List<Path> found = super.listOurFiles();
-            for (Path p : found) {
+        List<Candidate> listOurFiles(Path scanRoot) {
+            List<Candidate> found = super.listOurFiles(scanRoot);
+            for (Candidate c : found) {
                 try {
-                    Files.deleteIfExists(p);   // 사용자의 첨부 삭제가 스캔과 겹쳤다
+                    Files.deleteIfExists(c.path());   // 사용자의 첨부 삭제가 스캔과 겹친 상태를 흉내
                 } catch (IOException e) {
                     throw new IllegalStateException(e);
                 }
@@ -220,7 +220,7 @@ class AttachmentReapServiceTest {
     }
 
     @Test
-    void 스캔_중_사라진_후보는_경고도_집계도_없이_넘어간다(@TempDir Path root) throws Exception {
+    void 이미_사라진_후보는_경고도_집계도_없이_넘어간다(@TempDir Path root) throws Exception {
         Path racing = shard(root, "2a11bb22cc33dd44ee55ff6677889900", 10);
         aged(racing, Duration.ofDays(2));
 
@@ -234,14 +234,14 @@ class AttachmentReapServiceTest {
     }
 
     @Test
-    void 스캔_중_지워진_행은_파일없는_메타로_세지_않는다() {
-        // 대칭 경합: 스냅샷 이후 사용자가 행+파일을 지우면 "파일 없는 행"처럼 보인다.
-        // 재조회에서 사라진 rel_path는 유실이 아니라 정상 삭제다.
+    void 재조회에_없는_rel_path는_유실로_세지_않는다() {
+        // 실제 인터리빙이 아니라 집계 규칙만 직접 고정한다: 두 스냅샷에 모두 남은 행만 유실로 센다.
+        // 현실의 원인 — 첫 스냅샷 이후 사용자가 행+파일을 지우면 "파일 없는 행"처럼 보인다.
         AttachmentReapService reaper = new AttachmentReapService(mapper, clock, "build/unused-root", GRACE_HOURS);
 
-        assertThat(reaper.countMissingFiles(Set.of("aa/bb/aabb0011223344556677889900aabb"), Set.of()))
+        assertThat(reaper.countMissing(Set.of("aa/bb/aabb0011223344556677889900aabb"), Set.of()))
             .as("재조회에 없는 행 = 그 사이 정상 삭제됨").isZero();
-        assertThat(reaper.countMissingFiles(Set.of("aa/bb/aabb0011223344556677889900aabb"),
+        assertThat(reaper.countMissing(Set.of("aa/bb/aabb0011223344556677889900aabb"),
             Set.of("aa/bb/aabb0011223344556677889900aabb")))
             .as("두 스냅샷에 다 있는데 파일이 없으면 진짜 유실").isEqualTo(1);
     }
@@ -270,16 +270,143 @@ class AttachmentReapServiceTest {
         Path victim2 = outside.resolve("victim.bin");
         Files.write(victim2, new byte[10]);
         aged(victim2, Duration.ofDays(365));
-        Files.createDirectories(root.resolve("ef/12"));
-        Files.createSymbolicLink(root.resolve("ef/12/ef12bb22cc33dd44ee55ff6677889900"), victim2);   // 파일 링크
+        Path fileLink = root.resolve("ef/12/ef12bb22cc33dd44ee55ff6677889900");
+        Files.createDirectories(fileLink.getParent());
+        Files.createSymbolicLink(fileLink, victim2);                  // 파일 링크
 
-        AttachmentReapService.ReapResult r = reaper(root, GRACE_HOURS).reapOrphans();
+        // 링크 자신의 mtime은 방금이라 유예가 대신 막아줄 수 있다 — 그러면 "정규 파일만 삭제" 가드가
+        // 공허하게 통과한다. 시계를 앞으로 밀어 유예를 무력화하고, 오직 그 가드만 남겨 검증한다.
+        // (심링크 자신의 mtime은 Java로 못 바꾼다 — setLastModifiedTime은 링크를 따라간다)
+        AttachmentReapService.ReapResult r = new AttachmentReapService(
+            mapper, Clock.offset(clock, Duration.ofDays(2)), root.toString(), GRACE_HOURS).reapOrphans();
 
         assertThat(Files.exists(victim)).isTrue();
         assertThat(Files.exists(victim2)).isTrue();
-        assertThat(Files.exists(root.resolve("ef/12/ef12bb22cc33dd44ee55ff6677889900"),
-            LinkOption.NOFOLLOW_LINKS)).isTrue();   // 링크 자체도 정규 파일이 아니므로 대상이 아니다
+        assertThat(Files.exists(fileLink, LinkOption.NOFOLLOW_LINKS))
+            .as("링크 자체도 정규 파일이 아니므로 대상이 아니다").isTrue();
         assertThat(r.deletedFiles()).isZero();
+    }
+
+    @Test
+    void 업로드_루트가_심링크여도_정상_회수한다(@TempDir Path real, @TempDir Path linkHome) throws Exception {
+        // StoragePermissions "원칙 2"가 명시적으로 지원하는 배치(별도 볼륨을 링크로 붙임).
+        // 실경로를 풀지 않으면 walk가 링크 자신 하나만 내놓고 끝나 리퍼가 조용히 아무것도 안 한다.
+        Path root = linkHome.resolve("attachments");
+        Files.createSymbolicLink(root, real);
+        Path orphan = shard(root, "3a11bb22cc33dd44ee55ff6677889900", 42);
+        aged(orphan, Duration.ofDays(2));
+
+        AttachmentReapService.ReapResult r = reaper(root, GRACE_HOURS).reapOrphans();
+
+        assertThat(Files.exists(orphan)).isFalse();
+        assertThat(r.deletedFiles()).isEqualTo(1);
+        assertThat(r.reclaimedBytes()).isEqualTo(42);
+    }
+
+    @Test
+    void 비정규_경로_행도_같은_파일을_보호한다(@TempDir Path root) throws Exception {
+        // 손상·수기 편집으로 rel_path가 비정규가 되면 문자열 비교로는 안 걸리지만 pathOf로는 정상 열람된다.
+        // "아무도 가리키지 않는 파일만 지운다"가 DB의 철자에 의존하면 안 된다 — 결과가 복구 불가라서.
+        String uuid = "4a11bb22cc33dd44ee55ff6677889900";
+        Path referenced = shard(root, uuid, 10);
+        aged(referenced, Duration.ofDays(365));
+        insertRow("att-" + uuid, "4a/11/../11/" + uuid, 10);   // 같은 파일, 다른 철자
+
+        AttachmentReapService.ReapResult r = reaper(root, GRACE_HOURS).reapOrphans();
+
+        assertThat(Files.exists(referenced)).as("fileKey(정체성)로 보호돼야 한다").isTrue();
+        assertThat(r.deletedFiles()).isZero();
+        assertThat(r.missingFiles()).isZero();
+    }
+
+    @Test
+    void 하드링크로_참조된_파일도_보호한다(@TempDir Path root) throws Exception {
+        // fileKey 보호의 일반형 — 같은 inode를 가리키는 다른 이름이 참조돼 있으면 지우면 안 된다
+        String uuid = "5a11bb22cc33dd44ee55ff6677889900";
+        Path orphanName = shard(root, uuid, 10);
+        String linkedUuid = "5b11bb22cc33dd44ee55ff6677889900";
+        Path linkedName = root.resolve("5b/11/" + linkedUuid);
+        Files.createDirectories(linkedName.getParent());
+        Files.createLink(linkedName, orphanName);
+        aged(orphanName, Duration.ofDays(365));
+        insertRow("att-" + linkedUuid, "5b/11/" + linkedUuid, 10);
+
+        AttachmentReapService.ReapResult r = reaper(root, GRACE_HOURS).reapOrphans();
+
+        assertThat(Files.exists(orphanName)).isTrue();
+        assertThat(Files.exists(linkedName)).isTrue();
+        assertThat(r.deletedFiles()).isZero();
+    }
+
+    @Test
+    void 순회_중_읽지_못한_항목이_있어도_나머지는_회수한다(@TempDir Path root) throws Exception {
+        assumeTrue(!"root".equals(System.getProperty("user.name")), "root는 권한 실패를 만들 수 없다");
+        Path unreadable = root.resolve("aa/11");
+        Files.createDirectories(unreadable);
+        Files.write(unreadable.resolve("aa11bb22cc33dd44ee55ff6677889900"), new byte[5]);
+        Path reapable = shard(root, "6a11bb22cc33dd44ee55ff6677889900", 10);
+        aged(reapable, Duration.ofDays(2));
+        Files.setPosixFilePermissions(unreadable, PosixFilePermissions.fromString("---------"));
+        try {
+            // Files.walk였다면 지연 순회 실패가 UncheckedIOException으로 튀어 회수 전체가 매번 중단된다
+            LoggedRun<AttachmentReapService.ReapResult> run =
+                captureLogs(() -> reaper(root, GRACE_HOURS).reapOrphans());
+
+            assertThat(Files.exists(reapable)).as("한 항목 실패가 나머지를 막으면 안 된다").isFalse();
+            assertThat(run.value().deletedFiles()).isEqualTo(1);
+            assertThat(run.warnings()).anySatisfy(
+                e -> assertThat(e.getFormattedMessage()).contains("읽지 못해"));
+        } finally {
+            Files.setPosixFilePermissions(unreadable, PosixFilePermissions.fromString("rwx------"));
+        }
+    }
+
+    @Test
+    void 루트가_사라졌는데_행이_있으면_전면_장애로_경고한다(@TempDir Path root) {
+        String uuid = "7a11bb22cc33dd44ee55ff6677889900";
+        insertRow("att-" + uuid, "7a/11/" + uuid, 10);
+        Path gone = root.resolve("빠진-볼륨");
+
+        LoggedRun<AttachmentReapService.ReapResult> run =
+            captureLogs(() -> reaper(gone, GRACE_HOURS).reapOrphans());
+
+        assertThat(run.value().deletedFiles()).isZero();
+        assertThat(run.warnings()).singleElement().satisfies(e -> {
+            assertThat(e.getFormattedMessage()).contains("접근할 수 없습니다").contains("빠진-볼륨");
+            assertThat(e.getFormattedMessage()).contains("1건");   // 열리지 않는 첨부 수를 말해준다
+        });
+    }
+
+    @Test
+    void 루트가_없고_행도_없으면_조용하다(@TempDir Path root) {
+        // 업로드가 한 번도 없던 설치 — 정상 상태를 경고로 만들지 않는다
+        LoggedRun<AttachmentReapService.ReapResult> run =
+            captureLogs(() -> reaper(root.resolve("아직-없음"), GRACE_HOURS).reapOrphans());
+
+        assertThat(run.value().deletedFiles()).isZero();
+        assertThat(run.warnings()).isEmpty();
+    }
+
+    @Test
+    void 너무_짧은_유예는_기동_경고를_남기되_막지는_않는다(@TempDir Path root) throws Exception {
+        Path orphan = shard(root, "8a11bb22cc33dd44ee55ff6677889900", 10);
+        agedByWallClock(orphan, Duration.ofDays(2));
+
+        LoggedRun<AttachmentReapService> built =
+            captureLogs(() -> new AttachmentReapService(mapper, clock, root.toString(), 1));
+
+        assertThat(built.warnings()).singleElement().satisfies(
+            e -> assertThat(e.getFormattedMessage()).contains("너무 짧습니다").contains("파일 없는 행"));
+        assertThat(built.value().reapOrphans().deletedFiles())
+            .as("경고만 하고 계속 돈다 — 튜닝 값 때문에 기능을 세우지 않는다").isEqualTo(1);
+    }
+
+    @Test
+    void 안전한_유예값에는_기동_경고가_없다(@TempDir Path root) {
+        assertThat(captureLogs(() -> new AttachmentReapService(mapper, clock, root.toString(), 24)).warnings())
+            .isEmpty();
+        assertThat(captureLogs(() -> new AttachmentReapService(mapper, clock, root.toString(), 0)).warnings())
+            .as("꺼둔 설정은 경고 대상이 아니다").isEmpty();
     }
 
     @Test
