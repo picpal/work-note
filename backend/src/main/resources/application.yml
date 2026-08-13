@@ -51,6 +51,9 @@ worknote:
     # 저장소(DB 부모·업로드 루트)가 소유자 전용이 아니면 server 모드는 기동 실패. false로 끄면 같은 문제를 WARN만 남기고 뜬다.
     # 백업 계정이 정당하게 그룹 권한을 갖는 배치 등 chmod 700이 답이 아닌 경우의 탈출구 — 기본은 fail-closed.
     strict: ${WORKNOTE_STORAGE_STRICT:true}
+  # 폐쇄망 최후 복구(브레이크글래스)는 설정 항목이 없다 — 위치는 항상 <DB 부모>/break-glass 한 곳이다.
+  # 경로를 설정으로 열면 공용·전체쓰기 디렉토리를 가리키는 오설정 한 번으로 "700 디렉토리에 파일을 만들 수 있는
+  # 사람은 이미 DB를 고칠 수 있다"는 전제(=이 기능이 뒷문이 아닌 유일한 근거)가 깨진다. 상세는 BreakGlassFile 주석.
   purge:
     retention-days: ${WORKNOTE_PURGE_RETENTION_DAYS:30}   # 휴지통 보존기한 (0 이하 = 자동 purge 끔)
   totp:
