@@ -162,6 +162,22 @@ class NoteTemplateApiTest {
             .andExpect(status().isUnprocessableEntity());
     }
 
+    // F1: Java String.trim()은 U+0020 이하만 제거해 EM SPACE(U+2003)를 못 거른다.
+    @Test
+    void emSpaceOnlyName_is422() throws Exception {
+        mvc.perform(post("/api/templates").session(login("10001")).contentType(APPLICATION_JSON)
+                .content(body("  ", "## 본문\n")))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
+    // F1: String.isBlank()는 Character.isWhitespace 기준이라 NBSP(U+00A0, Zs 범주)를 못 거른다.
+    @Test
+    void nbspOnlyBody_is422() throws Exception {
+        mvc.perform(post("/api/templates").session(login("10001")).contentType(APPLICATION_JSON)
+                .content(body("이름", "  ")))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
     @Test
     void perOwnerLimit_is422() throws Exception {
         MockHttpSession s = login("10001");
