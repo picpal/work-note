@@ -1,5 +1,11 @@
 node_modules/
 dist/
+
+# Playwright e2e 산출물
+e2e/.runtime*/
+e2e/.auth/
+playwright-report/
+test-results/
 *.tsbuildinfo
 *.log
 .DS_Store

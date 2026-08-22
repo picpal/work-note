@@ -1,3 +1,6 @@
+packages:
+  - "."
+
 onlyBuiltDependencies:
   - esbuild
 # 보안: mermaid가 번들한 dompurify까지 패치 버전으로 끌어올림 (GHSA-cmwh-pvxp-8882, <=3.4.10).
