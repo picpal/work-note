@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { TemplateApi, type ApiTemplate } from "../api/templates";
 import { ApiError } from "../api/http";
-import { groupTemplates, canEdit } from "./templateList";
+import { groupTemplates, canEdit, wrapForInsert } from "./templateList";
 import { validateTemplateName, validateTemplateBody } from "./templateValidation";
 import { renderMarkdown } from "../lib/markdown";
 import { useEscClose } from "../state/useEscClose";
@@ -53,7 +53,7 @@ export function TemplateModal({ onInsert, currentBody, onClose, toast }: Props) 
 
   const doInsert = () => {
     if (!selected) return;
-    const ok = onInsert(selected.body);
+    const ok = onInsert(wrapForInsert(selected.body));
     toast?.(ok ? "템플릿을 삽입했습니다" : "열린 노트가 없습니다", ok ? "check" : undefined);
     if (ok) onClose();
   };

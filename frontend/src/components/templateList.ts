@@ -19,3 +19,9 @@ export function groupTemplates(items: ApiTemplate[]): TemplateGroups {
 export function canEdit(t: ApiTemplate): boolean {
   return !t.system;
 }
+
+/** 템플릿 본문을 커서 삽입용으로 앞뒤 개행으로 감싼다 — 커서가 줄 중간에 있어도
+ *  "## 헤딩"이 직전 텍스트에 그대로 붙지 않게 분리한다(redmineMarkdown.ts와 동일 관례). */
+export function wrapForInsert(body: string): string {
+  return `\n${body}\n`;
+}

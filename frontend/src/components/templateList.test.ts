@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupTemplates, canEdit } from "./templateList";
+import { groupTemplates, canEdit, wrapForInsert } from "./templateList";
 import type { ApiTemplate } from "../api/templates";
 
 const t = (id: string, name: string, system: boolean): ApiTemplate => ({ id, name, body: "## " + name, system });
@@ -37,5 +37,17 @@ describe("canEdit", () => {
   });
   it("내 템플릿은 수정 가능", () => {
     expect(canEdit(t("2", "내 양식", false))).toBe(true);
+  });
+});
+
+// Regression: 본문이 있는 노트에서 템플릿을 커서 위치(줄 중간)에 삽입하면 "## 헤딩"이
+// 직전 줄 텍스트에 그대로 붙어(예: "확인## 이번 주 진행") 마크다운이 깨졌다 (/qa 2026-08-23 발견).
+describe("wrapForInsert", () => {
+  it("본문 앞뒤에 개행을 감싸 커서 주변 내용과 줄이 섞이지 않게 한다", () => {
+    expect(wrapForInsert("## 이번 주 진행\n-\n")).toBe("\n## 이번 주 진행\n-\n\n");
+  });
+
+  it("빈 문자열도 개행만 감싼 값을 돌려준다", () => {
+    expect(wrapForInsert("")).toBe("\n\n");
   });
 });
