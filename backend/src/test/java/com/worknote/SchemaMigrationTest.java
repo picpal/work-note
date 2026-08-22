@@ -93,4 +93,26 @@ class SchemaMigrationTest {
                 .containsAll(parsed);
         }
     }
+
+    @Test
+    void v13_createsNoteTemplateTableAndSeeds() {
+        var tables = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='table'", String.class);
+        assertThat(tables).contains("note_template");
+
+        var indexes = jdbc.queryForList(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='note_template'", String.class);
+        assertThat(indexes).contains("idx_note_template_owner");
+
+        // 시스템 템플릿 시드 3건 — owner_id는 NULL
+        var names = jdbc.queryForList(
+            "SELECT name FROM note_template WHERE owner_id IS NULL ORDER BY id", String.class);
+        assertThat(names).containsExactlyInAnyOrder("회의록", "주간보고", "장애보고");
+
+        // 본문의 개행이 리터럴 그대로 보존되는지 — Flyway 파서가 따옴표 안 줄바꿈을 삼키지 않아야 한다
+        String meeting = jdbc.queryForObject(
+            "SELECT body FROM note_template WHERE id = 'tpl-meeting'", String.class);
+        assertThat(meeting).contains("## 개요").contains("## 액션 아이템").contains("\n");
+        assertThat(meeting.lines().count()).isGreaterThan(5);
+    }
 }
