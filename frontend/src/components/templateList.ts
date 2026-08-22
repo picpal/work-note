@@ -20,9 +20,17 @@ export function canEdit(t: ApiTemplate): boolean {
   return !t.system;
 }
 
-/** 템플릿 본문을 커서 삽입용으로 앞뒤 개행으로 감싼다 — 커서가 줄 중간에 있어도
- *  "## 헤딩"이 직전 텍스트에 그대로 붙지 않게 분리한다(redmineMarkdown.ts의 bodyMd와 동일 관례:
- *  trim 후 감싸 트레일링 공백/개행이 삽입 뒤 빈 줄로 남지 않게 한다). */
+/** 템플릿 본문을 커서 삽입용으로 앞뒤에 빈 줄(개행 두 개)로 감싼다.
+ *
+ *  개행 하나만으로는 블록을 못 끊는다 — GFM 표는 뒤에 빈 줄이 없으면 다음 줄을 계속 표의
+ *  행으로 흡수하고, 목록도 빈 줄 없이 이어지는 줄을 같은 항목의 lazy continuation으로 삼는다.
+ *  그래서 삽입 블록의 앞뒤 모두 완전한 빈 줄로 갈라야 커서 주변의 기존 내용(표·목록·문단
+ *  무엇이든)에 흡수되지 않는다 — 커서가 줄 중간이라도 마찬가지다.
+ *
+ *  앞쪽은 손대지 않는다: 들여쓴 코드 블록·중첩 목록처럼 선행 들여쓰기가 구조인 본문이 있어
+ *  앞을 trim하면 그 구조가 깨진다. 뒤쪽만 trimEnd — 본문이 개행으로 끝나든 아니든 결과의
+ *  뒤쪽 빈 줄 수가 항상 같아지도록 정규화한다. trimEnd()는 JS String.trim()과 같은 공백
+ *  범위(U+FEFF 포함)를 정규식/루프 없이 걷어내는 내장 메서드라 ReDoS 우려가 없다. */
 export function wrapForInsert(body: string): string {
-  return `\n${body.trim()}\n`;
+  return `\n\n${body.trimEnd()}\n\n`;
 }
