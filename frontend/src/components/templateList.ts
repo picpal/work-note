@@ -21,7 +21,8 @@ export function canEdit(t: ApiTemplate): boolean {
 }
 
 /** 템플릿 본문을 커서 삽입용으로 앞뒤 개행으로 감싼다 — 커서가 줄 중간에 있어도
- *  "## 헤딩"이 직전 텍스트에 그대로 붙지 않게 분리한다(redmineMarkdown.ts와 동일 관례). */
+ *  "## 헤딩"이 직전 텍스트에 그대로 붙지 않게 분리한다(redmineMarkdown.ts의 bodyMd와 동일 관례:
+ *  trim 후 감싸 트레일링 공백/개행이 삽입 뒤 빈 줄로 남지 않게 한다). */
 export function wrapForInsert(body: string): string {
-  return `\n${body}\n`;
+  return `\n${body.trim()}\n`;
 }

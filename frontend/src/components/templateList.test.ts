@@ -44,10 +44,16 @@ describe("canEdit", () => {
 // 직전 줄 텍스트에 그대로 붙어(예: "확인## 이번 주 진행") 마크다운이 깨졌다 (/qa 2026-08-23 발견).
 describe("wrapForInsert", () => {
   it("본문 앞뒤에 개행을 감싸 커서 주변 내용과 줄이 섞이지 않게 한다", () => {
-    expect(wrapForInsert("## 이번 주 진행\n-\n")).toBe("\n## 이번 주 진행\n-\n\n");
+    // redmineMarkdown.ts의 bodyMd와 동일 관례: body를 trim한 뒤 개행으로 감싼다.
+    // 트레일링 \n까지 그대로 감싸면 삽입 후 빈 줄이 하나 더 남는다(F6).
+    expect(wrapForInsert("## 이번 주 진행\n-\n")).toBe("\n## 이번 주 진행\n-\n");
   });
 
   it("빈 문자열도 개행만 감싼 값을 돌려준다", () => {
     expect(wrapForInsert("")).toBe("\n\n");
+  });
+
+  it("본문 앞뒤 공백도 trim한 뒤 감싼다", () => {
+    expect(wrapForInsert("  ## 제목\n내용  \n\n")).toBe("\n## 제목\n내용\n");
   });
 });
