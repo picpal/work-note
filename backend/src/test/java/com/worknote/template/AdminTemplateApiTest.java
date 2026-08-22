@@ -139,15 +139,22 @@ class AdminTemplateApiTest {
     void writes_areAudited() throws Exception {
         MockHttpSession s = admin();
         String id = createSystem(s, "감사용");
+        mvc.perform(put("/api/admin/templates/" + id).session(s).contentType(APPLICATION_JSON)
+                .content(body("감사용(수정)", "## 감사용(수정)\n- \n")))
+            .andExpect(status().isOk());
         mvc.perform(delete("/api/admin/templates/" + id).session(s))
             .andExpect(status().isNoContent());
 
         var acts = jdbc.queryForList("SELECT act FROM audit_log ORDER BY id", String.class);
-        assertThat(acts).contains("template.system.create", "template.system.delete");
+        assertThat(acts).contains("template.system.create", "template.system.update", "template.system.delete");
 
         String target = jdbc.queryForObject(
             "SELECT target FROM audit_log WHERE act = 'template.system.create'", String.class);
         assertThat(target).isEqualTo("감사용");
+
+        String updateTarget = jdbc.queryForObject(
+            "SELECT target FROM audit_log WHERE act = 'template.system.update'", String.class);
+        assertThat(updateTarget).isEqualTo("감사용(수정)");
     }
 
     @Test

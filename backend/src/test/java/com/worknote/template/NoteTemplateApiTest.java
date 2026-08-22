@@ -178,6 +178,14 @@ class NoteTemplateApiTest {
             .andExpect(status().isUnprocessableEntity());
     }
 
+    // F5: 서버의 body.length() > BODY_MAX 검사를 지워도 통과하는 공백 회귀 테스트였다.
+    @Test
+    void tooLongBody_is422() throws Exception {
+        mvc.perform(post("/api/templates").session(login("10001")).contentType(APPLICATION_JSON)
+                .content(body("이름", "본".repeat(100_001))))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
     @Test
     void perOwnerLimit_is422() throws Exception {
         MockHttpSession s = login("10001");
