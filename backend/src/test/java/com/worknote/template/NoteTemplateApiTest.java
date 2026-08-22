@@ -178,6 +178,23 @@ class NoteTemplateApiTest {
             .andExpect(status().isUnprocessableEntity());
     }
 
+    // codex 2회차 B2: U+FEFF(ZERO WIDTH NO-BREAK SPACE)는 Character.isWhitespace도
+    // SPACE_SEPARATOR도 아니라서 서버 공백 판정을 통과했다. JS String.trim()은 이를 공백으로
+    // 보고 거부하므로 서버가 최종 판정이라는 원칙이 깨졌었다.
+    @Test
+    void bomOnlyName_is422() throws Exception {
+        mvc.perform(post("/api/templates").session(login("10001")).contentType(APPLICATION_JSON)
+                .content(body("﻿", "## 본문\n")))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void bomOnlyBody_is422() throws Exception {
+        mvc.perform(post("/api/templates").session(login("10001")).contentType(APPLICATION_JSON)
+                .content(body("이름", "﻿")))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
     // F5: 서버의 body.length() > BODY_MAX 검사를 지워도 통과하는 공백 회귀 테스트였다.
     @Test
     void tooLongBody_is422() throws Exception {

@@ -125,7 +125,10 @@ public class NoteTemplateService {
     }
 
     private static boolean isSpace(char c) {
-        return Character.isWhitespace(c) || Character.getType(c) == Character.SPACE_SEPARATOR;
+        // U+FEFF(ZERO WIDTH NO-BREAK SPACE)는 Character.isWhitespace도 SPACE_SEPARATOR(Zs) 범주도
+        // 아니지만, 프런트가 쓰는 JS String.trim()은 이를 공백으로 보고 걷어낸다 — 서버 판정 범위를
+        // 맞추지 않으면 이름/본문이 U+FEFF뿐인 값이 서버 직접 호출로 저장을 통과한다(codex 2회차 B2).
+        return Character.isWhitespace(c) || Character.getType(c) == Character.SPACE_SEPARATOR || c == '\uFEFF';
     }
 
     private static String now() {
