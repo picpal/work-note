@@ -31,6 +31,7 @@ import { useSession } from "./state/useSession";
 import { repository, storageMode } from "./storage";
 import * as cm from "./editor/cm";
 import { RedmineImportPanel } from "./components/RedmineImportPanel";
+import { TemplateModal } from "./components/TemplateModal";
 import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
 import { useSettings } from "./state/useSettings";
@@ -75,6 +76,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [redmineOpen, setRedmineOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [shareNote, setShareNote] = useState<{ id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -472,6 +474,14 @@ export function App() {
                 ? createElement("span", { className: "hcap" }, b.cap[0], createElement("sub", null, b.cap.slice(1)))
                 : createElement(Icon, { name: b.icon! })))
           )),
+        // 템플릿 — http 모드에서 항상 노출(Redmine과 달리 관리자 연동 플래그 없음)
+        storageMode === "http" && createElement(Fragment, { key: "template-tb" },
+          createElement("span", { className: "div" }),
+          createElement("button", {
+            className: "tb" + (templateOpen ? " active" : ""), title: "템플릿",
+            onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
+            onClick: () => setTemplateOpen((o) => !o),
+          }, createElement(Icon, { name: "clipboard" }))),
         // Redmine 가져오기 — http 모드 + 관리자 연동 활성 시
         storageMode === "http" && me?.redmine?.enabled && createElement(Fragment, { key: "redmine-tb" },
           createElement("span", { className: "div" }),
@@ -542,6 +552,12 @@ export function App() {
       onInsert: (md: string): boolean => { const v = editorViewRef.current; if (!v) return false; cm.insertAtCursor(v, md); return true; },
       onClose: () => setRedmineOpen(false),
       theme: settings.dark ? "dark" : "light",
+      toast,
+    }),
+    templateOpen && createElement(TemplateModal, {
+      onInsert: (md: string): boolean => { const v = editorViewRef.current; if (!v) return false; cm.insertAtCursor(v, md); return true; },
+      currentBody: activeNote ? activeNote.content : null,
+      onClose: () => setTemplateOpen(false),
       toast,
     }),
     pendingWarn && createElement(MoveWarnDialog, {
