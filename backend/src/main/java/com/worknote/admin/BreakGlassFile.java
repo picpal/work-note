@@ -10,7 +10,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
@@ -68,10 +72,23 @@ public final class BreakGlassFile {
     /** password=null이면 비밀번호는 그대로 두고 2FA만 푼다. */
     public record Request(String emp, String password) {}
 
-    /** 출처 판정에 필요한 <b>사실만</b> 담은 값 — 실제 stat은 {@link #verifyProvenance}가 한다(판정은 순수 함수로). */
+    /**
+     * 출처 판정에 필요한 <b>사실만</b> 담은 값 — 실제 stat은 {@link #verifyProvenance}가 한다(판정은 순수 함수로).
+     *
+     * @param ancestors 부모 <b>위</b>의 디렉토리들(루트까지). 부모 자신은 {@code parentOwner}·{@code parentPerms}다.
+     */
     public record Provenance(boolean symlink, boolean regularFile, long size,
                              String owner, Set<PosixFilePermission> perms,
-                             String parentOwner, Set<PosixFilePermission> parentPerms) {}
+                             String parentOwner, Set<PosixFilePermission> parentPerms,
+                             List<Ancestor> ancestors) {}
+
+    /**
+     * 조상 디렉토리 하나의 사실. 여기서 보는 건 <b>쓰기 비트와 sticky</b>뿐이다 —
+     * 판정 근거는 {@link #violation}의 조상 검사 주석에 있다.
+     *
+     * @param sticky sticky 비트(0o1000). POSIX 뷰에 없어 raw mode로만 읽히므로, 읽지 못하면 false다(= 더 엄격한 쪽).
+     */
+    public record Ancestor(String path, Set<PosixFilePermission> perms, boolean sticky) {}
 
     /**
      * 센티넬 경로 — <b>DB 파일의 부모 디렉토리</b> 한 곳뿐이다. 700을 근거로 삼는 곳이 거기이기 때문이다.
@@ -80,13 +97,19 @@ public final class BreakGlassFile {
      * <p>경로 오버라이드 설정을 두지 않는 이유: SQLite는 DB 부모가 쓰기 가능해야 동작하므로 이 위치는 항상 쓸 수 있고,
      * 반대로 임의 경로를 받으면 공용·전체쓰기 디렉토리를 가리키는 오설정 한 번으로 위 전제가 통째로 깨진다.
      * 운영자가 얻는 것은 없고 잃을 수 있는 것은 기능의 성립 근거 전부다.
+     *
+     * <p>{@code normalize()}는 <b>쓰지 않는다</b> — {@code StoragePermissions.hardenDb}와 같은 관례다.
+     * 렉시컬 정규화는 {@code ..}가 심링크를 지나갈 때 OS 해석과 갈리므로(예: {@code link -> /mnt/x/sub}이면
+     * {@code link/../db}는 OS에겐 {@code /mnt/x/db}, 렉시컬로는 형제 {@code db}), 정규화하면 운영자가
+     * <b>실제 DB 옆</b>에 만든 파일을 앱은 다른 디렉토리에서 찾는다 — 조용히 무시되거나, 더 나쁘게는
+     * 그 렉시컬 경로에 남아 있던 무관한 파일이 실행된다. 정규화는 실경로 해석({@code toRealPath})에 맡긴다.
      */
     public static Path locate(String jdbcUrl) {
         Path db = StoragePermissions.sqliteFile(jdbcUrl);   // URL 파싱은 저장소 하드닝과 같은 출처를 쓴다
         if (db == null) {
             return null;
         }
-        Path parent = db.toAbsolutePath().normalize().getParent();
+        Path parent = db.toAbsolutePath().getParent();
         return parent == null ? null : parent.resolve(FILE_NAME);
     }
 
@@ -106,7 +129,8 @@ public final class BreakGlassFile {
             String problem = violation(new Provenance(
                 attrs.isSymbolicLink(), attrs.isRegularFile(), attrs.size(),
                 attrs.owner().getName(), attrs.permissions(),
-                parentAttrs.owner().getName(), parentAttrs.permissions()), System.getProperty("user.name"));
+                parentAttrs.owner().getName(), parentAttrs.permissions(),
+                ancestorsAbove(parent)), System.getProperty("user.name"));
             if (problem != null) {
                 throw fail(file + " 의 출처를 신뢰할 수 없습니다 — " + problem
                     + ". 이 기능은 '700 앱 소유 디렉토리에 파일을 만들 수 있는 사람은 이미 DB를 직접 고칠 수 있다'는"
@@ -145,7 +169,65 @@ public final class BreakGlassFile {
         if (p.parentPerms().stream().anyMatch(SHARED_BITS::contains)) {
             return "상위 디렉토리가 그룹/타인에게 열려 있습니다(chmod 700 필요) — 누구나 이 자리에 파일을 놓을 수 있었다는 뜻입니다";
         }
+        // 부모의 700만으로는 부족하다. 조상 어딘가가 그룹/타인 쓰기 가능하면 거기에 쓸 수 있는 사람이
+        // 데이터 디렉토리를 <b>엔트리째</b> rename하고 같은 이름의 자기 소유 700 디렉토리로 바꿔치기할 수 있다.
+        // 자식의 권한은 자기 엔트리가 부모 안에서 rename되는 것을 막지 못한다 — 그러면 DB를 읽지도 못하던
+        // 사람이 자기 센티넬을 "700 앱 소유 디렉토리"에 놓은 것처럼 보이게 만들 수 있다.
+        //
+        // 조상에는 <b>쓰기 비트만</b> 본다. 부모에 적용하는 "그룹/타인 비트가 하나라도 있으면 거부"를 여기까지
+        // 확대하면 /, /srv, /var/lib 같은 정상적인 755 조상이 전부 걸려 멀쩡한 배포가 기동 불가가 된다.
+        // 막아야 하는 건 "엔트리를 바꿔치기할 수 있는가" 하나뿐이고, 그건 쓰기 비트가 결정한다.
+        for (Ancestor a : p.ancestors()) {
+            // sticky(예: /tmp의 1777)는 예외다 — sticky 디렉토리에서는 자기가 소유하지 않은 엔트리를
+            // rename·삭제할 수 없으므로 위 시나리오가 성립하지 않는다. 이걸 인정하지 않으면 막는 것 없이
+            // /tmp 아래 배치만 기동 불가가 된다. 반대로 sticky를 읽지 못하는 환경에서는 false로 보고 거부한다.
+            if (a.sticky()) {
+                continue;
+            }
+            if (a.perms().contains(PosixFilePermission.GROUP_WRITE)
+                || a.perms().contains(PosixFilePermission.OTHERS_WRITE)) {
+                return "상위 경로 " + a.path() + " 가 그룹/타인에게 쓰기 가능합니다(현재 "
+                    + PosixFilePermissions.toString(a.perms()) + ") — 거기에 쓸 수 있는 사람은 데이터 디렉토리를"
+                    + " 통째로 자기 것으로 바꿔치기할 수 있으므로 '700 부모'가 근거가 되지 못합니다"
+                    + "(조치: chmod g-w,o-w " + a.path() + ")";
+            }
+        }
         return null;
+    }
+
+    /**
+     * 부모 <b>위</b>의 조상 디렉토리들 — 렉시컬 경로 체인과 실경로 체인을 모두 모은다(중복은 실경로로 제거).
+     * 커널이 실제로 지나가는 건 두 체인 다이기 때문이다: 데이터 디렉토리를 심링크로 붙인 배치라면
+     * <b>링크가 놓인 디렉토리</b>(렉시컬)가 열려 있으면 링크를 갈아끼울 수 있고,
+     * <b>링크 타깃의 조상</b>(실경로)이 열려 있으면 타깃 디렉토리를 갈아끼울 수 있다 — 결과는 같다.
+     *
+     * <p>권한은 링크를 따라가 읽는다(조상 심링크의 권한은 보통 777이라 그것을 보면 의미가 없다).
+     * 도중에 stat이 실패하면 {@link IOException}이 그대로 올라가 {@link #verifyProvenance}에서 기동 실패가 된다
+     * — 판정할 수 없으면 실행하지 않는다(fail-closed).
+     */
+    private static List<Ancestor> ancestorsAbove(Path parent) throws IOException {
+        Map<Path, Ancestor> found = new LinkedHashMap<>();
+        for (Path start : List.of(parent, parent.toRealPath())) {
+            for (Path dir = start.getParent(); dir != null; dir = dir.getParent()) {
+                Path key = dir.toRealPath();
+                if (!found.containsKey(key)) {
+                    found.put(key, new Ancestor(dir.toString(), Files.getPosixFilePermissions(dir), sticky(dir)));
+                }
+            }
+        }
+        return List.copyOf(found.values());
+    }
+
+    /**
+     * sticky 비트(0o1000). {@link PosixFilePermission}에는 sticky가 없어서 JDK Unix 제공자의 raw mode로만 읽힌다 —
+     * POSIX 표준 뷰가 아니므로 읽지 못하는 환경이 있을 수 있고, 그때는 <b>없는 것으로 본다</b>(더 엄격한 쪽).
+     */
+    private static boolean sticky(Path dir) {
+        try {
+            return Files.getAttribute(dir, "unix:mode") instanceof Integer mode && (mode & 01000) != 0;
+        } catch (IOException | UnsupportedOperationException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /** 읽고 검증한다. 반환됐다면 사번이 있고 비밀번호는(있다면) 정책을 통과한 상태다. */
