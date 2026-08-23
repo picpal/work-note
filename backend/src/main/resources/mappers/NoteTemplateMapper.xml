@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.worknote.template.NoteTemplateMapper">
+  <sql id="cols">
+    id, owner_id AS ownerId, name, body, created_at AS createdAt, updated_at AS updatedAt
+  </sql>
+
+  <select id="listVisible" resultType="com.worknote.template.NoteTemplateRow">
+    SELECT <include refid="cols"/> FROM note_template
+    WHERE owner_id IS NULL OR owner_id = #{ownerId}
+    ORDER BY CASE WHEN owner_id IS NULL THEN 0 ELSE 1 END, name
+  </select>
+
+  <select id="listSystem" resultType="com.worknote.template.NoteTemplateRow">
+    SELECT <include refid="cols"/> FROM note_template WHERE owner_id IS NULL ORDER BY name
+  </select>
+
+  <select id="find" resultType="com.worknote.template.NoteTemplateRow">
+    SELECT <include refid="cols"/> FROM note_template WHERE id = #{id}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO note_template (id, owner_id, name, body, created_at, updated_at)
+    VALUES (#{id}, #{ownerId}, #{name}, #{body}, #{createdAt}, #{updatedAt})
+  </insert>
+
+  <update id="update">
+    UPDATE note_template SET name = #{name}, body = #{body}, updated_at = #{updatedAt}
+    WHERE id = #{id}
+  </update>
+
+  <delete id="delete">DELETE FROM note_template WHERE id = #{id}</delete>
+
+  <select id="countByOwner" resultType="int">
+    SELECT count(*) FROM note_template WHERE owner_id = #{ownerId}
+  </select>
+</mapper>

@@ -13,6 +13,7 @@ work-note/
   backend/                     Java 21 + Spring Boot 3.5 + MyBatis + Flyway + SQLite
                                1단계 + 2단계 코어(세션 인증 + 권한 엔진) + 3단계 관리자 API + 5단계(30일 purge·공유 링크 §6) + 6단계(이동 노출 경고 §7) + 관리자 2FA(TOTP, opt-in·admin 유예강제·폐쇄망 오프라인 검증) 구현 완료
                                파일 첨부: 디스크 저장(WORKNOTE_UPLOAD_DIR, DB는 메타·경로만) · 노트 종속(read/write 상속) · 공유 토큰 스코프 서빙 · 관리자 업로드 정책(확장자·용량, app_setting) · purge 시 파일 정리
+                               노트 템플릿: 시스템(owner_id NULL·관리자 CRUD·감사) + 개인(본인 CRUD·50개 상한), 노트 ACL 비개입·커서 삽입 전용
                                worknote.mode로 스위치(기본 local=무인증)
                                server 모드: WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=... WORKNOTE_DB=/절대/경로/worknote.db java -jar ...
                                (server 모드는 DB 절대 경로 필수 + 저장소 디렉토리 700 검증 — 위반 시 기동 실패. WORKNOTE_STORAGE_STRICT=false로 WARN 강등 가능)

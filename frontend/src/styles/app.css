@@ -1222,3 +1222,39 @@ button.topbar-me { font-family: var(--font-ui); }
 .rm-block-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 /* 모달 내 버튼(검색·삽입)은 프로젝트 모달 버튼(.pf-btn) 테마 + 컴팩트 사이즈 */
 .rm-modal .pf-btn { padding: 5px 11px; font-size: 12px; border-radius: 7px; flex: none; }
+
+/* ── 템플릿 모달 — .pf-overlay 안의 [목록 | 미리보기] 분할 카드 ── */
+.tpl-modal { width: min(820px, 92vw); height: 74vh; display: flex; flex-direction: column;
+  background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.tpl-modal-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); }
+.tpl-modal-title { font-weight: 600; font-size: 14px; flex: 1; }
+.tpl-modal-busy { font-size: 12px; color: var(--text-3); }
+.tpl-modal svg { width: 16px; height: 16px; flex: none; }
+.tpl-split { display: flex; min-height: 0; flex: 1; align-items: stretch; }
+.tpl-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  flex: 0 0 240px; border-right: 1px solid var(--border); }
+.tpl-list { overflow: auto; flex: 1; }
+.tpl-group { padding: 8px 14px 4px; font-size: 11.5px; color: var(--text-3); letter-spacing: .02em; }
+.tpl-item { display: flex; align-items: center; gap: 6px; padding: 7px 14px; cursor: pointer; }
+.tpl-item:hover { background: var(--bg-active); }
+.tpl-item--active { background: var(--bg-active); }
+.tpl-item-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-item-acts { display: none; gap: 2px; flex: none; }
+.tpl-item:hover .tpl-item-acts { display: flex; }
+.tpl-item-acts svg { width: 13px; height: 13px; }
+.tpl-empty { padding: 6px 14px 10px; font-size: 12px; color: var(--text-3); }
+.tpl-panel-foot { border-top: 1px solid var(--border); padding: 8px 10px; }
+.tpl-panel-foot .pf-btn { width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; font-size: 12px; }
+.tpl-detail { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.tpl-detail--empty { align-items: center; justify-content: center; color: var(--text-3); font-size: 13px; }
+.tpl-detail-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); }
+.tpl-detail-name { flex: 1; min-width: 0; font-weight: 600; font-size: 13.5px; }
+.tpl-detail-bar .pf-input { flex: 1; min-width: 0; }
+.tpl-modal .pf-btn { padding: 5px 11px; font-size: 12px; border-radius: 7px; flex: none; }
+.tpl-preview { overflow: auto; flex: 1; padding: 14px; }
+.tpl-edit-body { flex: 1; margin: 12px 14px 14px; resize: none; padding: 10px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-0);
+  color: var(--text-1); font-size: 12.5px; line-height: 1.6; font-family: var(--font-mono); }

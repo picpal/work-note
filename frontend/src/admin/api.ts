@@ -33,6 +33,7 @@ export interface ApiPiiNote { nodeId: string; title: string; updatedBy: string |
 export interface ApiPiiRequest { nodeId: string; title: string; updatedBy: string | null; types: string; requestedBy: string | null; requestedAt: string | null; requestReason: string | null; }
 export interface ApiPiiMatch { type: string; line: number; col: number; value: string }
 export interface ApiPiiContent { nodeId: string; title: string; content: string; matches: ApiPiiMatch[] }
+export interface ApiSystemTemplate { id: string; name: string; body: string; system: boolean }
 
 /** 빈 문자열/undefined 필터는 쿼리에서 생략 — 백엔드가 빈 값을 필터로 오해하지 않게. */
 function qs(params: Record<string, string | number | undefined>): string {
@@ -98,6 +99,13 @@ export const AdminApi = {
   getRedmineConfig: () => req<{ enabled: boolean; baseUrl: string }>("/admin/settings/redmine"),
   setRedmineConfig: (cfg: { enabled: boolean; baseUrl: string }) =>
     req<{ enabled: boolean; baseUrl: string }>("/admin/settings/redmine", { method: "PUT", body: JSON.stringify(cfg) }),
+
+  listTemplates: () => req<ApiSystemTemplate[]>("/admin/templates"),
+  createTemplate: (name: string, body: string) =>
+    req<ApiSystemTemplate>("/admin/templates", { method: "POST", body: JSON.stringify({ name, body }) }),
+  updateTemplate: (id: string, name: string, body: string) =>
+    req<ApiSystemTemplate>(`/admin/templates/${id}`, { method: "PUT", body: JSON.stringify({ name, body }) }),
+  deleteTemplate: (id: string) => req<void>(`/admin/templates/${id}`, { method: "DELETE" }),
 
   piiNotes: () => req<ApiPiiNote[]>("/admin/pii/notes"),
   piiNoteContent: (nodeId: string) => req<ApiPiiContent>(`/admin/pii/notes/${encodeURIComponent(nodeId)}/content`),
