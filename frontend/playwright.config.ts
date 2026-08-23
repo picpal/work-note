@@ -26,7 +26,7 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    screenshot: "on", // 통과 테스트도 종료 시점 화면을 산출물로 남긴다 (증적용)
     locale: "ko-KR",
     timezoneId: "Asia/Seoul",
   },
