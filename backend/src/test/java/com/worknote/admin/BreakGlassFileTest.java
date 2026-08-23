@@ -104,13 +104,18 @@ class BreakGlassFileTest {
     }
 
     /**
-     * 핵심 케이스 — WORKNOTE_STORAGE_STRICT=false로 755 부모를 허용한 배치에서, DB(600)를 못 읽는
-     * 다른 로컬 사용자가 센티넬만 만들어 관리자 계정을 가져갈 수 있었다. 그건 "새 권한 없음"이 아니다.
+     * 핵심 케이스 — WORKNOTE_STORAGE_STRICT=false로 그룹/타인 <b>쓰기 가능한</b> 부모(775·777)를 허용한
+     * 배치에서, DB(600)를 못 읽는 다른 로컬 사용자가 센티넬을 만들어 관리자 계정을 가져갈 수 있었다.
+     * 그건 "새 권한 없음"이 아니다.
+     *
+     * <p>755는 타인에게 {@code w}를 주지 않으므로 그 공격 자체는 성립하지 않지만, 부모에는 그룹/타인 비트를
+     * 아예 요구하지 않는다 — 700은 값싸고 확실한 선이고, 여기서 넓히면 판정이 미묘해질 뿐 얻는 게 없다.
      */
     @Test
     void violation_rejectsPermissiveParentDirectory() {
-        assertThat(BreakGlassFile.violation(parentPerms(ok(), "rwxr-xr-x"), ME)).contains("700");
-        assertThat(BreakGlassFile.violation(parentPerms(ok(), "rwxrwxrwx"), ME)).contains("700");
+        assertThat(BreakGlassFile.violation(parentPerms(ok(), "rwxrwxr-x"), ME)).contains("700");   // 775 = 실제 위협
+        assertThat(BreakGlassFile.violation(parentPerms(ok(), "rwxrwxrwx"), ME)).contains("700");   // 777
+        assertThat(BreakGlassFile.violation(parentPerms(ok(), "rwxr-xr-x"), ME)).contains("700");   // 755도 거부한다
     }
 
     /** 미리 심어둔 파일 — 나중에 chmod 700을 해도 파일의 소유자는 바뀌지 않는다. 그래서 소유자를 본다. */
@@ -235,7 +240,7 @@ class BreakGlassFileTest {
 
     // ---- 조상 체인: 부모의 700은 그 위에서 통째로 바꿔치기당하는 것을 막지 못한다 ----
     //
-    // 부모만 보면 전제가 깨진다. 부모가 700·앱 소유여도 <b>그 위</b> 어딘가가 그룹/타인 쓰기 가능하면,
+    // 부모만 보면 전제가 깨진다. 부모가 700·앱 소유여도 그 위 어딘가가 그룹/타인 쓰기 가능하면,
     // 거기에 쓸 수 있는 사람이 디렉토리 엔트리째 rename해서 같은 이름의 자기 소유 700 디렉토리로
     // 바꿔치기할 수 있다. 자식의 권한은 부모 안에서 자기 엔트리가 rename되는 것을 막지 못한다.
     // 결과적으로 DB를 읽지도 못하던 사람이 관리자 비밀번호를 지정하게 된다.

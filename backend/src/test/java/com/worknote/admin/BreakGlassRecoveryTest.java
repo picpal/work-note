@@ -198,15 +198,17 @@ class BreakGlassRecoveryTest {
     // ---- 출처 검증: 전제가 확인되지 않으면 실행하지 않는다 ----
 
     /**
-     * 이 기능의 보안 논거 그 자체 — WORKNOTE_STORAGE_STRICT=false로 뜬 755 디렉토리에 다른 로컬 사용자가
-     * 미리 심어둔 센티넬은 거절돼야 한다. 실행되면 DB를 읽지도 못하는 사람이 관리자 계정을 가져간다.
+     * 이 기능의 보안 논거 그 자체 — WORKNOTE_STORAGE_STRICT=false로 뜬 <b>그룹 쓰기 가능한</b>(775) 디렉토리에
+     * 다른 로컬 사용자가 미리 심어둔 센티넬은 거절돼야 한다. 실행되면 DB(600)를 읽지도 못하는 사람이
+     * 관리자 계정을 가져간다. (755는 타인에게 쓰기를 주지 않아 그 심기 자체가 불가능하므로, 실제로 성립하는
+     * 형태인 775로 만든다. 부모 판정은 그보다 엄격해 755도 거부한다 — {@link BreakGlassFileTest} 참조)
      */
     @Test
     void refusesAPrePlantedSentinelInAPermissiveDirectory() throws IOException {
         assumeTrue(posix(), "POSIX 미지원 — skip");
         enable2fa();
         Path file = sentinel("emp=admin01\npassword=" + NEW_PW + "\n");
-        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxrwxr-x"));
 
         assertThatThrownBy(() -> breakGlass.run(file))
             .isInstanceOf(IllegalStateException.class)

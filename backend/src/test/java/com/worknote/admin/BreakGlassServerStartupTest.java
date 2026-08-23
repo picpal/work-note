@@ -87,15 +87,16 @@ class BreakGlassServerStartupTest {
     }
 
     /**
-     * 전제가 확인되지 않으면 <b>기동을 세운다</b>. 755 디렉토리(=WORKNOTE_STORAGE_STRICT=false로 허용되는 배치)에
-     * 다른 사용자가 미리 심어둘 수 있었던 파일은 실행하지 않는다 — 그대로 실행하면 DB를 읽지도 못하는 사람이
-     * 관리자 계정을 가져간다. 이 정지는 storage.strict와 무관해야 한다(그 스위치는 하드닝 경고에 대한 선택이다).
+     * 전제가 확인되지 않으면 <b>기동을 세운다</b>. 그룹 쓰기 가능한 디렉토리(775 — WORKNOTE_STORAGE_STRICT=false로
+     * 허용되는 배치)에 다른 사용자가 미리 심어둘 수 있었던 파일은 실행하지 않는다. 그대로 실행하면 DB(600)를
+     * 읽지도 못하는 사람이 관리자 계정을 가져간다. 이 정지는 storage.strict와 무관해야 한다
+     * (그 스위치는 하드닝 경고에 대한 선택이지 복구 뒷문을 넓히는 스위치가 아니다).
      */
     @Test
     void refusesToStartWhenTheSentinelProvenanceCannotBeTrusted() throws Exception {
         assumeTrue(posix(), "POSIX 미지원 — skip");
         writeSentinel("emp=admin01\npassword=" + NEW_PW + "\n");
-        Files.setPosixFilePermissions(base, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Files.setPosixFilePermissions(base, PosixFilePermissions.fromString("rwxrwxr-x"));
 
         Throwable thrown = catchThrowable(() -> {
             try (ConfigurableApplicationContext ctx = boot("worknote.storage.strict=false")) {

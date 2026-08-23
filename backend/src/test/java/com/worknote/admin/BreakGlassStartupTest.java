@@ -63,7 +63,7 @@ class BreakGlassStartupTest {
     static void storagePaths(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DB);
         registry.add("worknote.upload.dir", () -> BASE.resolve("data/attachments").toString());
-        // 있지도 않은 오버라이드 키를 <b>실제로 설정해 둔다</b> — 아래 테스트가 그 무시됨을 관측한다.
+        // 있지도 않은 오버라이드 키를 실제로 설정해 둔다 — 아래 테스트가 그 무시됨을 관측한다.
         registry.add("worknote.break-glass.file", ELSEWHERE::toString);
     }
 
