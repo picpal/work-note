@@ -40,13 +40,18 @@ class BreakGlassStartupTest {
 
     private static final Path DB = BASE.resolve("data/worknote.db");
     private static final Path SENTINEL = BASE.resolve("data/break-glass");
+    /** DB 옆이 <b>아닌</b> 곳에 놓아 둔 미끼 — 경로 오버라이드가 생기면 이게 소비된다(아래 테스트). */
+    private static final Path ELSEWHERE = BASE.resolve("elsewhere/break-glass");
 
     private static Path createBase() {
         try {
             Path base = Files.createTempDirectory("worknote-break-glass");
             Files.createDirectories(base.resolve("data"));
+            Files.createDirectories(base.resolve("elsewhere"));
             // 기동 전에 이미 놓여 있어야 한다 — 운영자가 파일을 두고 재기동하는 상황 그대로.
             Files.writeString(base.resolve("data/break-glass"),
+                "emp=nosuchuser\n", StandardCharsets.UTF_8);
+            Files.writeString(base.resolve("elsewhere/break-glass"),
                 "emp=nosuchuser\n", StandardCharsets.UTF_8);
             return base;
         } catch (IOException e) {
@@ -58,6 +63,8 @@ class BreakGlassStartupTest {
     static void storagePaths(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DB);
         registry.add("worknote.upload.dir", () -> BASE.resolve("data/attachments").toString());
+        // 있지도 않은 오버라이드 키를 <b>실제로 설정해 둔다</b> — 아래 테스트가 그 무시됨을 관측한다.
+        registry.add("worknote.break-glass.file", ELSEWHERE::toString);
     }
 
     @AfterAll
@@ -91,10 +98,17 @@ class BreakGlassStartupTest {
     /**
      * 경로는 설정으로 열지 않는다 — 임의 경로(공용·전체쓰기 디렉토리)를 가리키는 오설정 한 번으로
      * 이 기능이 뒷문이 아니라는 근거가 통째로 깨진다. 설정 키가 되살아나는 회귀를 여기서 막는다.
+     *
+     * <p>"속성이 null인가"를 보는 테스트로는 이걸 막지 못한다 — 오버라이드를 구현해도 테스트가 그 속성을
+     * 설정하지 않으면 그대로 통과하기 때문이다(어떤 구현에서도 통과하는 테스트). 그래서 반대로 <b>설정해 두고</b>
+     * 무시되는지를 관측한다: 오버라이드가 생기면 미끼가 소비되고 DB 옆 파일이 남아 두 단언이 모두 뒤집힌다.
      */
     @Test
     void thereIsNoPathOverrideProperty() {
-        assertThat(ctx.getEnvironment().getProperty("worknote.break-glass.file")).isNull();
+        assertThat(ctx.getEnvironment().getProperty("worknote.break-glass.file"))
+            .as("미끼 설정 자체가 사라지면 이 테스트는 의미가 없다").isEqualTo(ELSEWHERE.toString());
+        assertThat(ELSEWHERE).as("설정을 읽었다면 이 파일이 소비됐을 것이다").exists();
+        assertThat(SENTINEL).as("실제로 소비되는 건 DB 옆 한 곳뿐이다").doesNotExist();
     }
 
     /** local 모드는 <b>치우기만</b> 한다 — 계정도 감사도 건드리지 않는다(수술의 근거가 없는 모드다). */

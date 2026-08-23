@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -215,6 +217,31 @@ class BreakGlassRecoveryTest {
         assertThat(auditRows()).isEmpty();
     }
 
+    /**
+     * POSIX 권한이 없는 파일시스템에서는 소유자·권한을 확인할 방법이 없다 = 이 기능의 전제를 증명할 수 없다.
+     * 그래서 <b>기능 자체가 꺼진다</b> — 계정도, 파일도 건드리지 않는다(우리 것이라고 단정할 근거조차 없다).
+     *
+     * <p>진짜 비-POSIX 파일시스템이 필요하므로 JDK 기본 제공자인 zip 파일시스템을 쓴다(의존성 추가 없음).
+     * 가드를 빼면 {@code readAttributes(PosixFileAttributes)}가 {@code UnsupportedOperationException}으로
+     * 터지므로 이 테스트는 실제로 그 분기를 붙잡는다.
+     */
+    @Test
+    void nonPosixFileSystemDisablesTheFeatureEntirely() throws IOException {
+        enable2fa();
+        try (FileSystem zipfs = FileSystems.newFileSystem(dir.resolve("fs.zip"), Map.of("create", "true"))) {
+            assumeTrue(!zipfs.supportedFileAttributeViews().contains("posix"), "POSIX를 지원하는 zipfs — skip");
+            Path file = zipfs.getPath("/break-glass");
+            Files.writeString(file, "emp=admin01\npassword=" + NEW_PW + "\n", StandardCharsets.UTF_8);
+
+            List<ILoggingEvent> events = capturingLogs(() -> breakGlass.run(file));   // 예외 없이 통과해야 한다
+
+            assertThat(Files.exists(file)).isTrue();
+            assertThat(totp.isEnabled("a1")).isTrue();
+            assertThat(auditRows()).isEmpty();
+            assertThat(events).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("POSIX"));
+        }
+    }
+
     @Test
     void refusesAGroupReadableSentinel() throws IOException {
         assumeTrue(posix(), "POSIX 미지원 — skip");
@@ -317,6 +344,12 @@ class BreakGlassRecoveryTest {
     /**
      * 선점(rename)에 실패하면 수술 전에 멈춰야 한다 — 옮기지 못한 채 진행하면 다음 기동이 같은 파일을 다시 적용한다.
      * 부모 디렉토리에서 쓰기 권한을 뺏어 실제 rename 실패를 만든다(root면 권한을 무시하므로 skip).
+     *
+     * <p><b>{@code ATOMIC_MOVE} 자체에 대한 테스트는 없다 — 인프로세스에서 관측할 수 없기 때문이다.</b>
+     * POSIX에서는 일반 {@code Files.move}도 {@code rename(2)} 한 번이라 이미 원자적이고, 두 방식의 차이는
+     * "원자적으로 못 옮기는 제공자에서 조용히 copy+delete로 떨어지지 않고 예외로 세운다"는 것뿐이다.
+     * 그 상황을 만들려면 원자적 rename을 지원하지 않는 파일시스템 제공자가 필요하고, 그건 이 테스트가
+     * 증명하려는 성질(선점 실패 시 수술 전 중단)과 다른 층이다. 통과하는 가짜 단언을 만드느니 비워 둔다.
      */
     @Test
     void claimFailureFailsStartup_beforeAnySurgery() throws IOException {
