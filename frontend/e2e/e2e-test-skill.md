@@ -1,5 +1,11 @@
 # e2e 테스트 작성 스킬 — 참고 노트
 
+> **스킬화 완료 (2026-08-23)**: 이 노트를 기반으로 범용 스킬 `authoring-e2e-suites`가
+> `~/.claude/skills/authoring-e2e-suites/`에 생성됨 (SKILL.md + references/pitfalls.md + templates 3종).
+> superpowers:writing-skills 절차로 검증 완료 — 베이스라인(RED)=이 프로젝트의 lessons.md 실측 18건,
+> 적용 시나리오(타 스택 Rails+Okta+docker 계획 수립)·함정 시나리오(로그아웃·전역설정·시딩 헬퍼 압박) 모두 통과.
+> 이 파일은 원천 기록으로 보존.
+
 이번 work-note e2e 구축에서 검증된 것들을, 나중에 범용 "e2e 테스트 셋 생성 스킬"로 만들 때
 그대로 옮겨 쓸 수 있는 형태로 기록한다. (성공/실패 판정이 끝난 것만 적는다 — 추측 금지)
 
