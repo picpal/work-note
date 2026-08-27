@@ -373,16 +373,22 @@ class BreakGlassRecoveryTest {
      * 커밋 뒤 정리 실패는 기동 실패다. 남은 .processing은 다음 기동을 세우므로(위 테스트), 그 정지가
      * 아무 설명 없이 찾아오지 않도록 지금 이유와 함께 멈춘다.
      * (rename은 되는데 unlink만 실패하는 상태를 밖에서 만들 수 없어 정리 단계를 직접 호출한다)
+     *
+     * <p>정리는 <b>선점과 같은 세션</b>이 한다 — 경로로 다시 해석해 지우면 그 사이 디렉토리가 갈아끼워졌을 때
+     * 엉뚱한 디렉토리의 {@code .processing}을 지우게 되기 때문이다. 그래서 여기서도 실제 세션을 열어 호출한다.
      */
     @Test
     void failureToCleanUpTheProcessingFileFailsStartup() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
         Path stuck = dir.resolve("break-glass.processing");
         Files.createDirectory(stuck);
         Files.writeString(stuck.resolve("blocker"), "x", StandardCharsets.UTF_8);   // 비어 있지 않으면 삭제 불가
 
-        assertThatThrownBy(() -> breakGlass.delete(stuck))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("직접 지운 뒤 재기동");
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(sentinel("emp=admin01\n"))) {
+            assertThatThrownBy(() -> breakGlass.delete(session, stuck))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("직접 지운 뒤 재기동");
+        }
     }
 
     // ---- 시끄럽되, 비밀번호는 절대 남기지 않는다 ----

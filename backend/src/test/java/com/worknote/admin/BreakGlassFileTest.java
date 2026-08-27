@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
@@ -434,7 +435,7 @@ class BreakGlassFileTest {
      * 합성 {@code Provenance}만으로는 "verifyProvenance가 그 사실을 실제로 채우는가"를 증명하지 못한다.
      */
     @Test
-    void ancestorsAbove_recordsTheOwnerOfEachDirectoryAndOfTheEntryWeTraverse() throws Exception {
+    void resolveParent_recordsTheOwnerOfEachDirectoryAndOfTheEntryWeTraverse() throws Exception {
         assumeTrue(posix(), "POSIX 미지원 — skip");
         Path open = Files.createDirectories(tmp.resolve("open/a"));
         Path data = Files.createDirectories(tmp.resolve("secure/final/data"));
@@ -442,7 +443,8 @@ class BreakGlassFileTest {
         Files.createSymbolicLink(tmp.resolve("safe/l1"), open);
         Files.createSymbolicLink(open.resolve("l2"), tmp.resolve("secure/final"));
 
-        List<BreakGlassFile.Ancestor> chain = BreakGlassFile.ancestorsAbove(tmp.resolve("safe/l1/l2/data"));
+        List<BreakGlassFile.Ancestor> chain =
+            BreakGlassFile.resolveParent(tmp.resolve("safe/l1/l2/data")).ancestors();
 
         assertThat(chain).isNotEmpty().allSatisfy(a -> {
             assertThat(a.owner()).as("%s 의 소유자", a.path())
@@ -458,6 +460,31 @@ class BreakGlassFileTest {
                       real(tmp.resolve("secure/final")),
                       real(tmp))
             .doesNotContain(real(data));                  // 최종 부모 자신은 조상이 아니다(따로 판정한다)
+    }
+
+    /**
+     * 부모 <b>자신</b>의 사실도 같은 순회에서 나온다 — 조상을 본 뒤 {@code readAttributes(parent)}로 경로를
+     * 다시 해석하면, 그 사이 경로가 A에서 B로 바뀌었을 때 조상 목록은 A인데 fileKey는 B가 되어
+     * {@link BreakGlassFile#open}의 핸들 비교가 <b>둘 다 B</b>를 보고 통과한다.
+     *
+     * <p>여기서 못 박는 것: 부모의 소유자·권한·fileKey는 <b>심링크를 지나 실제로 도달한 디렉토리</b>의 것이다
+     * (링크 자신을 lstat하면 권한은 {@code rwxrwxrwx}, fileKey는 다른 값이 나온다 — 그걸로는 판정도 비교도 못한다).
+     */
+    @Test
+    void resolveParent_reportsTheDirectoryTheWalkActuallyEntered() throws Exception {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path data = Files.createDirectories(tmp.resolve("real/data"));
+        Files.createSymbolicLink(tmp.resolve("link"), data);
+        Files.setPosixFilePermissions(data, PosixFilePermissions.fromString("rwx------"));
+
+        BreakGlassFile.ResolvedParent parent = BreakGlassFile.resolveParent(tmp.resolve("link"));
+
+        BasicFileAttributes real = Files.readAttributes(data, BasicFileAttributes.class);
+        assertThat(parent.fileKey()).isNotNull().isEqualTo(real.fileKey());
+        assertThat(parent.owner()).isEqualTo(Files.getOwner(data).getName());
+        assertThat(parent.perms()).isEqualTo(PosixFilePermissions.fromString("rwx------"));
+        assertThat(parent.ancestors()).extracting(BreakGlassFile.Ancestor::path)
+            .doesNotContain(real(data));   // 부모 자신은 조상이 아니다 — 판정 규칙이 다르다(700 요구)
     }
 
     /**
@@ -516,26 +543,96 @@ class BreakGlassFileTest {
     }
 
     /**
+     * <b>검증한 파일이 갈아끼워지면 거부한다</b> — 읽어서 실행하지 않는다.
+     *
+     * <p>여기서 못 박는 것은 "핸들이 inode를 고정한다"가 <b>아니다</b>. 그건 사실이 아니다:
+     * {@link java.nio.file.SecureDirectoryStream}은 <b>디렉토리</b>를 고정할 뿐, 그 안의 이름이 가리키는 inode를
+     * 고정하지 않는다({@code newByteChannel(name)}·{@code move(name, ...)}는 이름을 매번 다시 조회한다).
+     * 그래서 세션은 검증 시점의 {@code fileKey}를 기억해 두고 <b>읽은 직후·rename 직전에 다시 확인</b>하며,
+     * 어긋나면 기동을 세운다. 창을 좁히는 것이지 닫는 것이 아니다(읽는 <i>도중</i>의 교체는 여전히 탐지 못 한다).
+     *
+     * <p>이 성질은 핸들 기반·경로 폴백 <b>양쪽 모두</b>에서 성립하므로 이 테스트는 어느 플랫폼에서도 실행된다.
+     */
+    @Test
+    void open_rejectsASentinelSwappedAfterVerification() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
+            swapWithAFreshFile(file, "emp=intruder\n");
+
+            assertThatThrownBy(session::read)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("바뀌었습니다")
+                .hasMessageNotContaining("intruder");   // 갈아끼운 파일의 내용을 쓰지도, 흘리지도 않는다
+        }
+    }
+
+    /** 읽기와 선점 사이도 같다 — 검증한 그 파일이 아니면 {@code .processing}으로 옮기지 않는다. */
+    @Test
+    void claim_rejectsASentinelSwappedAfterItWasRead() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        Path processing = tmp.resolve("break-glass.processing");
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
+            assertThat(session.read().emp()).isEqualTo("admin");
+            swapWithAFreshFile(file, "emp=intruder\n");
+
+            assertThatThrownBy(() -> session.claim(processing))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("바뀌었습니다");
+        }
+        assertThat(processing).doesNotExist();   // 갈아끼운 파일을 선점하지 않았다
+    }
+
+    /**
+     * 위 두 검사는 {@code fileKey}(dev+ino)가 있어야 성립한다 — 그래서 {@link BreakGlassFile#open}은
+     * {@code fileKey}가 없으면 <b>거부</b>한다({@code Objects.equals(null, null)}이 통과하는 구멍을 막는다).
+     * 그 거부가 정상 배포를 죽이지 않는다는 전제를 여기서 못 박는다: 이 호스트의 파일시스템은 실제로 제공한다.
+     * (리눅스 ext4/xfs·macOS APFS는 준다. 주지 않는 제공자는 POSIX 권한도 없어 기능 자체가 앞에서 비활성이다)
+     */
+    @Test
+    void open_dependsOnFileKeysWhichThisFileSystemProvides() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        assertThat(Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey())
+            .as("fileKey가 null이면 open이 거부한다 — 이 환경에서 그런 일이 없어야 한다")
+            .isNotNull();
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
+            assertThat(session.read().emp()).isEqualTo("admin");
+        }
+    }
+
+    /**
      * <b>이 머신(macOS)에서는 실행되지 않는다.</b> {@code Files.newDirectoryStream}이 여기서는
      * {@code sun.nio.fs.UnixDirectoryStream}을 돌려주고 그건 {@link java.nio.file.SecureDirectoryStream}이
      * 아니다(리눅스 JDK는 보통 제공한다). 통과하는 척하는 단언을 만들지 않기 위해 {@code assumeTrue}로 건너뛴다 —
      * 이 저장소에서 이 테스트가 <b>초록으로 보이면 그건 실행됐다는 뜻이 아니라 skip됐다는 뜻</b>이다.
      *
-     * <p>검증하는 성질: 세션을 연 뒤 <b>경로 상의 파일을 통째로 갈아치워도</b> 읽히는 것은 검증한 그 inode다.
-     * 경로 기반 폴백에서는 갈아치운 쪽이 읽히므로(그게 곧 TOCTOU 창이다) 이 단언은 핸들 기반에서만 성립한다.
+     * <p>핸들 기반에서만 성립하는 성질은 <b>디렉토리 고정</b> 하나다: 세션을 연 뒤 데이터 디렉토리 엔트리를
+     * 통째로 갈아치워도 읽는 곳은 <b>열어 둔 그 디렉토리</b>다. 경로 폴백이라면 새 디렉토리의 파일을 집게 되고
+     * (그건 {@code fileKey} 재확인에 걸려 거부된다), 그래서 이 단언은 핸들 기반에서만 참이다.
      */
     @Test
-    void open_readsTheVerifiedInodeEvenIfThePathIsSwappedAfterwards() throws IOException {
+    void open_keepsReadingFromTheOpenedDirectoryEvenIfThePathIsRepointed() throws IOException {
         assumeTrue(posix(), "POSIX 미지원 — skip");
-        Path file = sentinel600("emp=admin\n");
+        Path data = Files.createDirectories(tmp.resolve("data"));
+        Path file = sentinel600(data, "emp=admin\n");
         try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
             assumeTrue(session.handleBound(), "SecureDirectoryStream 미지원 제공자(macOS 등) — skip");
-            Files.delete(file);
-            Files.writeString(file, "emp=intruder\n", StandardCharsets.UTF_8);
-            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+            Files.move(data, tmp.resolve("moved-away"));            // 검증한 디렉토리를 옆으로 치우고
+            sentinel600(Files.createDirectories(data), "emp=intruder\n");   // 같은 이름으로 공격자 트리를 놓는다
 
-            assertThat(session.read().emp()).isEqualTo("admin");
+            assertThat(session.read().emp())
+                .as("열어 둔 디렉토리 핸들은 이름이 아니라 그 디렉토리를 가리킨다")
+                .isEqualTo("admin");
         }
+    }
+
+    /** 같은 경로에 <b>다른 inode</b>의 규정대로 된 센티넬을 놓는다 — 교체를 탐지하는지 보는 유일한 방법이다. */
+    private static void swapWithAFreshFile(Path file, String content) throws IOException {
+        Files.delete(file);
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
     }
 
     /**

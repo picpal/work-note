@@ -24,7 +24,6 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
@@ -56,8 +55,10 @@ import java.util.TreeSet;
  * 이 검사는 {@code worknote.storage.strict}와 <b>무관하게</b> 항상 fail-closed다 — 그 스위치는 저장소 하드닝
  * 경고에 대한 운영자의 선택이지, 복구 뒷문을 넓혀도 된다는 뜻이 아니다.
  *
- * <p><b>검증·읽기·선점은 한 세션에 묶는다</b>({@link #open}). 셋을 각각 경로로 다시 해석하면 검증한 inode와
- * 읽고 옮기는 inode가 달라질 수 있다(TOCTOU). 리눅스 JDK가 주는 {@link SecureDirectoryStream}이 그 창을 닫는다.
+ * <p><b>검증·읽기·선점·정리는 한 세션에 묶는다</b>({@link #open}). 넷을 각각 경로로 다시 해석하면 검증한 inode와
+ * 읽고 옮기는 inode가 달라질 수 있다(TOCTOU). 리눅스 JDK가 주는 {@link SecureDirectoryStream}은 <b>디렉토리</b>를
+ * 고정하고, 그 안의 파일 교체는 {@code fileKey} 재확인으로 <b>탐지해 거부</b>한다 — 창을 좁히는 것이지 닫는 것이
+ * 아니다. 무엇이 보장되고 무엇이 안 되는지는 {@link #open}에 그대로 적어 두었다.
  *
  * <p><b>포맷은 {@link Properties}</b> — 공백·CRLF·주석·인코딩 예외를 우리가 다시 구현하지 않는다.
  * <pre>
@@ -89,6 +90,13 @@ public final class BreakGlassFile {
     /**
      * 조상 소유자로 허용하는 특권 계정. uid 0을 직접 읽는 표준 API가 없어 <b>이름으로</b> 판정한다 —
      * "root라는 이름의 비특권 계정"을 만들 수 있는 사람은 이미 계정을 만드는 사람이라 이 판정 밖에 있다.
+     *
+     * <p><b>한계(안전한 쪽으로 틀린다).</b> uid 0이 항상 {@code "root"}로 해석되지는 않는다 — {@code /etc/passwd}가
+     * 없는 최소 컨테이너, LDAP/NFS의 id 매핑이 어긋난 마운트에서는 소유자 이름이 숫자 uid 문자열로 나올 수 있다.
+     * 그러면 <b>정상적인 root 소유 조상이 거부되어 기동이 멈춘다</b>(그 반대, 즉 남의 디렉토리를 통과시키는
+     * 방향으로는 틀리지 않는다). 조치는 이름 해석을 고치거나 데이터 디렉토리를 <b>앱 계정 소유</b> 조상 아래로
+     * 옮기는 것이다 — 앱 계정 쪽 비교는 {@code System.getProperty("user.name")}과 같은 이름 해석을 쓰므로
+     * 둘 다 숫자로 나와도 서로 맞는다. 운영자 가이드에도 같은 내용이 있다.
      */
     private static final String ROOT = "root";
 
@@ -120,6 +128,20 @@ public final class BreakGlassFile {
                              List<Ancestor> ancestors) {}
 
     /**
+     * 한 번의 경로 해석에서 얻은 <b>부모 디렉토리에 대한 사실 전부</b> — 조상 체인과 부모 자신이 같은 순회에서 나온다.
+     *
+     * <p>둘을 따로 얻으면(조상은 순회로, 부모는 {@code readAttributes(parent)}로) 그 사이에 경로가 A에서 B로
+     * 바뀌었을 때 <b>조상 목록은 A</b>, <b>부모의 fileKey는 B</b>가 되고, 그 fileKey를 핸들과 비교해 봐야
+     * 둘 다 B라 통과한다 — 검사가 성립하지 않는다. 그래서 부모의 소유자·권한·{@code fileKey}는
+     * {@link #resolveParent}가 <b>순회하며 실제로 들어간 그 디렉토리</b>에서 읽는다.
+     *
+     * @param fileKey 부모 디렉토리의 식별자(dev+ino). {@link #open}이 연 디렉토리 핸들이 <b>이 디렉토리인지</b>
+     *                맞추는 데 쓴다. 제공자가 주지 않으면 null이고, 그때는 맞출 방법이 없으므로 거부한다.
+     */
+    record ResolvedParent(List<Ancestor> ancestors, String owner, Set<PosixFilePermission> perms,
+                          Object fileKey) {}
+
+    /**
      * 경로 해석이 지나가는 디렉토리 하나의 사실. 판정 근거는 {@link #violation}의 조상 검사 주석에 있다.
      *
      * @param owner      디렉토리 자신의 소유자. 자기 디렉토리의 엔트리는 소유자가 언제든 rename할 수 있으므로
@@ -134,16 +156,31 @@ public final class BreakGlassFile {
                            String entry, String entryOwner) {}
 
     /**
-     * 센티넬 한 번의 소비 — <b>출처 검증·읽기·선점을 같은 디렉토리 핸들에 묶는다</b>({@link #open} 참조).
-     * 열렸다는 것은 출처 검증을 통과했다는 뜻이다.
+     * 센티넬 한 번의 소비 — <b>출처 검증·읽기·선점·정리를 같은 디렉토리 핸들에 묶는다</b>({@link #open} 참조).
+     * 열렸다는 것은 출처 검증을 통과했다는 뜻이다. 세션은 정리가 끝날 때까지 열어 둔다.
      */
     public interface Sentinel extends AutoCloseable {
 
-        /** 읽고 검증한다. 반환됐다면 사번이 있고 비밀번호는(있다면) 정책을 통과한 상태다. */
+        /**
+         * 읽고 검증한다. 반환됐다면 사번이 있고 비밀번호는(있다면) 정책을 통과한 상태다.
+         *
+         * <p>읽은 <b>직후</b> 같은 이름을 다시 lstat해 {@code fileKey}가 검증 시점과 같은지 확인한다 —
+         * 다르면 {@link IllegalStateException}(= 기동 실패)이고 내용은 파싱조차 하지 않는다.
+         */
         Request read();
 
-        /** 원자적 선점 — 이 rename이 성공한 프로세스만 수술한다. */
+        /**
+         * 원자적 선점 — 이 rename이 성공한 프로세스만 수술한다.
+         * rename <b>직전</b>에도 {@link #read()}와 같은 {@code fileKey} 재확인을 한다.
+         */
         void claim(Path processing);
+
+        /**
+         * 커밋 뒤 {@code .processing} 정리 — {@link #claim} 이 만든 그 엔트리를 <b>같은 디렉토리</b>에서 지운다
+         * (핸들 기반이면 핸들 상대 삭제라 경로를 다시 해석하지 않는다). 운영자에게 보일 문구는 호출부의 것이라
+         * 여기서는 {@link IOException}을 그대로 올린다.
+         */
+        void discard(Path processing) throws IOException;
 
         /** 열린 디렉토리 핸들에 묶였는가(리눅스) 아니면 경로 기반 폴백인가(macOS 등). 관측·문서용. */
         boolean handleBound();
@@ -178,21 +215,33 @@ public final class BreakGlassFile {
     /**
      * 출처를 검증하고 소비 세션을 연다. 통과하지 못하면 {@link IllegalStateException} = 기동 실패다.
      *
-     * <p><b>왜 세션인가.</b> 검증·읽기·선점을 각각 경로로 다시 해석하면, 셋 사이에 부모 디렉토리나 파일이
-     * 갈아끼워질 수 있다 — 검증한 inode와 읽고 옮기는 inode가 다른 고전적 TOCTOU다. 리눅스 JDK의
-     * {@link Files#newDirectoryStream}은 {@link SecureDirectoryStream}을 돌려주므로, <b>열린 디렉토리 핸들</b>
-     * 기준으로 lstat({@code NOFOLLOW_LINKS})·읽기·상대 rename을 할 수 있다. 그러면 셋이 같은 디렉토리·같은
-     * 엔트리를 가리키는 것이 커널 수준에서 보장된다.
+     * <p><b>이 세션이 실제로 보장하는 것</b>(그 이상을 주장하지 않는다):
+     * <ul>
+     *   <li><b>부모 디렉토리는 핸들로 고정된다</b>(리눅스). {@link SecureDirectoryStream}은 열린 디렉토리
+     *       파일서술자라, 그 뒤에 경로 상의 {@code .../worknote} 엔트리가 다른 디렉토리로 갈아끼워져도
+     *       읽고 옮기는 곳은 <b>열어 둔 그 디렉토리</b>다.</li>
+     *   <li><b>조상 체인과 소유자·권한 조건이 강제된다</b>({@link #violation}). 조상은 {@link #resolveParent}가
+     *       한 번의 순회로 모으고, <b>부모 자신의 사실도 같은 순회에서</b> 나온다 — 조상을 본 뒤 부모를 따로
+     *       다시 해석하면 그 사이의 교체를 fileKey 비교가 잡지 못하기 때문이다({@link ResolvedParent}).
+     *       그렇게 얻은 부모의 {@code fileKey}와 <b>연 핸들의 fileKey</b>를 맞춰
+     *       "조상은 A를 봤는데 핸들은 B를 열었다"를 배제한다.</li>
+     *   <li><b>파일 교체는 탐지되어 거부된다.</b> 핸들은 디렉토리를 고정할 뿐 <b>이름이 가리키는 inode를
+     *       고정하지 않는다</b> — {@code newByteChannel(name)}도 {@code move(name, ...)}도 그 이름을 매번 다시
+     *       조회한다. 그래서 검증 시점의 {@code fileKey}를 세션이 기억해 두고 <b>읽은 직후·rename 직전</b>에
+     *       다시 확인해 어긋나면 세운다.</li>
+     * </ul>
+     *
+     * <p><b>보장하지 않는 것.</b> 위 재확인은 창을 좁히는 것이지 닫는 것이 아니다 — <b>읽는 도중</b>에
+     * 교체가 일어나면(채널을 연 뒤 우리가 다시 lstat하기 전) 탐지하지 못한다. 완전한 inode 고정은 표준 API로
+     * 불가능하다: 열린 {@link SeekableByteChannel}에서 {@code fileKey}를 얻는 방법이 없고
+     * ({@code fstat} 계열이 노출되지 않는다), {@link SecureDirectoryStream}에도 "이 이름을 이 inode로만 열어라"가 없다.
+     * 그 창을 실제로 쓰려면 700·앱 소유 디렉토리에 쓸 수 있어야 하는데, 그 능력이 있으면 이미 DB를 직접 고칠 수 있다.
      *
      * <p><b>미지원 제공자에서는 경로 기반으로 폴백한다</b>(이 클래스의 다른 실패가 전부 기동 중단인 것과 다르다).
      * macOS JDK는 {@code sun.nio.fs.UnixDirectoryStream}을 돌려줘 {@link SecureDirectoryStream}이 아니다 —
-     * 거기서 기동을 세우면 개발·검증 환경에서 이 기능이 통째로 죽는다. 폴백에서도 <b>판정 규칙은 완전히 같고</b>
-     * 달라지는 것은 TOCTOU 창의 폭뿐이다(리눅스 배포에서는 강한 보장, 그 외에서는 경로 기반). 이 사실은
+     * 거기서 기동을 세우면 개발·검증 환경에서 이 기능이 통째로 죽는다. 폴백에서도 <b>판정 규칙과 fileKey 재확인은
+     * 완전히 같고</b> 달라지는 것은 디렉토리 고정이 없다는 것(= 시간차 창이 넓다는 것)뿐이다. 이 차이는
      * 운영자 가이드에도 적혀 있어야 한다 — 조용한 등급 차이는 없다.
-     *
-     * <p>조상 체인({@link #ancestorsAbove})은 핸들에 묶을 수 없다(층마다 핸들을 여는 API가 없다). 대신
-     * <b>조상을 먼저 확인하고</b>, 그 직후 연 핸들이 방금 확인한 그 디렉토리(inode)인지 {@code fileKey}로 맞춰
-     * "조상은 A를 봤는데 핸들은 B를 열었다"를 배제한다.
      */
     public static Sentinel open(Path file) {
         Path abs = file.toAbsolutePath();
@@ -203,32 +252,55 @@ public final class BreakGlassFile {
         }
         DirectoryStream<Path> stream = null;
         try {
-            List<Ancestor> ancestors = ancestorsAbove(parent);   // 핸들을 열기 전에 — 아래 fileKey 비교의 기준
-            PosixFileAttributes dir = Files.readAttributes(parent, PosixFileAttributes.class);
+            // 조상 체인과 부모 자신의 사실을 한 순회에서 — 핸들을 열기 전에, 아래 fileKey 비교의 기준이다.
+            ResolvedParent dir = resolveParent(parent);
             stream = Files.newDirectoryStream(parent);
             if (stream instanceof SecureDirectoryStream<Path> secure) {
                 PosixFileAttributes opened =
                     secure.getFileAttributeView(PosixFileAttributeView.class).readAttributes();
-                if (!Objects.equals(dir.fileKey(), opened.fileKey())) {
+                if (dir.fileKey() == null || !dir.fileKey().equals(opened.fileKey())) {
                     throw fail(parent + " 가 검사 도중 다른 디렉토리로 바뀌었습니다 — 아무 작업도 하지 않았습니다."
                         + " 데이터 디렉토리를 건드리는 다른 작업이 없는지 확인하고 재기동하세요");
                 }
                 PosixFileAttributes target = secure
                     .getFileAttributeView(name, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS)
                     .readAttributes();
-                check(abs, provenance(target, opened, ancestors));
-                Sentinel sentinel = new HandleBoundSentinel(secure, name, abs);
+                check(abs, provenance(target, dir));
+                Sentinel sentinel = new HandleBoundSentinel(secure, name, abs, requireFileKey(abs, target));
                 stream = null;   // 핸들의 수명은 이제 세션의 것이다
                 return sentinel;
             }
             PosixFileAttributes target = Files.readAttributes(abs, PosixFileAttributes.class,
                 LinkOption.NOFOLLOW_LINKS);
-            check(abs, provenance(target, dir, ancestors));
-            return new PathSentinel(abs);
+            check(abs, provenance(target, dir));
+            return new PathSentinel(abs, requireFileKey(abs, target));
         } catch (IOException e) {
             throw fail(abs + " 의 소유자·권한을 확인할 수 없습니다: " + e);
         } finally {
             closeQuietly(stream);
+        }
+    }
+
+    /**
+     * 교체 탐지의 기준값. {@code fileKey}(dev+ino)가 없으면 "검증한 파일과 읽는 파일이 같은가"를 물을 수단이
+     * 없으므로 <b>거부</b>한다 — {@code Objects.equals(null, null)}로 통과시키면 검사하는 척만 하는 것이다.
+     * 리눅스·macOS의 일반 파일시스템은 준다. 주지 않는 제공자(zipfs 등)는 POSIX 소유자·권한도 없어
+     * {@code StoragePermissions.posixSupported} 단계에서 이미 기능이 비활성이다.
+     */
+    private static Object requireFileKey(Path file, PosixFileAttributes attrs) {
+        Object key = attrs.fileKey();
+        if (key == null) {
+            throw fail(file + " 의 파일 식별자(fileKey)를 제공하지 않는 파일시스템입니다 — 검증한 파일이 읽기·선점"
+                + " 사이에 다른 파일로 바뀌어도 알아챌 수 없으므로 실행하지 않습니다");
+        }
+        return key;
+    }
+
+    /** 읽기·선점 직전의 교체 탐지. {@code verified}는 {@link #requireFileKey}를 지났으므로 null이 아니다. */
+    private static void requireSameFile(Path file, Object verified, Object current) {
+        if (!verified.equals(current)) {
+            throw fail(file + " 이(가) 출처 검증 이후 다른 파일로 바뀌었습니다 — 검증하지 않은 파일은 읽지도 옮기지도"
+                + " 않습니다. 데이터 디렉토리를 건드리는 다른 작업이 없는지 확인하고 재기동하세요");
         }
     }
 
@@ -248,22 +320,20 @@ public final class BreakGlassFile {
             throw fail(abs + " 의 부모 디렉토리를 알 수 없습니다");
         }
         try {
-            // 조상 체인이 먼저다 — 순환 심링크는 여기서 상한에 걸려 이유가 붙은 채로 멈춘다.
-            List<Ancestor> ancestors = ancestorsAbove(parent);
-            PosixFileAttributes dir = Files.readAttributes(parent, PosixFileAttributes.class);
+            // 부모 해석이 먼저다 — 순환 심링크는 여기서 상한에 걸려 이유가 붙은 채로 멈춘다.
+            ResolvedParent dir = resolveParent(parent);
             PosixFileAttributes target = Files.readAttributes(abs, PosixFileAttributes.class,
                 LinkOption.NOFOLLOW_LINKS);
-            check(abs, provenance(target, dir, ancestors));
+            check(abs, provenance(target, dir));
         } catch (IOException e) {
             throw fail(abs + " 의 소유자·권한을 확인할 수 없습니다: " + e);
         }
     }
 
-    private static Provenance provenance(PosixFileAttributes file, PosixFileAttributes dir,
-            List<Ancestor> ancestors) {
+    private static Provenance provenance(PosixFileAttributes file, ResolvedParent dir) {
         return new Provenance(file.isSymbolicLink(), file.isRegularFile(), file.size(),
             file.owner().getName(), file.permissions(),
-            dir.owner().getName(), dir.permissions(), ancestors);
+            dir.owner(), dir.perms(), dir.ancestors());
     }
 
     private static void check(Path file, Provenance p) {
@@ -363,8 +433,14 @@ public final class BreakGlassFile {
     }
 
     /**
-     * 부모 <b>위</b>에서 경로 해석이 지나가는 디렉토리 전부 — 커널이 실제로 거치는 것과 같은 순서로 한 컴포넌트씩
-     * 해석하면서, <b>심링크를 만날 때마다 그 타깃의 조상 체인까지</b> 이어서 순회한다.
+     * 부모 디렉토리를 <b>커널과 같은 순서로 한 컴포넌트씩</b> 해석하면서, 지나가는 디렉토리 전부와
+     * <b>마지막에 도달한 부모 자신의 사실</b>(소유자·권한·{@code fileKey})을 한 번의 순회에서 모은다.
+     * 심링크를 만날 때마다 <b>그 타깃의 조상 체인까지</b> 이어서 순회한다.
+     *
+     * <p>부모 자신을 순회 밖에서 {@code readAttributes(parent)}로 다시 읽지 않는 이유는 {@link ResolvedParent}에
+     * 적혀 있다 — 조상을 본 순간과 부모를 읽는 순간이 갈리면 그 사이의 교체를 fileKey 비교가 통과시킨다.
+     * 부모의 사실은 <b>순회가 실제로 들어간 그 디렉토리의 lstat</b>이다({@code ..}로 거슬러 올라갔거나 부모가
+     * 루트 자신이라 순회로 들어간 적이 없는 경로에서만 한 번 더 stat한다 — 그 두 형태에는 "들어간 순간"이 없다).
      *
      * <p>렉시컬 부모 체인과 최종 실경로 체인 둘만 훑으면 <b>중간 심링크 타깃의 조상</b>이 통째로 빠진다.
      * <pre>
@@ -380,13 +456,17 @@ public final class BreakGlassFile {
      *
      * <p>순환 심링크는 {@link #MAX_SYMLINKS}·{@link #MAX_STEPS}로 막는다 — 무한 루프는 곧 기동 행이다.
      * 도중에 stat이 실패하면 {@link IOException}이 그대로 올라가 기동 실패가 된다(fail-closed).
+     *
+     * <p><b>한계.</b> 층마다 디렉토리 핸들을 여는 표준 API가 없어 각 단계는 결국 경로 stat이다 — 순회 <b>도중</b>의
+     * 교체까지 배제하지는 못한다. {@link #open}의 fileKey 비교는 "순회가 끝난 뒤 핸들을 열기까지"의 창을 닫는다.
      */
-    static List<Ancestor> ancestorsAbove(Path parent) throws IOException {
+    static ResolvedParent resolveParent(Path parent) throws IOException {
         Path abs = parent.toAbsolutePath();
         Path cur = abs.getRoot();
         if (cur == null) {
             throw new IOException("절대 경로가 아닙니다: " + parent);
         }
+        PosixFileAttributes curAttrs = null;   // 순회로 '들어간' 디렉토리의 lstat — 있으면 다시 해석하지 않는다
         Deque<String> pending = new ArrayDeque<>();
         pushAll(pending, abs);
         Map<String, Ancestor> found = new LinkedHashMap<>();
@@ -403,6 +483,7 @@ public final class BreakGlassFile {
             if ("..".equals(name)) {
                 Path up = cur.getParent();
                 cur = up == null ? cur : up;   // 루트의 위는 루트다(POSIX)
+                curAttrs = null;               // 거슬러 올라간 곳은 '들어간' 곳이 아니다
                 continue;
             }
             Path entry = cur.resolve(name);
@@ -416,14 +497,19 @@ public final class BreakGlassFile {
                 Path target = Files.readSymbolicLink(entry);
                 if (target.isAbsolute()) {
                     cur = target.getRoot();
+                    curAttrs = null;
                 }
                 pushAll(pending, target);   // 타깃의 조상 체인도 이어서 지나간다 — 여기가 빠지면 위 반례가 뚫린다
             } else {
                 cur = entry;
+                curAttrs = entryAttrs;      // 들어간 그 순간의 사실 = 최종 부모의 사실(재해석 없음)
             }
         }
-        // 마지막으로 도달한 cur이 최종 부모다. 부모 자신은 parentOwner·parentPerms로 따로 판정한다.
-        return List.copyOf(found.values());
+        // 마지막으로 도달한 cur이 최종 부모다. 조상 목록에는 넣지 않는다 — 판정 규칙이 다르기 때문이다(700 요구).
+        PosixFileAttributes attrs =
+            curAttrs != null ? curAttrs : Files.readAttributes(cur, PosixFileAttributes.class);
+        return new ResolvedParent(List.copyOf(found.values()), attrs.owner().getName(), attrs.permissions(),
+            attrs.fileKey());
     }
 
     private static void pushAll(Deque<String> pending, Path path) {
@@ -435,7 +521,7 @@ public final class BreakGlassFile {
     /** (디렉토리, 엔트리) 한 쌍당 한 번만 stat한다 — 같은 쌍을 두 번 지나가는 경로가 있다. */
     private static void record(Map<String, Ancestor> found, Path dir, String entry, String entryOwner)
             throws IOException {
-        String key = dir + " " + entry;
+        String key = dir + "\0" + entry;   // 구분자는 NUL — 경로에 나올 수 없다(소스에는 이스케이프로 적는다: 날 NUL은 파일을 바이너리로 만들어 grep을 죽인다)
         if (found.containsKey(key)) {
             return;
         }
@@ -461,8 +547,12 @@ public final class BreakGlassFile {
      * 정책을 통과한 상태다.
      */
     public static Request read(Path file) {
+        return parse(readText(file), file);
+    }
+
+    private static String readText(Path file) {
         try {
-            return parse(Files.readString(file, StandardCharsets.UTF_8), file);
+            return Files.readString(file, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw fail(file + " 를 읽을 수 없습니다(UTF-8 텍스트여야 합니다): " + e);
         }
@@ -520,28 +610,39 @@ public final class BreakGlassFile {
     }
 
     /**
-     * 리눅스 경로 — 열린 디렉토리 핸들 기준으로 읽고 옮긴다. 경로를 다시 해석하지 않으므로
-     * {@link #open}이 검증한 그 엔트리를 읽고 그 엔트리를 옮기는 것이 커널 수준에서 보장된다.
+     * 리눅스 경로 — 열린 디렉토리 핸들 기준으로 읽고 옮기고 지운다. <b>디렉토리</b>는 그 핸들에 고정되지만
+     * 핸들 안의 <b>이름</b>은 매번 다시 조회되므로({@code newByteChannel}·{@code move}), 검증 시점의
+     * {@code key}를 읽기 직후·rename 직전에 다시 맞춰 교체를 탐지한다({@link #open} 참조).
      */
-    private record HandleBoundSentinel(SecureDirectoryStream<Path> dir, Path name, Path file) implements Sentinel {
+    private record HandleBoundSentinel(SecureDirectoryStream<Path> dir, Path name, Path file, Object key)
+            implements Sentinel {
 
         @Override
         public Request read() {
+            String text;
             try (SeekableByteChannel channel = dir.newByteChannel(name,
                     Set.of(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS))) {
-                return parse(decode(channel, file), file);
+                text = decode(channel, file);
             } catch (IOException e) {
                 throw fail(file + " 를 읽을 수 없습니다(UTF-8 텍스트여야 합니다): " + e);
             }
+            requireUnchanged();   // 파싱보다 먼저 — 검증하지 않은 파일의 내용은 해석조차 하지 않는다
+            return parse(text, file);
         }
 
         @Override
         public void claim(Path processing) {
+            requireUnchanged();
             try {
                 dir.move(name, dir, processing.getFileName());   // 같은 핸들 안의 상대 rename = 원자적
             } catch (IOException e) {
                 throw claimFailed(file, processing, e);
             }
+        }
+
+        @Override
+        public void discard(Path processing) throws IOException {
+            dir.deleteFile(processing.getFileName());   // 핸들 상대 삭제 — 경로를 다시 해석하지 않는다
         }
 
         @Override
@@ -553,23 +654,45 @@ public final class BreakGlassFile {
         public void close() {
             closeQuietly(dir);
         }
+
+        /** 핸들 상대 lstat — 이름이 여전히 검증한 그 inode를 가리키는가. */
+        private void requireUnchanged() {
+            try {
+                requireSameFile(file, key, dir
+                    .getFileAttributeView(name, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS)
+                    .readAttributes().fileKey());
+            } catch (IOException e) {
+                throw fail(file + " 이(가) 검증 이후 그대로인지 확인할 수 없습니다: " + e);
+            }
+        }
     }
 
-    /** {@link SecureDirectoryStream} 미지원 제공자(macOS 등)의 폴백 — 판정 규칙은 같고 TOCTOU 창만 넓다. */
-    private record PathSentinel(Path file) implements Sentinel {
+    /**
+     * {@link SecureDirectoryStream} 미지원 제공자(macOS 등)의 폴백 — 판정 규칙도 {@code fileKey} 재확인도 같고,
+     * 없는 것은 디렉토리 고정뿐이다(= 시간차 창이 넓다).
+     */
+    private record PathSentinel(Path file, Object key) implements Sentinel {
 
         @Override
         public Request read() {
-            return BreakGlassFile.read(file);
+            String text = readText(file);
+            requireUnchanged();
+            return parse(text, file);
         }
 
         @Override
         public void claim(Path processing) {
+            requireUnchanged();
             try {
                 Files.move(file, processing, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException e) {
                 throw claimFailed(file, processing, e);
             }
+        }
+
+        @Override
+        public void discard(Path processing) throws IOException {
+            Files.delete(processing);
         }
 
         @Override
@@ -580,6 +703,15 @@ public final class BreakGlassFile {
         @Override
         public void close() {
             // 잡고 있는 자원이 없다
+        }
+
+        private void requireUnchanged() {
+            try {
+                requireSameFile(file, key, Files
+                    .readAttributes(file, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey());
+            } catch (IOException e) {
+                throw fail(file + " 이(가) 검증 이후 그대로인지 확인할 수 없습니다: " + e);
+            }
         }
     }
 

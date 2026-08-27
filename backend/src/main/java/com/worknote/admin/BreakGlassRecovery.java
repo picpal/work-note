@@ -124,21 +124,22 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
                 + ". 적용 여부가 불확실하므로 자동으로 재시도하지 않습니다 — 해당 계정 상태(2FA·비밀번호·감사 로그)를"
                 + " 확인하고 이 파일을 지운 뒤 재기동하세요");
         }
-        // 검증·읽기·선점을 한 세션(리눅스에서는 열린 디렉토리 핸들)에 묶는다 — 셋을 각각 경로로 다시 해석하면
-        // 검증한 inode와 읽고 옮기는 inode가 달라질 수 있다. 여는 것 자체가 출처 검증이다(BreakGlassFile.open).
-        BreakGlassFile.Request req;
+        // 검증·읽기·선점·정리를 한 세션(리눅스에서는 열린 디렉토리 핸들)에 묶는다 — 각각 경로로 다시 해석하면
+        // 검증한 inode와 읽고·옮기고·지우는 inode가 달라질 수 있다. 여는 것 자체가 출처 검증이다(BreakGlassFile.open).
+        // 세션이 트랜잭션 바깥까지 열려 있는 것은 의도다: 정리(삭제)까지 같은 디렉토리 핸들에서 해야 하기 때문이고,
+        // 기동 중 한 번뿐인 이 경로에서 디렉토리 fd 하나를 잠깐 더 들고 있는 비용은 없다.
         try (BreakGlassFile.Sentinel session = BreakGlassFile.open(sentinel)) {
-            req = session.read();          // 검증이 수술보다 먼저 — 반쯤 적용 금지
+            BreakGlassFile.Request req = session.read();   // 검증이 수술보다 먼저 — 반쯤 적용 금지
             requireKnownEmp(req.emp());    // 선점 전에 사번까지 확인 — 오타 하나로 .processing이 남아 다음 기동까지 막지 않게
             session.claim(processing);     // 선점 후 수술 — 재적용 가능한 창을 없앤다
+            Outcome outcome = tx.execute(status -> apply(req));
+            // 삭제보다 먼저 기록한다 — 삭제에 실패해 기동이 멈춰도 "무엇이 일어났는지"는 남아야 한다.
+            log.warn("브레이크글래스 복구를 실행했습니다 — 사번 {}: 2FA 해제·유예 재시작{}{}. 처리 파일을 정리합니다.",
+                outcome.emp(),
+                outcome.passwordReset() ? " / 비밀번호 재설정(기존 세션 무효화)" : "",
+                outcome.reactivated() ? " / 계정 상태 active로 복구" : "");
+            delete(session, processing);
         }
-        Outcome outcome = tx.execute(status -> apply(req));
-        // 삭제보다 먼저 기록한다 — 삭제에 실패해 기동이 멈춰도 "무엇이 일어났는지"는 남아야 한다.
-        log.warn("브레이크글래스 복구를 실행했습니다 — 사번 {}: 2FA 해제·유예 재시작{}{}. 처리 파일을 정리합니다.",
-            outcome.emp(),
-            outcome.passwordReset() ? " / 비밀번호 재설정(기존 세션 무효화)" : "",
-            outcome.reactivated() ? " / 계정 상태 active로 복구" : "");
-        delete(processing);
     }
 
     /**
@@ -218,16 +219,22 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
     }
 
     /**
-     * 커밋 뒤 정리. 밖에서 rename만 되고 unlink만 실패하는 상태를 만들 수 없어 테스트가 직접 호출한다.
+     * 커밋 뒤 정리 — <b>선점과 같은 세션</b>으로 지운다. 밖에서 rename만 되고 unlink만 실패하는 상태를 만들 수 없어
+     * 테스트가 직접 호출한다.
      *
-     * <p>검증·읽기·선점과 달리 이 삭제는 디렉토리 핸들에 묶지 않는다({@link BreakGlassFile#open} 참조).
-     * 대상은 우리가 방금 원자적 rename으로 만든 이름이고, 설령 그 사이 디렉토리가 갈아끼워져 엉뚱한 곳을
-     * 지웠더라도 <b>진짜 {@code .processing}은 남아 다음 기동이 멈춘다</b> — 실패 방향이 닫혀 있다.
-     * 검증→읽기→선점이 어긋날 때(검증한 것과 다른 파일을 실행)와 달리 여기서 새로 생기는 권한은 없다.
+     * <p>세션에 묶는 이유: 경로로 다시 해석해 지우면 그 사이 디렉토리가 갈아끼워졌을 때 <b>엉뚱한 디렉토리의</b>
+     * {@code .processing}을 지우게 되고, 그러면 진짜 {@code .processing}이 남아도 다음 기동은 같은 경로(=갈아끼워진
+     * 쪽)를 보므로 그것을 보지 못한다. 즉 "지워도 fail-closed"라는 논증이 조건부가 된다. 핸들 상대 삭제
+     * (리눅스)에서는 그 조건 자체가 사라진다 — 우리가 rename해 넣은 <b>그 디렉토리</b>에서 지운다.
+     * 경로 폴백(macOS 등)에는 이 보장이 없고, 거기서는 위 논증이 그대로 조건부로 남는다.
+     *
+     * <p>남는 창: 그 이름이 가리키는 파일이 삭제 직전에 바뀌었을 수 있다. 그때 사라지는 것은 남이 놓은 파일이고
+     * 복구는 이미 커밋됐으므로 새로 생기는 권한은 없다 — 검증→읽기→선점이 어긋날 때(검증한 것과 다른 파일을
+     * 실행)와 달리 여기서 재적용되는 것은 없다.
      */
-    void delete(Path processing) {
+    void delete(BreakGlassFile.Sentinel session, Path processing) {
         try {
-            Files.delete(processing);
+            session.discard(processing);
         } catch (IOException e) {
             // 남은 .processing은 다음 기동을 세운다(중단 흔적으로 읽히므로). 조용히 넘기면 그 정지가
             // 아무 설명 없이 찾아오므로, 지금 이 자리에서 이유와 함께 세운다.
