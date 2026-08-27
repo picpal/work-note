@@ -131,7 +131,7 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
         try (BreakGlassFile.Sentinel session = BreakGlassFile.open(sentinel)) {
             BreakGlassFile.Request req = session.read();   // 검증이 수술보다 먼저 — 반쯤 적용 금지
             requireKnownEmp(req.emp());    // 선점 전에 사번까지 확인 — 오타 하나로 .processing이 남아 다음 기동까지 막지 않게
-            session.claim(processing);     // 선점 후 수술 — 재적용 가능한 창을 없앤다
+            session.claim(processing);     // 선점 후 수술 — 재적용 창을 닫는다(남는 한계는 Sentinel#claim)
             Outcome outcome = tx.execute(status -> apply(req));
             // 삭제보다 먼저 기록한다 — 삭제에 실패해 기동이 멈춰도 "무엇이 일어났는지"는 남아야 한다.
             log.warn("브레이크글래스 복구를 실행했습니다 — 사번 {}: 2FA 해제·유예 재시작{}{}. 처리 파일을 정리합니다.",
@@ -230,7 +230,9 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
      *
      * <p>남는 창: 그 이름이 가리키는 파일이 삭제 직전에 바뀌었을 수 있다. 그때 사라지는 것은 남이 놓은 파일이고
      * 복구는 이미 커밋됐으므로 새로 생기는 권한은 없다 — 검증→읽기→선점이 어긋날 때(검증한 것과 다른 파일을
-     * 실행)와 달리 여기서 재적용되는 것은 없다.
+     * 실행)와 달리 여기서 재적용되는 것은 없다. 재적용이 아예 불가능하다는 뜻은 아니다:
+     * {@link BreakGlassFile.Sentinel#claim}의 "확인 → rename 사이" 창에서는 원래 센티넬이 자리에 남아
+     * 다음 기동에 다시 적용될 수 있다. 그 창은 이 삭제가 아니라 선점 시점의 것이다.
      */
     void delete(BreakGlassFile.Sentinel session, Path processing) {
         try {

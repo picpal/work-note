@@ -166,12 +166,18 @@ public final class BreakGlassFile {
          *
          * <p>읽은 <b>직후</b> 같은 이름을 다시 lstat해 {@code fileKey}가 검증 시점과 같은지 확인한다 —
          * 다르면 {@link IllegalStateException}(= 기동 실패)이고 내용은 파싱조차 하지 않는다.
+         * 탐지되는 것은 <b>두 관측 시점의 non-null {@code fileKey} 불일치</b>뿐이다: <b>읽는 도중</b>의 교체와
+         * {@code fileKey} 재사용(ABA)은 지나간다({@link BreakGlassFile#open}의 "보장하지 않는 것").
          */
         Request read();
 
         /**
          * 원자적 선점 — 이 rename이 성공한 프로세스만 수술한다.
          * rename <b>직전</b>에도 {@link #read()}와 같은 {@code fileKey} 재확인을 한다.
+         *
+         * <p><b>확인과 rename 사이는 열려 있다.</b> 확인 직후 같은 이름에 다른 파일이 놓이면 옮겨지는 것은
+         * 그 파일이고, 원래 센티넬은 남아 다음 기동에 다시 적용될 수 있다. {@code fileKey} 재사용(ABA)도
+         * 마찬가지로 지나간다 — 둘 다 {@link BreakGlassFile#open}의 "보장하지 않는 것"에 적혀 있다.
          */
         void claim(Path processing);
 
@@ -225,17 +231,32 @@ public final class BreakGlassFile {
      *       다시 해석하면 그 사이의 교체를 fileKey 비교가 잡지 못하기 때문이다({@link ResolvedParent}).
      *       그렇게 얻은 부모의 {@code fileKey}와 <b>연 핸들의 fileKey</b>를 맞춰
      *       "조상은 A를 봤는데 핸들은 B를 열었다"를 배제한다.</li>
-     *   <li><b>파일 교체는 탐지되어 거부된다.</b> 핸들은 디렉토리를 고정할 뿐 <b>이름이 가리키는 inode를
-     *       고정하지 않는다</b> — {@code newByteChannel(name)}도 {@code move(name, ...)}도 그 이름을 매번 다시
-     *       조회한다. 그래서 검증 시점의 {@code fileKey}를 세션이 기억해 두고 <b>읽은 직후·rename 직전</b>에
-     *       다시 확인해 어긋나면 세운다.</li>
+     *   <li><b>파일 교체는 두 관측의 {@code fileKey} 불일치로 탐지해 거부한다.</b> 핸들은 디렉토리를 고정할 뿐
+     *       <b>이름이 가리키는 inode를 고정하지 않는다</b> — {@code newByteChannel(name)}도 {@code move(name, ...)}도
+     *       그 이름을 매번 다시 조회한다. 그래서 검증 시점의 {@code fileKey}를 세션이 기억해 두고
+     *       <b>읽은 직후·rename 직전</b>에 다시 확인해 어긋나면 세운다. 탐지되는 것은 딱 그것 —
+     *       <b>두 관측 시점의 non-null {@code fileKey} 불일치</b> — 이고, 그 이상은 아니다(아래).</li>
      * </ul>
      *
-     * <p><b>보장하지 않는 것.</b> 위 재확인은 창을 좁히는 것이지 닫는 것이 아니다 — <b>읽는 도중</b>에
-     * 교체가 일어나면(채널을 연 뒤 우리가 다시 lstat하기 전) 탐지하지 못한다. 완전한 inode 고정은 표준 API로
-     * 불가능하다: 열린 {@link SeekableByteChannel}에서 {@code fileKey}를 얻는 방법이 없고
-     * ({@code fstat} 계열이 노출되지 않는다), {@link SecureDirectoryStream}에도 "이 이름을 이 inode로만 열어라"가 없다.
-     * 그 창을 실제로 쓰려면 700·앱 소유 디렉토리에 쓸 수 있어야 하는데, 그 능력이 있으면 이미 DB를 직접 고칠 수 있다.
+     * <p><b>보장하지 않는 것.</b> 위 재확인은 창을 좁히는 것이지 닫는 것이 아니다. 다음 셋은 지금도 지나간다.
+     * <ul>
+     *   <li><b>읽는 도중의 교체.</b> 채널을 연 뒤 우리가 다시 lstat하기 전에 갈아끼우면 탐지하지 못한다.
+     *       완전한 inode 고정은 표준 API로 불가능하다: 열린 {@link SeekableByteChannel}에서 {@code fileKey}를
+     *       얻는 방법이 없고({@code fstat} 계열이 노출되지 않는다), {@link SecureDirectoryStream}에도
+     *       "이 이름을 이 inode로만 열어라"가 없다.</li>
+     *   <li><b>확인 → rename 사이의 교체.</b> {@link Sentinel#claim}의 재확인이 A를 본 <b>직후</b> 다른 프로세스가
+     *       A를 치우고 같은 이름에 B를 놓으면, {@code move}가 옮기는 것은 <b>B</b>다. 그러면 복구는 이미 읽어 둔
+     *       A의 내용으로 커밋되고 {@code .processing}으로 지워지는 것은 B이므로, 상대가 A를 원래 이름에
+     *       되돌려 두면 <b>A가 남아 다음 기동에 다시 적용</b>될 수 있다. rename 자체는 원자적이지만
+     *       "확인한 그 파일을 옮긴다"까지 원자적인 것은 아니다.</li>
+     *   <li><b>{@code fileKey} 재사용(ABA).</b> JDK 계약상 {@code fileKey}의 유일성은 <b>정적 파일시스템</b>에서만
+     *       보장되고, 삭제된 식별자를 재사용하는지는 <b>구현 의존</b>이다. A를 지우고 만든 B에 같은 키가 나오면
+     *       위 재확인은 전부 통과한다(ext4가 방금 해제한 inode를 재사용하는 것이 그 형태다).</li>
+     * </ul>
+     * 균형을 위해 함께 적는다: 이 창들을 실제로 쓰려면 여전히 <b>700·앱 소유 디렉토리에 쓸 수 있어야 한다.</b>
+     * 그 능력이 있으면 이미 {@code worknote.db}를 직접 열어 고칠 수 있으므로 이 한계로 <b>새로 생기는 권한은 없다</b> —
+     * 이 기능이 성립하는 근거와 같은 문장이다. 재확인의 값어치는 "권한 없는 교체를 막는 것"이 아니라
+     * 검증하지 않은 파일을 <b>조용히 실행하지 않는 것</b>에 있다.
      *
      * <p><b>미지원 제공자에서는 경로 기반으로 폴백한다</b>(이 클래스의 다른 실패가 전부 기동 중단인 것과 다르다).
      * macOS JDK는 {@code sun.nio.fs.UnixDirectoryStream}을 돌려줘 {@link SecureDirectoryStream}이 아니다 —
@@ -313,7 +334,7 @@ public final class BreakGlassFile {
      * <p>파일은 <b>링크를 따라가지 않고</b> 본다 — 따라가면 검증한 대상과 읽는 대상이 달라진다.
      * 부모 디렉토리는 반대로 실경로로 해석한다: 별도 볼륨을 심링크로 붙이는 정상 배치가 있고
      * (심링크 자체의 권한은 보통 777이라 그걸 보면 의미가 없다), 우리가 알고 싶은 건 실제 디렉토리의 상태다.
-     * 부모 위의 체인은 {@link #ancestorsAbove}가 모은다 — 부모의 700은 그 위에서 통째로
+     * 부모 위의 체인은 {@link #resolveParent}가 부모 자신의 사실과 함께 모은다 — 부모의 700은 그 위에서 통째로
      * 바꿔치기당하는 것을 막지 못하기 때문이다(판정은 {@link #violation}).
      */
     public static void verifyProvenance(Path file) {
