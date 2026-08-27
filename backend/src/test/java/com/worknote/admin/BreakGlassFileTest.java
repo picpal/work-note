@@ -489,6 +489,70 @@ class BreakGlassFileTest {
         }
     }
 
+    // ---- open: 검증·읽기·선점을 한 세션에 묶는다(TOCTOU) ----
+
+    /** 세션을 여는 것 자체가 출처 검증이다 — 통과한 센티넬만 읽고 옮길 수 있다. */
+    @Test
+    void open_verifiesThenReadsAndClaimsThroughOneSession() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        Path processing = tmp.resolve("break-glass.processing");
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
+            assertThat(session.read().emp()).isEqualTo("admin");
+            session.claim(processing);
+        }
+        assertThat(file).doesNotExist();
+        assertThat(processing).exists();
+    }
+
+    @Test
+    void open_refusesASentinelWhoseProvenanceFails() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-r--r--"));
+        assertThatThrownBy(() -> BreakGlassFile.open(file).close())
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("600");
+    }
+
+    /**
+     * <b>이 머신(macOS)에서는 실행되지 않는다.</b> {@code Files.newDirectoryStream}이 여기서는
+     * {@code sun.nio.fs.UnixDirectoryStream}을 돌려주고 그건 {@link java.nio.file.SecureDirectoryStream}이
+     * 아니다(리눅스 JDK는 보통 제공한다). 통과하는 척하는 단언을 만들지 않기 위해 {@code assumeTrue}로 건너뛴다 —
+     * 이 저장소에서 이 테스트가 <b>초록으로 보이면 그건 실행됐다는 뜻이 아니라 skip됐다는 뜻</b>이다.
+     *
+     * <p>검증하는 성질: 세션을 연 뒤 <b>경로 상의 파일을 통째로 갈아치워도</b> 읽히는 것은 검증한 그 inode다.
+     * 경로 기반 폴백에서는 갈아치운 쪽이 읽히므로(그게 곧 TOCTOU 창이다) 이 단언은 핸들 기반에서만 성립한다.
+     */
+    @Test
+    void open_readsTheVerifiedInodeEvenIfThePathIsSwappedAfterwards() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
+            assumeTrue(session.handleBound(), "SecureDirectoryStream 미지원 제공자(macOS 등) — skip");
+            Files.delete(file);
+            Files.writeString(file, "emp=intruder\n", StandardCharsets.UTF_8);
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+
+            assertThat(session.read().emp()).isEqualTo("admin");
+        }
+    }
+
+    /**
+     * 미지원 제공자에서는 <b>경로 기반으로 폴백한다</b> — 여기서 기동을 세우면 개발·검증 환경(macOS)에서
+     * 기능이 통째로 죽는다. 판정 규칙은 같고 달라지는 것은 TOCTOU 창의 폭뿐이다.
+     * (이 단언은 위 테스트와 정확히 반대편이라 리눅스에서는 skip된다 — 둘 중 하나는 항상 실행된다)
+     */
+    @Test
+    void open_fallsBackToPathAccessWhereSecureDirectoryStreamsAreUnavailable() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path file = sentinel600("emp=admin\n");
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
+            assumeTrue(!session.handleBound(), "SecureDirectoryStream 지원 제공자(리눅스 등) — skip");
+            assertThat(session.read().emp()).isEqualTo("admin");   // 폴백도 같은 규칙으로 읽고 검증한다
+        }
+    }
+
     /**
      * 경로 어딘가에서 stat이 막히면(권한 없음 등) 판정할 수 없다 — 이 클래스의 원칙대로 fail-closed.
      *

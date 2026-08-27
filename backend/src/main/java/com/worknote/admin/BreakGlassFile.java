@@ -3,11 +3,18 @@ package com.worknote.admin;
 import com.worknote.auth.PasswordPolicy;
 import com.worknote.config.StoragePermissions;
 import java.io.IOException;
-import java.io.Reader;
+import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.SecureDirectoryStream;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -17,6 +24,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
@@ -47,6 +55,9 @@ import java.util.TreeSet;
  * 나중에 {@code chmod 700}으로 조여도 미리 심어둔 파일은 지워지지도, 소유자가 바뀌지도 않는다(그래서 소유자까지 본다).
  * 이 검사는 {@code worknote.storage.strict}와 <b>무관하게</b> 항상 fail-closed다 — 그 스위치는 저장소 하드닝
  * 경고에 대한 운영자의 선택이지, 복구 뒷문을 넓혀도 된다는 뜻이 아니다.
+ *
+ * <p><b>검증·읽기·선점은 한 세션에 묶는다</b>({@link #open}). 셋을 각각 경로로 다시 해석하면 검증한 inode와
+ * 읽고 옮기는 inode가 달라질 수 있다(TOCTOU). 리눅스 JDK가 주는 {@link SecureDirectoryStream}이 그 창을 닫는다.
  *
  * <p><b>포맷은 {@link Properties}</b> — 공백·CRLF·주석·인코딩 예외를 우리가 다시 구현하지 않는다.
  * <pre>
@@ -97,7 +108,8 @@ public final class BreakGlassFile {
     public record Request(String emp, String password) {}
 
     /**
-     * 출처 판정에 필요한 <b>사실만</b> 담은 값 — 실제 stat은 {@link #verifyProvenance}가 한다(판정은 순수 함수로).
+     * 출처 판정에 필요한 <b>사실만</b> 담은 값 — 실제 stat은 {@link #verifyProvenance}·{@link #open}이 한다
+     * (판정은 순수 함수로).
      *
      * @param ancestors 부모 <b>위</b>에서 경로 해석이 지나가는 디렉토리들. 부모 자신은 {@code parentOwner}·
      *                  {@code parentPerms}다.
@@ -120,6 +132,25 @@ public final class BreakGlassFile {
      */
     public record Ancestor(String path, String owner, Set<PosixFilePermission> perms, boolean sticky,
                            String entry, String entryOwner) {}
+
+    /**
+     * 센티넬 한 번의 소비 — <b>출처 검증·읽기·선점을 같은 디렉토리 핸들에 묶는다</b>({@link #open} 참조).
+     * 열렸다는 것은 출처 검증을 통과했다는 뜻이다.
+     */
+    public interface Sentinel extends AutoCloseable {
+
+        /** 읽고 검증한다. 반환됐다면 사번이 있고 비밀번호는(있다면) 정책을 통과한 상태다. */
+        Request read();
+
+        /** 원자적 선점 — 이 rename이 성공한 프로세스만 수술한다. */
+        void claim(Path processing);
+
+        /** 열린 디렉토리 핸들에 묶였는가(리눅스) 아니면 경로 기반 폴백인가(macOS 등). 관측·문서용. */
+        boolean handleBound();
+
+        @Override
+        void close();
+    }
 
     /**
      * 센티넬 경로 — <b>DB 파일의 부모 디렉토리</b> 한 곳뿐이다. 700을 근거로 삼는 곳이 거기이기 때문이다.
@@ -145,7 +176,64 @@ public final class BreakGlassFile {
     }
 
     /**
-     * 실제 파일에서 사실을 읽어 {@link #violation}에 묻는다. 위반이면 기동 실패.
+     * 출처를 검증하고 소비 세션을 연다. 통과하지 못하면 {@link IllegalStateException} = 기동 실패다.
+     *
+     * <p><b>왜 세션인가.</b> 검증·읽기·선점을 각각 경로로 다시 해석하면, 셋 사이에 부모 디렉토리나 파일이
+     * 갈아끼워질 수 있다 — 검증한 inode와 읽고 옮기는 inode가 다른 고전적 TOCTOU다. 리눅스 JDK의
+     * {@link Files#newDirectoryStream}은 {@link SecureDirectoryStream}을 돌려주므로, <b>열린 디렉토리 핸들</b>
+     * 기준으로 lstat({@code NOFOLLOW_LINKS})·읽기·상대 rename을 할 수 있다. 그러면 셋이 같은 디렉토리·같은
+     * 엔트리를 가리키는 것이 커널 수준에서 보장된다.
+     *
+     * <p><b>미지원 제공자에서는 경로 기반으로 폴백한다</b>(이 클래스의 다른 실패가 전부 기동 중단인 것과 다르다).
+     * macOS JDK는 {@code sun.nio.fs.UnixDirectoryStream}을 돌려줘 {@link SecureDirectoryStream}이 아니다 —
+     * 거기서 기동을 세우면 개발·검증 환경에서 이 기능이 통째로 죽는다. 폴백에서도 <b>판정 규칙은 완전히 같고</b>
+     * 달라지는 것은 TOCTOU 창의 폭뿐이다(리눅스 배포에서는 강한 보장, 그 외에서는 경로 기반). 이 사실은
+     * 운영자 가이드에도 적혀 있어야 한다 — 조용한 등급 차이는 없다.
+     *
+     * <p>조상 체인({@link #ancestorsAbove})은 핸들에 묶을 수 없다(층마다 핸들을 여는 API가 없다). 대신
+     * <b>조상을 먼저 확인하고</b>, 그 직후 연 핸들이 방금 확인한 그 디렉토리(inode)인지 {@code fileKey}로 맞춰
+     * "조상은 A를 봤는데 핸들은 B를 열었다"를 배제한다.
+     */
+    public static Sentinel open(Path file) {
+        Path abs = file.toAbsolutePath();
+        Path parent = abs.getParent();
+        Path name = abs.getFileName();
+        if (parent == null || name == null) {
+            throw fail(abs + " 의 부모 디렉토리를 알 수 없습니다");
+        }
+        DirectoryStream<Path> stream = null;
+        try {
+            List<Ancestor> ancestors = ancestorsAbove(parent);   // 핸들을 열기 전에 — 아래 fileKey 비교의 기준
+            PosixFileAttributes dir = Files.readAttributes(parent, PosixFileAttributes.class);
+            stream = Files.newDirectoryStream(parent);
+            if (stream instanceof SecureDirectoryStream<Path> secure) {
+                PosixFileAttributes opened =
+                    secure.getFileAttributeView(PosixFileAttributeView.class).readAttributes();
+                if (!Objects.equals(dir.fileKey(), opened.fileKey())) {
+                    throw fail(parent + " 가 검사 도중 다른 디렉토리로 바뀌었습니다 — 아무 작업도 하지 않았습니다."
+                        + " 데이터 디렉토리를 건드리는 다른 작업이 없는지 확인하고 재기동하세요");
+                }
+                PosixFileAttributes target = secure
+                    .getFileAttributeView(name, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS)
+                    .readAttributes();
+                check(abs, provenance(target, opened, ancestors));
+                Sentinel sentinel = new HandleBoundSentinel(secure, name, abs);
+                stream = null;   // 핸들의 수명은 이제 세션의 것이다
+                return sentinel;
+            }
+            PosixFileAttributes target = Files.readAttributes(abs, PosixFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+            check(abs, provenance(target, dir, ancestors));
+            return new PathSentinel(abs);
+        } catch (IOException e) {
+            throw fail(abs + " 의 소유자·권한을 확인할 수 없습니다: " + e);
+        } finally {
+            closeQuietly(stream);
+        }
+    }
+
+    /**
+     * 경로 기반 출처 검증 — {@link #open}의 폴백이자 판정 규칙 자체의 시험 지점.
      *
      * <p>파일은 <b>링크를 따라가지 않고</b> 본다 — 따라가면 검증한 대상과 읽는 대상이 달라진다.
      * 부모 디렉토리는 반대로 실경로로 해석한다: 별도 볼륨을 심링크로 붙이는 정상 배치가 있고
@@ -368,11 +456,23 @@ public final class BreakGlassFile {
         }
     }
 
-    /** 읽고 검증한다. 반환됐다면 사번이 있고 비밀번호는(있다면) 정책을 통과한 상태다. */
+    /**
+     * 읽고 검증한다(경로 기반 — {@link Sentinel#read()}의 폴백). 반환됐다면 사번이 있고 비밀번호는(있다면)
+     * 정책을 통과한 상태다.
+     */
     public static Request read(Path file) {
+        try {
+            return parse(Files.readString(file, StandardCharsets.UTF_8), file);
+        } catch (IOException e) {
+            throw fail(file + " 를 읽을 수 없습니다(UTF-8 텍스트여야 합니다): " + e);
+        }
+    }
+
+    /** 파싱·검증 — 바이트를 어디서 읽었는지와 무관한 부분(경로 기반이든 핸들 기반이든 같은 규칙). */
+    private static Request parse(String text, Path file) {
         Properties props = new Properties();
-        try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            props.load(reader);
+        try {
+            props.load(new StringReader(text));
         } catch (IOException e) {
             throw fail(file + " 를 읽을 수 없습니다(UTF-8 텍스트여야 합니다): " + e);
         }
@@ -411,6 +511,100 @@ public final class BreakGlassFile {
             }
         }
         return new Request(emp.trim(), password);
+    }
+
+    /** 선점 실패 메시지는 두 구현이 공유한다 — 운영자가 보는 문구가 제공자에 따라 달라질 이유가 없다. */
+    private static IllegalStateException claimFailed(Path file, Path processing, Exception cause) {
+        return fail(file + " 을(를) " + processing + " 로 옮기지 못했습니다(" + cause + ")."
+            + " 옮기지 못한 채로 진행하면 다음 기동이 같은 파일을 다시 적용합니다 — 디렉토리 쓰기 권한을 확인하세요");
+    }
+
+    /**
+     * 리눅스 경로 — 열린 디렉토리 핸들 기준으로 읽고 옮긴다. 경로를 다시 해석하지 않으므로
+     * {@link #open}이 검증한 그 엔트리를 읽고 그 엔트리를 옮기는 것이 커널 수준에서 보장된다.
+     */
+    private record HandleBoundSentinel(SecureDirectoryStream<Path> dir, Path name, Path file) implements Sentinel {
+
+        @Override
+        public Request read() {
+            try (SeekableByteChannel channel = dir.newByteChannel(name,
+                    Set.of(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS))) {
+                return parse(decode(channel, file), file);
+            } catch (IOException e) {
+                throw fail(file + " 를 읽을 수 없습니다(UTF-8 텍스트여야 합니다): " + e);
+            }
+        }
+
+        @Override
+        public void claim(Path processing) {
+            try {
+                dir.move(name, dir, processing.getFileName());   // 같은 핸들 안의 상대 rename = 원자적
+            } catch (IOException e) {
+                throw claimFailed(file, processing, e);
+            }
+        }
+
+        @Override
+        public boolean handleBound() {
+            return true;
+        }
+
+        @Override
+        public void close() {
+            closeQuietly(dir);
+        }
+    }
+
+    /** {@link SecureDirectoryStream} 미지원 제공자(macOS 등)의 폴백 — 판정 규칙은 같고 TOCTOU 창만 넓다. */
+    private record PathSentinel(Path file) implements Sentinel {
+
+        @Override
+        public Request read() {
+            return BreakGlassFile.read(file);
+        }
+
+        @Override
+        public void claim(Path processing) {
+            try {
+                Files.move(file, processing, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                throw claimFailed(file, processing, e);
+            }
+        }
+
+        @Override
+        public boolean handleBound() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+            // 잡고 있는 자원이 없다
+        }
+    }
+
+    /** 상한을 넘는 바이트는 읽지 않는다 — 크기 검증은 이미 지났지만, 읽는 쪽에도 같은 상한을 둔다. */
+    private static String decode(SeekableByteChannel channel, Path file) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(MAX_BYTES + 1);
+        while (buffer.hasRemaining() && channel.read(buffer) > 0) {
+            // 채워질 때까지
+        }
+        if (!buffer.hasRemaining()) {
+            throw fail(file + " 이(가) 너무 큽니다(" + MAX_BYTES + "바이트 이하여야 합니다)");
+        }
+        buffer.flip();
+        return StandardCharsets.UTF_8.newDecoder().decode(buffer).toString();   // 기본 REPORT — 깨진 UTF-8은 예외
+    }
+
+    private static void closeQuietly(AutoCloseable closeable) {
+        if (closeable == null) {
+            return;
+        }
+        try {
+            closeable.close();
+        } catch (Exception e) {
+            // 닫기 실패로 복구를 세우지 않는다 — 이미 할 일은 끝났거나, 세울 이유는 따로 던져진 뒤다.
+        }
     }
 
     static IllegalStateException fail(String message) {

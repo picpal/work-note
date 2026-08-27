@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,10 +124,14 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
                 + ". 적용 여부가 불확실하므로 자동으로 재시도하지 않습니다 — 해당 계정 상태(2FA·비밀번호·감사 로그)를"
                 + " 확인하고 이 파일을 지운 뒤 재기동하세요");
         }
-        BreakGlassFile.verifyProvenance(sentinel);                    // 전제 확인 — 여기서 막히면 아무것도 하지 않는다
-        BreakGlassFile.Request req = BreakGlassFile.read(sentinel);   // 검증이 수술보다 먼저 — 반쯤 적용 금지
-        requireKnownEmp(req.emp());   // 선점 전에 사번까지 확인 — 오타 하나로 .processing이 남아 다음 기동까지 막지 않게
-        claim(sentinel, processing);                                  // 선점 후 수술 — 재적용 가능한 창을 없앤다
+        // 검증·읽기·선점을 한 세션(리눅스에서는 열린 디렉토리 핸들)에 묶는다 — 셋을 각각 경로로 다시 해석하면
+        // 검증한 inode와 읽고 옮기는 inode가 달라질 수 있다. 여는 것 자체가 출처 검증이다(BreakGlassFile.open).
+        BreakGlassFile.Request req;
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(sentinel)) {
+            req = session.read();          // 검증이 수술보다 먼저 — 반쯤 적용 금지
+            requireKnownEmp(req.emp());    // 선점 전에 사번까지 확인 — 오타 하나로 .processing이 남아 다음 기동까지 막지 않게
+            session.claim(processing);     // 선점 후 수술 — 재적용 가능한 창을 없앤다
+        }
         Outcome outcome = tx.execute(status -> apply(req));
         // 삭제보다 먼저 기록한다 — 삭제에 실패해 기동이 멈춰도 "무엇이 일어났는지"는 남아야 한다.
         log.warn("브레이크글래스 복구를 실행했습니다 — 사번 {}: 2FA 해제·유예 재시작{}{}. 처리 파일을 정리합니다.",
@@ -186,16 +189,6 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
         }
     }
 
-    /** 원자적 선점 — 이 rename이 성공한 프로세스만 수술한다. */
-    private void claim(Path sentinel, Path processing) {
-        try {
-            Files.move(sentinel, processing, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            throw BreakGlassFile.fail(sentinel + " 을(를) " + processing + " 로 옮기지 못했습니다(" + e + ")."
-                + " 옮기지 못한 채로 진행하면 다음 기동이 같은 파일을 다시 적용합니다 — 디렉토리 쓰기 권한을 확인하세요");
-        }
-    }
-
     private record Outcome(String emp, boolean passwordReset, boolean reactivated) {}
 
     /** 한 트랜잭션 — 다음 로그인을 막는 것들을 한꺼번에 걷어낸다. 하나라도 실패하면 전부 되돌린다. */
@@ -224,7 +217,14 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
         return new Outcome(user.emp(), passwordReset, reactivated);
     }
 
-    /** 커밋 뒤 정리. 밖에서 rename만 되고 unlink만 실패하는 상태를 만들 수 없어 테스트가 직접 호출한다. */
+    /**
+     * 커밋 뒤 정리. 밖에서 rename만 되고 unlink만 실패하는 상태를 만들 수 없어 테스트가 직접 호출한다.
+     *
+     * <p>검증·읽기·선점과 달리 이 삭제는 디렉토리 핸들에 묶지 않는다({@link BreakGlassFile#open} 참조).
+     * 대상은 우리가 방금 원자적 rename으로 만든 이름이고, 설령 그 사이 디렉토리가 갈아끼워져 엉뚱한 곳을
+     * 지웠더라도 <b>진짜 {@code .processing}은 남아 다음 기동이 멈춘다</b> — 실패 방향이 닫혀 있다.
+     * 검증→읽기→선점이 어긋날 때(검증한 것과 다른 파일을 실행)와 달리 여기서 새로 생기는 권한은 없다.
+     */
     void delete(Path processing) {
         try {
             Files.delete(processing);
