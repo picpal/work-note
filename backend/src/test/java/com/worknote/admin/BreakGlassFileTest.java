@@ -1,6 +1,7 @@
 package com.worknote.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -8,6 +9,7 @@ import com.worknote.auth.PasswordPolicy;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
@@ -15,6 +17,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 /** 브레이크글래스 센티넬의 경로 판정·출처 검증·파싱 — DB도 스프링도 없는 순수 로직만. */
@@ -85,8 +88,15 @@ class BreakGlassFileTest {
             List.of(ancestor("/srv", "rwxr-xr-x"), ancestor("/", "rwxr-xr-x")));
     }
 
+    /** 정상 배포의 조상 — root 소유 755이고, 그 안에서 우리가 지나가는 엔트리는 앱 계정 것이다. */
     private static BreakGlassFile.Ancestor ancestor(String path, String mode) {
-        return new BreakGlassFile.Ancestor(path, PosixFilePermissions.fromString(mode), false);
+        return ancestor(path, "root", mode, false, ME);
+    }
+
+    private static BreakGlassFile.Ancestor ancestor(String path, String owner, String mode,
+            boolean sticky, String entryOwner) {
+        return new BreakGlassFile.Ancestor(path, owner, PosixFilePermissions.fromString(mode), sticky,
+            "worknote", entryOwner);
     }
 
     @Test
@@ -166,11 +176,69 @@ class BreakGlassFileTest {
             ancestor("/", "rwxrwxrwx")), ME)).contains("쓰기");
     }
 
-    /** sticky(1777)면 자기가 소유하지 않은 엔트리를 rename할 수 없다 — 바꿔치기 시나리오가 성립하지 않는다. */
+    /**
+     * 조상 소유자는 <b>앱 실행 계정 또는 root</b>만 허용한다. 쓰기 비트만 보면 부족하다 —
+     * {@code /home/other/worknote}가 {@code other} 소유 755면 {@code other}는 자기 디렉토리의 엔트리를
+     * 언제든 rename할 수 있고(쓰기 비트가 없어도 자기 디렉토리를 chmod할 수 있다), 그러면 데이터 디렉토리를
+     * 통째로 바꿔치기해 "700 앱 소유 부모"인 척 만들 수 있다 = "새 권한이 생기지 않는다"는 전제가 깨진다.
+     */
     @Test
-    void violation_acceptsAStickyWritableAncestor() {
+    void violation_rejectsAnAncestorOwnedByAnotherLocalUser() {
         assertThat(BreakGlassFile.violation(ancestors(ok(),
-            new BreakGlassFile.Ancestor("/tmp", PosixFilePermissions.fromString("rwxrwxrwx"), true)), ME)).isNull();
+            ancestor("/home/other/worknote", "other", "rwxr-xr-x", false, ME)), ME))
+            .contains("/home/other/worknote")   // 파일·부모 소유자 메시지와 섞이지 않도록 경로로 지목한다
+            .contains("other")
+            .contains("소유자");
+    }
+
+    /** 흔한 배치는 그대로 통과해야 한다 — {@code /}, {@code /var}, {@code /var/lib}는 root, 데이터 디렉토리는 앱 계정. */
+    @Test
+    void violation_acceptsAncestorsOwnedByTheAppAccountOrRoot() {
+        assertThat(BreakGlassFile.violation(ancestors(ok(),
+            ancestor("/var/lib/worknote", ME, "rwx------", false, ME),
+            ancestor("/var/lib", "root", "rwxr-xr-x", false, ME),
+            ancestor("/var", "root", "rwxr-xr-x", false, ME),
+            ancestor("/", "root", "rwxr-xr-x", false, ME)), ME)).isNull();
+    }
+
+    /**
+     * sticky(1777)는 <b>조건부</b> 예외다. sticky는 "누구도 rename하지 못한다"가 아니라
+     * "엔트리 소유자·디렉토리 소유자·특권자만 rename한다"이므로, 통과시키려면 그 디렉토리가 앱 계정·root 소유이고
+     * <b>우리가 지나가는 엔트리도</b> 앱 계정(또는 root) 것이어야 한다.
+     * {@code /tmp}(root 1777) 아래에 앱 소유 디렉토리를 두는 정상 배치가 이 형태다.
+     */
+    @Test
+    void violation_acceptsAStickyWritableAncestorWhenTheEntryWeTraverseIsOurs() {
+        assertThat(BreakGlassFile.violation(ancestors(ok(),
+            ancestor("/tmp", "root", "rwxrwxrwx", true, ME)), ME)).isNull();
+        assertThat(BreakGlassFile.violation(ancestors(ok(),
+            ancestor("/tmp", "root", "rwxrwxrwx", true, "root")), ME)).isNull();
+    }
+
+    /**
+     * 반대쪽 — {@code /tmp/link}가 공격자 소유 심링크라면 sticky가 있어도 공격자는 <b>자기 엔트리</b>를
+     * 검증 직후 갈아끼울 수 있다. 그 배치는 통과시키면 안 된다.
+     * (실파일로는 남의 소유 엔트리를 만들 수 없어 판정은 여기서만 본다 — 사실 채우기는 {@link #ancestorsAbove_recordsTheOwnerOfEachDirectoryAndOfTheEntryWeTraverse()})
+     */
+    @Test
+    void violation_rejectsAStickyWritableAncestorWhenTheEntryWeTraverseIsSomeoneElses() {
+        assertThat(BreakGlassFile.violation(ancestors(ok(),
+            ancestor("/tmp", "root", "rwxrwxrwx", true, "intruder")), ME)).contains("/tmp").contains("쓰기");
+    }
+
+    /** 엔트리 소유자를 알 수 없으면 예외를 인정하지 않는다 — 더 엄격한 쪽(sticky를 읽지 못할 때와 같은 결). */
+    @Test
+    void violation_stickyIsNoExcuseWhenTheTraversedEntryOwnerIsUnknown() {
+        assertThat(BreakGlassFile.violation(ancestors(ok(),
+            ancestor("/tmp", "root", "rwxrwxrwx", true, null)), ME)).contains("/tmp");
+    }
+
+    /** sticky 디렉토리 자신이 남의 것이면 소유자 규칙에서 먼저 걸린다 — 디렉토리 소유자는 sticky와 무관하게 rename한다. */
+    @Test
+    void violation_rejectsAStickyDirectoryOwnedBySomeoneElse() {
+        assertThat(BreakGlassFile.violation(ancestors(ok(),
+            ancestor("/intruder-tmp", "intruder", "rwxrwxrwx", true, ME)), ME))
+            .contains("/intruder-tmp").contains("소유자");
     }
 
     // ---- verifyProvenance: 실제 파일에서 위 사실들을 읽어오는가 ----
@@ -270,7 +338,7 @@ class BreakGlassFileTest {
         try {
             assertThatThrownBy(() -> BreakGlassFile.verifyProvenance(file))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(outer.toString());
+                .hasMessageContaining(real(outer));   // 메시지는 실경로를 지목한다 — chmod할 대상이 그것이다
         } finally {
             Files.setPosixFilePermissions(outer, PosixFilePermissions.fromString("rwx------"));
         }
@@ -288,7 +356,7 @@ class BreakGlassFileTest {
         try {
             assertThatThrownBy(() -> BreakGlassFile.verifyProvenance(file))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(top.toString());
+                .hasMessageContaining(real(top));
         } finally {
             Files.setPosixFilePermissions(top, PosixFilePermissions.fromString("rwx------"));
         }
@@ -310,6 +378,114 @@ class BreakGlassFileTest {
             BreakGlassFile.verifyProvenance(file);   // 예외 없음
         } finally {
             Files.setPosixFilePermissions(outer, PosixFilePermissions.fromString("rwx------"));
+        }
+    }
+
+    /**
+     * 중첩 심링크 — 렉시컬 부모 체인과 <b>최종</b> 실경로 체인 둘만 훑으면 중간 타깃의 조상이 통째로 빠진다.
+     * <pre>
+     * safe/l1   -> open/a          렉시컬 체인은 여기서 open/a 로 점프한다 — open 은 보지 않는다
+     * open/a/l2 -> secure/final    최종 실경로 체인은 secure/... 만 올라간다
+     * DB 부모   = safe/l1/l2/data  (앱 소유 700)
+     * </pre>
+     * {@code open}이 777이면 검증 후 {@code open/a}를 자기 트리로 바꿔치기할 수 있고, 그 뒤의 읽기·rename이
+     * 공격자 파일을 집는다. 커널이 실제로 지나가는 디렉토리는 전부 봐야 한다.
+     */
+    @Test
+    void verifyProvenance_rejectsAWritableAncestorOfAnIntermediateSymlinkTarget() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path open = Files.createDirectories(tmp.resolve("open/a"));
+        Path data = Files.createDirectories(tmp.resolve("secure/final/data"));
+        Files.createDirectories(tmp.resolve("safe"));
+        Files.createSymbolicLink(tmp.resolve("safe/l1"), open);
+        Files.createSymbolicLink(open.resolve("l2"), tmp.resolve("secure/final"));
+        sentinel600(data, "emp=admin\n");
+        Path viaLinks = tmp.resolve("safe/l1/l2/data/break-glass");
+        Files.setPosixFilePermissions(tmp.resolve("open"), PosixFilePermissions.fromString("rwxrwxrwx"));
+        try {
+            assertThatThrownBy(() -> BreakGlassFile.verifyProvenance(viaLinks))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(real(tmp.resolve("open")));
+        } finally {
+            Files.setPosixFilePermissions(tmp.resolve("open"), PosixFilePermissions.fromString("rwx------"));
+        }
+    }
+
+    /**
+     * 순환 심링크에서 <b>돌지 않는다</b>. 무한 루프는 기동 행 = 복구 기능에서 최악의 실패다.
+     * 상한을 없애면 이 테스트는 실패가 아니라 영원히 끝나지 않으므로 {@link Timeout}으로 잡는다.
+     */
+    @Test
+    @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)   // 별도 스레드 — 같은 스레드면 무한 루프를 못 끊는다
+    void verifyProvenance_failsClosedOnASymlinkCycleInsteadOfSpinningForever() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Files.createSymbolicLink(tmp.resolve("loop1"), tmp.resolve("loop2"));
+        Files.createSymbolicLink(tmp.resolve("loop2"), tmp.resolve("loop1"));
+
+        assertThatThrownBy(() -> BreakGlassFile.verifyProvenance(tmp.resolve("loop1/data/break-glass")))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("심링크");   // OS의 ELOOP가 아니라 우리 상한이 먼저 잡았다는 뜻
+    }
+
+    /**
+     * 실측 쪽 — 판정({@link BreakGlassFile#violation})이 쓰는 사실을 실제로 채우는지. 셋을 본다:
+     * (1) 커널이 지나가는 디렉토리를 전부 담는가(중간 심링크 타깃의 조상 포함),
+     * (2) 각 디렉토리의 소유자를 담는가, (3) 그 안에서 지나가는 엔트리의 lstat 소유자를 담는가.
+     * 합성 {@code Provenance}만으로는 "verifyProvenance가 그 사실을 실제로 채우는가"를 증명하지 못한다.
+     */
+    @Test
+    void ancestorsAbove_recordsTheOwnerOfEachDirectoryAndOfTheEntryWeTraverse() throws Exception {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path open = Files.createDirectories(tmp.resolve("open/a"));
+        Path data = Files.createDirectories(tmp.resolve("secure/final/data"));
+        Files.createDirectories(tmp.resolve("safe"));
+        Files.createSymbolicLink(tmp.resolve("safe/l1"), open);
+        Files.createSymbolicLink(open.resolve("l2"), tmp.resolve("secure/final"));
+
+        List<BreakGlassFile.Ancestor> chain = BreakGlassFile.ancestorsAbove(tmp.resolve("safe/l1/l2/data"));
+
+        assertThat(chain).isNotEmpty().allSatisfy(a -> {
+            assertThat(a.owner()).as("%s 의 소유자", a.path())
+                .isEqualTo(Files.getOwner(Paths.get(a.path())).getName());
+            assertThat(a.entryOwner()).as("%s 안의 엔트리 %s 의 소유자", a.path(), a.entry())
+                .isEqualTo(Files.getOwner(Paths.get(a.path()).resolve(a.entry()),
+                    LinkOption.NOFOLLOW_LINKS).getName());
+        });
+        assertThat(chain).extracting(BreakGlassFile.Ancestor::path)
+            .contains(real(tmp.resolve("open")),          // 중간 심링크 타깃의 조상 — 여기가 빠지면 위 반례가 뚫린다
+                      real(tmp.resolve("open/a")),
+                      real(tmp.resolve("safe")),
+                      real(tmp.resolve("secure/final")),
+                      real(tmp))
+            .doesNotContain(real(data));                  // 최종 부모 자신은 조상이 아니다(따로 판정한다)
+    }
+
+    /**
+     * <b>정상 배포가 여전히 뜨는가.</b> 조상 규칙(소유자 + 쓰기 비트 + 조건부 sticky)이 서로 겹쳐 멀쩡한 배치를
+     * 기동 불가로 만들면 그게 이 기능에서 최악의 실패다 — 복구 경로가 복구를 막는다.
+     * 이 호스트에서 실제로 만들 수 있는 두 형태를 실파일로 확인한다:
+     * <ul>
+     *   <li>홈 디렉토리 아래 — 조상이 앱 실행 계정 소유({@code $HOME})와 root({@code /Users}, {@code /})</li>
+     *   <li>{@code /tmp} 아래 — root 소유 <b>sticky 1777</b> 조상을 지나간다(조건부 예외가 실제로 통과하는 형태)</li>
+     * </ul>
+     * {@code /var/lib/worknote}·root 소유 {@code /data} 형태는 조상이 전부 root/앱 계정이라 같은 규칙을 지나며,
+     * 그 판정은 {@link #violation_acceptsAncestorsOwnedByTheAppAccountOrRoot()}가 본다(여기서 만들 수 없다).
+     */
+    @Test
+    void verifyProvenance_acceptsTheDeploymentLayoutsThatExistOnThisHost() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        for (Path base : List.of(Paths.get(System.getProperty("user.home")), Paths.get("/tmp"))) {
+            assumeTrue(Files.isDirectory(base) && Files.isWritable(base), base + " 를 쓸 수 없는 환경 — skip");
+            Path data = Files.createTempDirectory(base, "worknote-bg-");
+            try {
+                Path file = sentinel600(data, "emp=admin\n");
+                assertThatCode(() -> BreakGlassFile.verifyProvenance(file))
+                    .as("%s 아래의 정상 배치는 통과해야 한다", base)
+                    .doesNotThrowAnyException();
+            } finally {
+                Files.deleteIfExists(data.resolve(BreakGlassFile.FILE_NAME));
+                Files.deleteIfExists(data);
+            }
         }
     }
 
@@ -463,6 +639,14 @@ class BreakGlassFileTest {
 
     private boolean posix() {
         return tmp.getFileSystem().supportedFileAttributeViews().contains("posix");
+    }
+
+    /**
+     * 조상 판정·에러 메시지는 <b>실경로</b> 기준이다(운영자가 chmod·이동할 대상이 그것이다).
+     * macOS의 임시 디렉토리는 {@code /var -> private/var}를 지나므로 렉시컬 경로와 갈린다.
+     */
+    private static String real(Path path) throws IOException {
+        return path.toRealPath().toString();
     }
 
     private Path write(String content) throws IOException {

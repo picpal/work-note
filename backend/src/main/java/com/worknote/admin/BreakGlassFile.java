@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,14 +31,18 @@ import java.util.TreeSet;
  * 그래서 HTTP 엔드포인트는 <b>절대</b> 두지 않는다 — 하나라도 네트워크로 닿는 순간 이 논거가 통째로 무너진다.
  *
  * <p><b>그 전제를 주장하지 않고 검사한다</b>({@link #violation}). 검사 없이 주장만 하면 지원되는 설정에서
- * 그냥 거짓이 된다. 전제가 실제로 깨지는 형태는 둘이다.
+ * 그냥 거짓이 된다. 전제가 실제로 깨지는 형태는 셋이다.
  * <ul>
  *   <li><b>부모가 그룹/타인 쓰기 가능</b>(775·777 등). {@code WORKNOTE_STORAGE_STRICT=false}면 server 모드도
  *       이런 부모로 뜰 수 있고, 그러면 600 DB를 <b>읽지도 못하는</b> 다른 로컬 사용자가 센티넬만 놓아
  *       관리자 계정을 가져간다 — 새 권한이 생긴 것이다. (755는 타인에게 {@code w}를 주지 않으므로 이 공격이
  *       성립하지 않는다. 그래도 부모에는 그룹/타인 비트를 아예 요구하지 않는다 — 700은 값싸고 확실한 선이다.)</li>
  *   <li><b>조상이 그룹/타인 쓰기 가능</b>. 부모가 700이어도 그 위에 쓸 수 있으면 디렉토리를 엔트리째
- *       바꿔치기할 수 있다 — 같은 결과가 부모의 권한을 건드리지 않고 일어난다({@link #violation}의 조상 검사).</li>
+ *       바꿔치기할 수 있다 — 같은 결과가 부모의 권한을 건드리지 않고 일어난다.</li>
+ *   <li><b>조상이 제3자 소유</b>. 쓰기 비트가 없어도 <b>디렉토리 소유자</b>는 자기 디렉토리의 엔트리를 rename할 수
+ *       있고(원한다면 먼저 자기 디렉토리를 chmod하면 그만이다), 결과는 위와 같다. 그래서 조상 소유자는
+ *       <b>앱 실행 계정 또는 root</b>만 허용한다 — {@code /}, {@code /var}, {@code /var/lib}, root 소유 {@code /data}
+ *       같은 흔한 배치는 그대로 통과하고, {@code /home/other/...} 아래 배치만 걸린다.</li>
  * </ul>
  * 나중에 {@code chmod 700}으로 조여도 미리 심어둔 파일은 지워지지도, 소유자가 바뀌지도 않는다(그래서 소유자까지 본다).
  * 이 검사는 {@code worknote.storage.strict}와 <b>무관하게</b> 항상 fail-closed다 — 그 스위치는 저장소 하드닝
@@ -69,10 +75,21 @@ public final class BreakGlassFile {
     private static final String PASSWORD = "password";
     private static final Set<String> KNOWN_KEYS = Set.of(EMP, PASSWORD);
 
+    /**
+     * 조상 소유자로 허용하는 특권 계정. uid 0을 직접 읽는 표준 API가 없어 <b>이름으로</b> 판정한다 —
+     * "root라는 이름의 비특권 계정"을 만들 수 있는 사람은 이미 계정을 만드는 사람이라 이 판정 밖에 있다.
+     */
+    private static final String ROOT = "root";
+
     /** 그룹·타인에게 열려 있음을 판정하는 비트 — 하나라도 켜져 있으면 소유자 전용이 아니다. */
     private static final Set<PosixFilePermission> SHARED_BITS = EnumSet.of(
         PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_WRITE, PosixFilePermission.GROUP_EXECUTE,
         PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_EXECUTE);
+
+    /** 심링크 전개 상한 — 리눅스 {@code ELOOP}와 같은 수. 순환 심링크에서 기동이 도는 것을 막는다. */
+    private static final int MAX_SYMLINKS = 40;
+    /** 경로 해석 단계 상한 — 위 상한을 빠져나가는 병리적 입력에 대한 두 번째 그물. */
+    private static final int MAX_STEPS = 4096;
 
     private BreakGlassFile() {}
 
@@ -82,7 +99,8 @@ public final class BreakGlassFile {
     /**
      * 출처 판정에 필요한 <b>사실만</b> 담은 값 — 실제 stat은 {@link #verifyProvenance}가 한다(판정은 순수 함수로).
      *
-     * @param ancestors 부모 <b>위</b>의 디렉토리들(루트까지). 부모 자신은 {@code parentOwner}·{@code parentPerms}다.
+     * @param ancestors 부모 <b>위</b>에서 경로 해석이 지나가는 디렉토리들. 부모 자신은 {@code parentOwner}·
+     *                  {@code parentPerms}다.
      */
     public record Provenance(boolean symlink, boolean regularFile, long size,
                              String owner, Set<PosixFilePermission> perms,
@@ -90,12 +108,18 @@ public final class BreakGlassFile {
                              List<Ancestor> ancestors) {}
 
     /**
-     * 조상 디렉토리 하나의 사실. 여기서 보는 건 <b>쓰기 비트와 sticky</b>뿐이다 —
-     * 판정 근거는 {@link #violation}의 조상 검사 주석에 있다.
+     * 경로 해석이 지나가는 디렉토리 하나의 사실. 판정 근거는 {@link #violation}의 조상 검사 주석에 있다.
      *
-     * @param sticky sticky 비트(0o1000). POSIX 뷰에 없어 raw mode로만 읽히므로, 읽지 못하면 false다(= 더 엄격한 쪽).
+     * @param owner      디렉토리 자신의 소유자. 자기 디렉토리의 엔트리는 소유자가 언제든 rename할 수 있으므로
+     *                   쓰기 비트만으로는 부족하다.
+     * @param sticky     sticky 비트(0o1000). POSIX 뷰에 없어 raw mode로만 읽히므로, 읽지 못하면 false다(= 더 엄격한 쪽).
+     * @param entry      이 디렉토리 안에서 <b>우리가 지나가는 엔트리</b>의 이름(디렉토리·심링크).
+     * @param entryOwner 그 엔트리의 소유자(lstat — 심링크면 링크 자신의 소유자). sticky 예외를 따질 때만 쓴다:
+     *                   sticky는 "누구도 rename 못한다"가 아니라 "엔트리 소유자·디렉토리 소유자·특권자만
+     *                   rename한다"이기 때문이다. 알 수 없으면 null(= 예외를 인정하지 않는다).
      */
-    public record Ancestor(String path, Set<PosixFilePermission> perms, boolean sticky) {}
+    public record Ancestor(String path, String owner, Set<PosixFilePermission> perms, boolean sticky,
+                           String entry, String entryOwner) {}
 
     /**
      * 센티넬 경로 — <b>DB 파일의 부모 디렉토리</b> 한 곳뿐이다. 700을 근거로 삼는 곳이 거기이기 때문이다.
@@ -109,7 +133,7 @@ public final class BreakGlassFile {
      * 렉시컬 정규화는 {@code ..}가 심링크를 지나갈 때 OS 해석과 갈리므로(예: {@code link -> /mnt/x/sub}이면
      * {@code link/../db}는 OS에겐 {@code /mnt/x/db}, 렉시컬로는 형제 {@code db}), 정규화하면 운영자가
      * <b>실제 DB 옆</b>에 만든 파일을 앱은 다른 디렉토리에서 찾는다 — 조용히 무시되거나, 더 나쁘게는
-     * 그 렉시컬 경로에 남아 있던 무관한 파일이 실행된다. 정규화는 실경로 해석({@code toRealPath})에 맡긴다.
+     * 그 렉시컬 경로에 남아 있던 무관한 파일이 실행된다. 정규화는 실경로 해석에 맡긴다.
      */
     public static Path locate(String jdbcUrl) {
         Path db = StoragePermissions.sqliteFile(jdbcUrl);   // URL 파싱은 저장소 하드닝과 같은 출처를 쓴다
@@ -126,27 +150,40 @@ public final class BreakGlassFile {
      * <p>파일은 <b>링크를 따라가지 않고</b> 본다 — 따라가면 검증한 대상과 읽는 대상이 달라진다.
      * 부모 디렉토리는 반대로 실경로로 해석한다: 별도 볼륨을 심링크로 붙이는 정상 배치가 있고
      * (심링크 자체의 권한은 보통 777이라 그걸 보면 의미가 없다), 우리가 알고 싶은 건 실제 디렉토리의 상태다.
-     * 부모 위의 조상 체인은 {@link #ancestorsAbove}가 모은다 — 부모의 700은 그 위에서 통째로
+     * 부모 위의 체인은 {@link #ancestorsAbove}가 모은다 — 부모의 700은 그 위에서 통째로
      * 바꿔치기당하는 것을 막지 못하기 때문이다(판정은 {@link #violation}).
      */
     public static void verifyProvenance(Path file) {
-        Path parent = file.toAbsolutePath().getParent();
+        Path abs = file.toAbsolutePath();
+        Path parent = abs.getParent();
+        if (parent == null) {
+            throw fail(abs + " 의 부모 디렉토리를 알 수 없습니다");
+        }
         try {
-            PosixFileAttributes attrs = Files.readAttributes(file, PosixFileAttributes.class,
+            // 조상 체인이 먼저다 — 순환 심링크는 여기서 상한에 걸려 이유가 붙은 채로 멈춘다.
+            List<Ancestor> ancestors = ancestorsAbove(parent);
+            PosixFileAttributes dir = Files.readAttributes(parent, PosixFileAttributes.class);
+            PosixFileAttributes target = Files.readAttributes(abs, PosixFileAttributes.class,
                 LinkOption.NOFOLLOW_LINKS);
-            PosixFileAttributes parentAttrs = Files.readAttributes(parent, PosixFileAttributes.class);
-            String problem = violation(new Provenance(
-                attrs.isSymbolicLink(), attrs.isRegularFile(), attrs.size(),
-                attrs.owner().getName(), attrs.permissions(),
-                parentAttrs.owner().getName(), parentAttrs.permissions(),
-                ancestorsAbove(parent)), System.getProperty("user.name"));
-            if (problem != null) {
-                throw fail(file + " 의 출처를 신뢰할 수 없습니다 — " + problem
-                    + ". 이 기능은 '700 앱 소유 디렉토리에 파일을 만들 수 있는 사람은 이미 DB를 직접 고칠 수 있다'는"
-                    + " 전제 위에서만 성립하므로, 전제가 확인되지 않으면 실행하지 않습니다");
-            }
+            check(abs, provenance(target, dir, ancestors));
         } catch (IOException e) {
-            throw fail(file + " 의 소유자·권한을 확인할 수 없습니다: " + e);
+            throw fail(abs + " 의 소유자·권한을 확인할 수 없습니다: " + e);
+        }
+    }
+
+    private static Provenance provenance(PosixFileAttributes file, PosixFileAttributes dir,
+            List<Ancestor> ancestors) {
+        return new Provenance(file.isSymbolicLink(), file.isRegularFile(), file.size(),
+            file.owner().getName(), file.permissions(),
+            dir.owner().getName(), dir.permissions(), ancestors);
+    }
+
+    private static void check(Path file, Provenance p) {
+        String problem = violation(p, System.getProperty("user.name"));
+        if (problem != null) {
+            throw fail(file + " 의 출처를 신뢰할 수 없습니다 — " + problem
+                + ". 이 기능은 '700 앱 소유 디렉토리에 파일을 만들 수 있는 사람은 이미 DB를 직접 고칠 수 있다'는"
+                + " 전제 위에서만 성립하므로, 전제가 확인되지 않으면 실행하지 않습니다");
         }
     }
 
@@ -178,53 +215,145 @@ public final class BreakGlassFile {
         if (p.parentPerms().stream().anyMatch(SHARED_BITS::contains)) {
             return "상위 디렉토리가 그룹/타인에게 열려 있습니다(chmod 700 필요) — 누구나 이 자리에 파일을 놓을 수 있었다는 뜻입니다";
         }
-        // 부모의 700만으로는 부족하다. 조상 어딘가가 그룹/타인 쓰기 가능하면 거기에 쓸 수 있는 사람이
-        // 데이터 디렉토리를 엔트리째 rename하고 같은 이름의 자기 소유 700 디렉토리로 바꿔치기할 수 있다.
+        // 부모의 700만으로는 부족하다. 경로 해석이 지나가는 디렉토리 중 하나라도 제3자가 통제하면,
+        // 그 사람이 데이터 디렉토리를 엔트리째 rename하고 같은 이름의 자기 소유 700 디렉토리로 바꿔치기할 수 있다.
         // 자식의 권한은 자기 엔트리가 부모 안에서 rename되는 것을 막지 못한다 — 그러면 DB를 읽지도 못하던
         // 사람이 자기 센티넬을 "700 앱 소유 디렉토리"에 놓은 것처럼 보이게 만들 수 있다.
-        //
-        // 조상에는 쓰기 비트만 본다. 부모에 적용하는 "그룹/타인 비트가 하나라도 있으면 거부"를 여기까지
-        // 확대하면 /, /srv, /var/lib 같은 정상적인 755 조상이 전부 걸려 멀쩡한 배포가 기동 불가가 된다.
-        // 막아야 하는 건 "엔트리를 바꿔치기할 수 있는가" 하나뿐이고, 그건 쓰기 비트가 결정한다.
         for (Ancestor a : p.ancestors()) {
-            // sticky(예: /tmp의 1777)는 예외다 — sticky 디렉토리에서는 자기가 소유하지 않은 엔트리를
-            // rename·삭제할 수 없으므로 위 시나리오가 성립하지 않는다. 이걸 인정하지 않으면 막는 것 없이
-            // /tmp 아래 배치만 기동 불가가 된다. 반대로 sticky를 읽지 못하는 환경에서는 false로 보고 거부한다.
-            if (a.sticky()) {
-                continue;
-            }
-            if (a.perms().contains(PosixFilePermission.GROUP_WRITE)
-                || a.perms().contains(PosixFilePermission.OTHERS_WRITE)) {
-                return "상위 경로 " + a.path() + " 가 그룹/타인에게 쓰기 가능합니다(현재 "
-                    + PosixFilePermissions.toString(a.perms()) + ") — 거기에 쓸 수 있는 사람은 데이터 디렉토리를"
-                    + " 통째로 자기 것으로 바꿔치기할 수 있으므로 '700 부모'가 근거가 되지 못합니다"
-                    + "(조치: chmod g-w,o-w " + a.path() + ")";
+            String problem = ancestorViolation(a, processUser);
+            if (problem != null) {
+                return problem;
             }
         }
         return null;
     }
 
     /**
-     * 부모 <b>위</b>의 조상 디렉토리들 — 렉시컬 경로 체인과 실경로 체인을 모두 모은다(중복은 실경로로 제거).
-     * 커널이 실제로 지나가는 건 두 체인 다이기 때문이다: 데이터 디렉토리를 심링크로 붙인 배치라면
-     * <b>링크가 놓인 디렉토리</b>(렉시컬)가 열려 있으면 링크를 갈아끼울 수 있고,
-     * <b>링크 타깃의 조상</b>(실경로)이 열려 있으면 타깃 디렉토리를 갈아끼울 수 있다 — 결과는 같다.
+     * 조상 하나의 판정. 통제 주체는 둘이다 — <b>소유자</b>(엔트리를 언제든 rename할 수 있다)와
+     * <b>쓰기 비트를 가진 사람</b>.
      *
-     * <p>권한은 링크를 따라가 읽는다(조상 심링크의 권한은 보통 777이라 그것을 보면 의미가 없다).
-     * 도중에 stat이 실패하면 {@link IOException}이 그대로 올라가 {@link #verifyProvenance}에서 기동 실패가 된다
-     * — 판정할 수 없으면 실행하지 않는다(fail-closed).
+     * <p>소유자는 앱 계정·root만 허용한다. 쓰기 비트가 없어도 디렉토리 소유자는 자기 디렉토리를 chmod한 뒤
+     * rename하면 그만이라, 755·700이라는 사실이 제3자 소유 디렉토리를 안전하게 만들어 주지 못한다.
+     *
+     * <p>쓰기 비트는 그룹/타인만 본다. 부모에 적용하는 "그룹/타인 비트가 하나라도 있으면 거부"를 여기까지
+     * 확대하면 {@code /}, {@code /srv}, {@code /var/lib} 같은 정상적인 755 조상이 전부 걸려 멀쩡한 배포가
+     * 기동 불가가 된다. 막아야 하는 건 "엔트리를 바꿔치기할 수 있는가" 하나뿐이다.
+     *
+     * <p>sticky(예: {@code /tmp}의 1777)는 <b>조건부</b> 예외다. sticky는 "누구도 rename하지 못한다"가 아니라
+     * "엔트리 소유자·디렉토리 소유자·특권자만 rename한다"이므로, 우리가 지나가는 엔트리가 남의 것이면
+     * (예: {@code /tmp/link}가 공격자 소유 심링크) 그 사람은 sticky 아래에서도 검증 직후 갈아끼울 수 있다.
+     * 그래서 엔트리까지 앱 계정·root 소유일 때만 인정한다 — {@code /tmp} 아래에 앱 소유 디렉토리를 두는
+     * 정상 배치는 통과하고, 공격자 소유 엔트리를 지나가는 배치는 걸린다.
      */
-    private static List<Ancestor> ancestorsAbove(Path parent) throws IOException {
-        Map<Path, Ancestor> found = new LinkedHashMap<>();
-        for (Path start : List.of(parent, parent.toRealPath())) {
-            for (Path dir = start.getParent(); dir != null; dir = dir.getParent()) {
-                Path key = dir.toRealPath();
-                if (!found.containsKey(key)) {
-                    found.put(key, new Ancestor(dir.toString(), Files.getPosixFilePermissions(dir), sticky(dir)));
+    private static String ancestorViolation(Ancestor a, String processUser) {
+        if (!trusted(a.owner(), processUser)) {
+            return "상위 경로 " + a.path() + " 의 소유자가 " + a.owner() + " 입니다(앱 실행 계정 " + processUser
+                + " 또는 root여야 합니다) — 디렉토리 소유자는 그 안의 엔트리를 언제든 rename할 수 있으므로"
+                + " 데이터 디렉토리를 통째로 자기 것으로 바꿔치기할 수 있고, 그러면 '700 부모'가 근거가 되지 못합니다"
+                + "(조치: 데이터 디렉토리를 앱 계정 또는 root 소유 경로 아래로 옮기세요 — 예: /var/lib/worknote)";
+        }
+        boolean writableByOthers = a.perms().contains(PosixFilePermission.GROUP_WRITE)
+            || a.perms().contains(PosixFilePermission.OTHERS_WRITE);
+        if (!writableByOthers) {
+            return null;
+        }
+        if (a.sticky() && trusted(a.entryOwner(), processUser)) {
+            return null;   // sticky + 우리 엔트리 — 남이 이 엔트리를 rename·삭제할 수 없다
+        }
+        return "상위 경로 " + a.path() + " 가 그룹/타인에게 쓰기 가능합니다(현재 "
+            + PosixFilePermissions.toString(a.perms()) + (a.sticky() ? " + sticky" : "") + ") — 거기에 쓸 수 있는"
+            + " 사람은 데이터 디렉토리를 통째로 자기 것으로 바꿔치기할 수 있으므로 '700 부모'가 근거가 되지 못합니다"
+            + (a.sticky()
+                ? "(sticky지만 그 안에서 지나가는 엔트리 '" + a.entry() + "' 가 앱 실행 계정 소유가 아니라 "
+                    + a.entryOwner() + " 입니다 — sticky는 엔트리 소유자의 rename을 막지 않습니다)"
+                : "(조치: chmod g-w,o-w " + a.path() + " — 다만 그 디렉토리가 WorkNote 전용이 아니면 권한을 조이지 말고"
+                    + " 데이터 디렉토리를 전용 경로로 옮기세요)");
+    }
+
+    private static boolean trusted(String owner, String processUser) {
+        return owner != null && (owner.equals(processUser) || owner.equals(ROOT));
+    }
+
+    /**
+     * 부모 <b>위</b>에서 경로 해석이 지나가는 디렉토리 전부 — 커널이 실제로 거치는 것과 같은 순서로 한 컴포넌트씩
+     * 해석하면서, <b>심링크를 만날 때마다 그 타깃의 조상 체인까지</b> 이어서 순회한다.
+     *
+     * <p>렉시컬 부모 체인과 최종 실경로 체인 둘만 훑으면 <b>중간 심링크 타깃의 조상</b>이 통째로 빠진다.
+     * <pre>
+     * /safe/l1   -> /open/a          렉시컬 체인은 여기서 /open/a 로 점프한다 — /open 은 보지 않는다
+     * /open/a/l2 -> /secure/final    최종 실경로 체인은 /secure/... 만 올라간다
+     * </pre>
+     * {@code /open}이 777이면 검증 후 {@code /open/a}를 자기 트리로 바꿔치기할 수 있고, 그 뒤의 읽기·rename은
+     * 공격자 파일을 집는다. 그래서 "커널이 지나가는 디렉토리 전부"가 기준이다.
+     *
+     * <p>기록 단위는 <b>(디렉토리, 그 안에서 지나가는 엔트리)</b>다 — sticky 예외가 엔트리 소유자에 달려 있고
+     * (POSIX sticky는 엔트리 소유자의 rename을 막지 않는다), 한 디렉토리를 서로 다른 엔트리로 두 번 지나갈 수도
+     * 있기 때문이다. 디렉토리 권한은 이미 해석된 실경로에서 읽고, 엔트리 소유자는 링크를 따라가지 않고 읽는다.
+     *
+     * <p>순환 심링크는 {@link #MAX_SYMLINKS}·{@link #MAX_STEPS}로 막는다 — 무한 루프는 곧 기동 행이다.
+     * 도중에 stat이 실패하면 {@link IOException}이 그대로 올라가 기동 실패가 된다(fail-closed).
+     */
+    static List<Ancestor> ancestorsAbove(Path parent) throws IOException {
+        Path abs = parent.toAbsolutePath();
+        Path cur = abs.getRoot();
+        if (cur == null) {
+            throw new IOException("절대 경로가 아닙니다: " + parent);
+        }
+        Deque<String> pending = new ArrayDeque<>();
+        pushAll(pending, abs);
+        Map<String, Ancestor> found = new LinkedHashMap<>();
+        int symlinks = 0;
+        int steps = 0;
+        while (!pending.isEmpty()) {
+            if (++steps > MAX_STEPS) {
+                throw new IOException("경로 해석이 " + MAX_STEPS + "단계를 넘었습니다(심링크 순환일 수 있습니다): " + parent);
+            }
+            String name = pending.removeFirst();
+            if (name.isEmpty() || ".".equals(name)) {
+                continue;
+            }
+            if ("..".equals(name)) {
+                Path up = cur.getParent();
+                cur = up == null ? cur : up;   // 루트의 위는 루트다(POSIX)
+                continue;
+            }
+            Path entry = cur.resolve(name);
+            PosixFileAttributes entryAttrs =
+                Files.readAttributes(entry, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            record(found, cur, name, entryAttrs.owner().getName());
+            if (entryAttrs.isSymbolicLink()) {
+                if (++symlinks > MAX_SYMLINKS) {
+                    throw new IOException("심링크가 " + MAX_SYMLINKS + "단계를 넘습니다(순환일 수 있습니다): " + parent);
                 }
+                Path target = Files.readSymbolicLink(entry);
+                if (target.isAbsolute()) {
+                    cur = target.getRoot();
+                }
+                pushAll(pending, target);   // 타깃의 조상 체인도 이어서 지나간다 — 여기가 빠지면 위 반례가 뚫린다
+            } else {
+                cur = entry;
             }
         }
+        // 마지막으로 도달한 cur이 최종 부모다. 부모 자신은 parentOwner·parentPerms로 따로 판정한다.
         return List.copyOf(found.values());
+    }
+
+    private static void pushAll(Deque<String> pending, Path path) {
+        for (int i = path.getNameCount() - 1; i >= 0; i--) {
+            pending.addFirst(path.getName(i).toString());
+        }
+    }
+
+    /** (디렉토리, 엔트리) 한 쌍당 한 번만 stat한다 — 같은 쌍을 두 번 지나가는 경로가 있다. */
+    private static void record(Map<String, Ancestor> found, Path dir, String entry, String entryOwner)
+            throws IOException {
+        String key = dir + " " + entry;
+        if (found.containsKey(key)) {
+            return;
+        }
+        PosixFileAttributes attrs = Files.readAttributes(dir, PosixFileAttributes.class);
+        found.put(key, new Ancestor(dir.toString(), attrs.owner().getName(), attrs.permissions(),
+            sticky(dir), entry, entryOwner));
     }
 
     /**
