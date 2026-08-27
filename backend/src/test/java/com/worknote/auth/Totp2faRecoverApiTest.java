@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:memdb-recapi?mode=memory&cache=shared",
-    "worknote.mode=server","worknote.admin-password=x",
+    "worknote.mode=server","worknote.admin-password=boot-pass-x",
     "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 @AutoConfigureMockMvc

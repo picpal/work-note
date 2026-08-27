@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:memdb-redminesetting?mode=memory&cache=shared",
-    "worknote.mode=server", "worknote.admin-password=x",
+    "worknote.mode=server", "worknote.admin-password=boot-pass-x",
     "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 @AutoConfigureMockMvc
@@ -46,7 +46,7 @@ class RedmineSettingTest {
         MockHttpSession session = new MockHttpSession();
         mvc.perform(post("/api/auth/login").session(session)
                 .contentType(APPLICATION_JSON)
-                .content("{\"emp\":\"admin\",\"password\":\"x\"}"))
+                .content("{\"emp\":\"admin\",\"password\":\"boot-pass-x\"}"))
             .andExpect(status().isOk());
         return session;
     }

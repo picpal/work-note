@@ -35,6 +35,17 @@ public class AdminBootstrap implements ApplicationRunner {
             throw new IllegalStateException(
                 "server 모드 최초 기동: WORKNOTE_ADMIN_PASSWORD 환경변수로 관리자 비밀번호를 지정하세요");
         }
+        // 정책 범위를 벗어나면 세운다. 통과시키면 최초 배치가 그대로 잠긴다 — 해시는 저장되는데
+        // LoginRequest가 @Size(max = MAX_LENGTH)로 거부하므로 아무도 로그인할 수 없고,
+        // 로그인할 수 없으니 아무도 고쳐 줄 수 없다. 비밀번호 자체는 메시지에 넣지 않는다.
+        if (adminPassword.length() < PasswordPolicy.MIN_LENGTH
+            || adminPassword.length() > PasswordPolicy.MAX_LENGTH) {
+            throw new IllegalStateException(
+                "WORKNOTE_ADMIN_PASSWORD 는 " + PasswordPolicy.MIN_LENGTH + "자 이상 "
+                    + PasswordPolicy.MAX_LENGTH + "자 이하여야 합니다(지정된 값은 "
+                    + adminPassword.length() + "자) — 범위를 벗어나면 로그인 단계에서 거부되어"
+                    + " 최초 배치가 잠깁니다");
+        }
         // 느린 PBKDF2 해시는 insert 전에 미리 계산 — 두 insert 사이 체류 시간 최소화
         String salt = PasswordHasher.newSalt();
         String hash = PasswordHasher.hash(adminPassword, salt);

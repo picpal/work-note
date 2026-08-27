@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:memdb-redminetoksvc?mode=memory&cache=shared",
-    "worknote.mode=server", "worknote.admin-password=x",
+    "worknote.mode=server", "worknote.admin-password=boot-pass-x",
     "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 class RedmineTokenServiceTest {

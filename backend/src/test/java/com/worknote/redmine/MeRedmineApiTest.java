@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:memdb-meredmineapi?mode=memory&cache=shared",
-    "worknote.mode=server", "worknote.admin-password=x",
+    "worknote.mode=server", "worknote.admin-password=boot-pass-x",
     "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 @AutoConfigureMockMvc

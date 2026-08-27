@@ -66,14 +66,14 @@ java -jar worknote-0.1.0.jar
 install -d -m 700 -o worknote -g worknote /data/worknote
 
 WORKNOTE_MODE=server \
-WORKNOTE_ADMIN_PASSWORD='10자-이상-초기-관리자-비밀번호' \
+WORKNOTE_ADMIN_PASSWORD='10자이상-128자이하-초기-관리자-비밀번호' \
 WORKNOTE_DB=/data/worknote/worknote.db \
 WORKNOTE_UPLOAD_DIR=/data/worknote/attachments \
 WORKNOTE_2FA_KEY="$(openssl rand 32 | base64)" \
 java -jar worknote-0.1.0.jar
 ```
 
-- server 모드 **최초 기동** 시 사용자가 0명이면 `admin` 계정(사번 `admin`, 역할 `admin`)이 `WORKNOTE_ADMIN_PASSWORD`로 자동 생성됩니다. 비밀번호가 비어 있으면 기동이 실패합니다(fail-secure).
+- server 모드 **최초 기동** 시 사용자가 0명이면 `admin` 계정(사번 `admin`, 역할 `admin`)이 `WORKNOTE_ADMIN_PASSWORD`로 자동 생성됩니다. 비밀번호가 비어 있거나 **10~128자 범위를 벗어나면** 기동이 실패합니다(fail-secure). 상한을 넘긴 값은 저장은 되지만 로그인 단계에서 거부되어 최초 배치가 그대로 잠기므로, 통과시키지 않고 세웁니다.
 - 이후 기동에서는 부트스트랩이 건너뛰어지므로 `WORKNOTE_ADMIN_PASSWORD`는 더 이상 필요 없습니다.
 - **`WORKNOTE_2FA_KEY`는 한 번 정하면 바꾸지 마세요.** 이 키로 2FA 시드와 Redmine API 키가 암호화됩니다. 키를 바꾸거나 잃으면 기존 등록이 전부 복호 불가가 되어 사용자 전원이 재등록해야 합니다. 키 파일을 안전한 곳에 별도 보관하세요.
 
@@ -84,7 +84,7 @@ java -jar worknote-0.1.0.jar
 | `WORKNOTE_MODE` | `local` | `local`(무인증) / `server`(인증+권한) |
 | `WORKNOTE_DB` | `./worknote.db` | SQLite 파일 경로. **server 모드에서는 절대 경로 필수** — 기본값은 상대 경로라 그대로 두면 기동 실패 |
 | `WORKNOTE_STORAGE_STRICT` | `true` | 저장소 권한 점검 실패 시 server 모드 기동을 중단할지. `false`면 WARN만 남기고 계속 기동 — [데이터 파일 권한](#데이터-파일-권한)의 탈출구이며, 문제 자체를 없애지는 않음 |
-| `WORKNOTE_ADMIN_PASSWORD` | (없음) | server 모드 **최초 기동 시 필수**. 초기 admin 비밀번호(10자 이상) |
+| `WORKNOTE_ADMIN_PASSWORD` | (없음) | server 모드 **최초 기동 시 필수**. 초기 admin 비밀번호(**10~128자**) |
 | `WORKNOTE_UPLOAD_DIR` | `./attachments` | 첨부 바이너리 저장 루트 |
 | `WORKNOTE_PURGE_RETENTION_DAYS` | `30` | 휴지통 보존 일수. 0 이하 = 자동 영구 삭제 끔 |
 | `WORKNOTE_ATTACHMENT_REAP_GRACE_HOURS` | `0`(끔) | 행 없는 첨부 파일(고아) 회수 유예 시간. 양수로 켜는 것은 **업로드 루트가 앱 전용**이라는 단언입니다 — 켜기 전 [고아 첨부 파일 회수](#고아-첨부-파일-회수-선택-기능--기본-꺼짐) 필독 |
@@ -700,6 +700,7 @@ rsync -a /data/worknote/attachments/ /backup/attachments-$(date +%F)/
 | 증상 | 원인 · 조치 |
 | --- | --- |
 | 기동 실패: "WORKNOTE_ADMIN_PASSWORD 환경변수로 관리자 비밀번호를 지정하세요" | server 모드 최초 기동인데 초기 비밀번호 미지정. 환경변수를 넣어 재기동 |
+| 기동 실패: "WORKNOTE_ADMIN_PASSWORD 는 10자 이상 128자 이하여야 합니다" | 초기 비밀번호가 정책 범위 밖. 범위 안의 값으로 바꿔 재기동(아직 계정이 만들어지지 않았으므로 값만 고치면 됩니다) |
 | 기동 실패: frontend dist 없음 | `pnpm build` 없이 bootJar를 만든 경우. frontend 빌드 후 jar 재빌드 |
 | 기동 실패: `Port 8080 was already in use` | 기존 프로세스 확인(`lsof -i :8080`) 또는 `--server.port=` 변경 |
 | 기동 실패: "저장소가 소유자 전용(700/600)임을 확인하지 못해 기동을 중단합니다" | server 모드 저장소 점검 실패. 메시지에 경로와 실행할 `chmod` 명령이 들어 있습니다. **chmod 전에 그 디렉토리가 앱 전용인지 확인**하세요 — 공용이면 이전이 답입니다 ([데이터 파일 권한](#데이터-파일-권한)). 생성·보정 자체가 실패한 경우라면 소유자를 앱 실행 계정으로 바꾸거나(`chown`) 마운트가 읽기 전용/비-POSIX인지 확인 |

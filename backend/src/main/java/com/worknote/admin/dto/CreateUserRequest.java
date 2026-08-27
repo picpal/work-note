@@ -9,5 +9,5 @@ public record CreateUserRequest(
     @NotBlank @Size(max = 64) String name,
     @Size(max = 128) String email,
     @NotBlank @Size(max = 32) String roleId,
-    @NotBlank @Size(min = PasswordPolicy.MIN_LENGTH, max = 128) String password
+    @NotBlank @Size(min = PasswordPolicy.MIN_LENGTH, max = PasswordPolicy.MAX_LENGTH) String password
 ) {}

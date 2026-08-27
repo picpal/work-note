@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:file:memdb-redminetoken?mode=memory&cache=shared",
     "worknote.mode=server",
-    "worknote.admin-password=x",
+    "worknote.admin-password=boot-pass-x",
     "worknote.totp.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 class RedmineTokenMapperTest {
