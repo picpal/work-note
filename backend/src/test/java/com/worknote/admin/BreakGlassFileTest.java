@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.Mockito.mock;
 
 import com.worknote.auth.PasswordPolicy;
 import java.io.IOException;
@@ -12,7 +13,9 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
@@ -488,6 +491,62 @@ class BreakGlassFileTest {
     }
 
     /**
+     * <b>부모 경로가 {@code ..}로 끝나면 거부한다</b> — 그 형태에서만 조상 체인과 부모의 신원이
+     * <b>서로 다른 관측</b>에서 나오기 때문이다.
+     *
+     * <p>{@code ..}는 순회가 디렉토리로 '들어가는' 단계가 아니라 렉시컬로 거슬러 올라가는 단계다. 그래서
+     * 그 지점에서 부모의 lstat이 없고, 경로가 거기서 끝나면 부모의 소유자·권한·{@code fileKey}를 <b>순회가 끝난 뒤</b>
+     * 따로 stat해야 한다. 그 사이에 그 디렉토리가 A에서 B로 갈아끼워지면 <b>조상 목록만 A</b>이고 부모와 핸들은
+     * 둘 다 B라서 {@link BreakGlassFile#open}의 fileKey 비교가 통과한다 — 조상 규칙이 헛돈다.
+     * 표준 API로는 그 창을 닫을 수 없으므로({@code openat(dirfd, "..")}에 해당하는 이식 가능한 수단이 없다)
+     * <b>거부</b>한다. 평상시 기동에는 영향이 없다 — 센티넬이 있을 때만 이 경로를 지난다.
+     */
+    @Test
+    void open_rejectsAParentPathThatEndsInDotDot() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Path data = Files.createDirectories(tmp.resolve("data"));
+        Files.createDirectories(data.resolve("sub"));
+        sentinel600(data, "emp=admin\n");
+        Path viaDotDot = data.resolve("sub/../break-glass");
+        assertThat(Files.exists(viaDotDot)).as("경로 자체는 같은 센티넬을 가리킨다").isTrue();
+
+        assertThatThrownBy(() -> BreakGlassFile.open(viaDotDot).close())
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("..");
+    }
+
+    /**
+     * 반대편 — {@code ..}가 <b>중간</b>에 있는 경로는 그대로 지원한다. 거기서는 순회가 마지막 디렉토리로 실제로
+     * 들어가므로 부모의 사실이 조상과 같은 순회에서 나온다(재해석이 없다). 심링크를 지나는 배치가 이 형태다.
+     */
+    @Test
+    void open_stillAcceptsDotDotInTheMiddleOfTheParentPath() throws IOException {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        Files.createDirectories(tmp.resolve("hop"));
+        Path data = Files.createDirectories(tmp.resolve("data"));
+        sentinel600(data, "emp=admin\n");
+
+        try (BreakGlassFile.Sentinel session = BreakGlassFile.open(tmp.resolve("hop/../data/break-glass"))) {
+            assertThat(session.read().emp()).isEqualTo("admin");
+        }
+    }
+
+    /**
+     * 루트가 부모인 경우도 순회로 '들어간' 적이 없지만 <b>거부하지 않는다</b> — 위 {@code ..}와 달리
+     * <b>루트는 교체 가능한 엔트리가 아니다</b>(누구도 {@code /}를 다른 디렉토리로 rename할 수 없다).
+     * 즉 거기엔 닫을 창이 없다. fail-closed를 이유 없이 넓혀 멀쩡한 배치를 죽이지 않는다는 선도 여기서 긋는다.
+     */
+    @Test
+    void resolveParent_acceptsTheRootDirectoryWhichNoOneCanReplace() throws Exception {
+        assumeTrue(posix(), "POSIX 미지원 — skip");
+        BreakGlassFile.ResolvedParent root = BreakGlassFile.resolveParent(Paths.get("/"));
+
+        assertThat(root.ancestors()).isEmpty();   // 루트 위에는 지나가는 디렉토리가 없다
+        assertThat(root.fileKey()).isNotNull()
+            .isEqualTo(Files.readAttributes(Paths.get("/"), BasicFileAttributes.class).fileKey());
+    }
+
+    /**
      * <b>정상 배포가 여전히 뜨는가.</b> 조상 규칙(소유자 + 쓰기 비트 + 조건부 sticky)이 서로 겹쳐 멀쩡한 배치를
      * 기동 불가로 만들면 그게 이 기능에서 최악의 실패다 — 복구 경로가 복구를 막는다.
      * 이 호스트에서 실제로 만들 수 있는 두 형태를 실파일로 확인한다:
@@ -552,13 +611,15 @@ class BreakGlassFileTest {
      * 어긋나면 기동을 세운다. 창을 좁히는 것이지 닫는 것이 아니다(읽는 <i>도중</i>의 교체는 여전히 탐지 못 한다).
      *
      * <p>이 성질은 핸들 기반·경로 폴백 <b>양쪽 모두</b>에서 성립하므로 이 테스트는 어느 플랫폼에서도 실행된다.
+     * 탐지되는 것은 <b>fileKey 불일치</b> 하나뿐이므로 교체는 반드시 <b>다른 inode</b>여야 한다 —
+     * 어떻게 그것을 보장하는지는 {@link #swapWithADifferentInode}에 적혀 있다.
      */
     @Test
     void open_rejectsASentinelSwappedAfterVerification() throws IOException {
         assumeTrue(posix(), "POSIX 미지원 — skip");
         Path file = sentinel600("emp=admin\n");
         try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
-            swapWithAFreshFile(file, "emp=intruder\n");
+            swapWithADifferentInode(file, "emp=intruder\n");
 
             assertThatThrownBy(session::read)
                 .isInstanceOf(IllegalStateException.class)
@@ -575,7 +636,7 @@ class BreakGlassFileTest {
         Path processing = tmp.resolve("break-glass.processing");
         try (BreakGlassFile.Sentinel session = BreakGlassFile.open(file)) {
             assertThat(session.read().emp()).isEqualTo("admin");
-            swapWithAFreshFile(file, "emp=intruder\n");
+            swapWithADifferentInode(file, "emp=intruder\n");
 
             assertThatThrownBy(() -> session.claim(processing))
                 .isInstanceOf(IllegalStateException.class)
@@ -585,13 +646,31 @@ class BreakGlassFileTest {
     }
 
     /**
-     * 위 두 검사는 {@code fileKey}(dev+ino)가 있어야 성립한다 — 그래서 {@link BreakGlassFile#open}은
-     * {@code fileKey}가 없으면 <b>거부</b>한다({@code Objects.equals(null, null)}이 통과하는 구멍을 막는다).
-     * 그 거부가 정상 배포를 죽이지 않는다는 전제를 여기서 못 박는다: 이 호스트의 파일시스템은 실제로 제공한다.
+     * <b>fileKey를 주지 않는 파일시스템은 거부한다</b> — {@code Objects.equals(null, null)}로 통과시키면
+     * 위 두 검사가 "검사하는 척"만 하게 된다. 이것이 그 판정의 <b>회귀 가드</b>다: 거부 분기를 지우면 깨진다.
+     *
+     * <p>실파일로는 만들 수 없는 상황이라({@code fileKey}를 주지 않는 파일시스템이 이 호스트에 없다)
+     * 판정 지점에 속성 값을 직접 넣어 본다 — 이 클래스에 새 파일시스템 제공자를 구현해 붙이는 것보다
+     * 정직하고 값싸다. 실제 배포에서 이 분기가 도는 경로는 {@link BreakGlassFile#open}뿐이고,
+     * 그 호출이 실제로 일어난다는 사실은 아래 환경 전제 테스트가 함께 받친다.
+     */
+    @Test
+    void requireFileKey_refusesAFileSystemThatCannotIdentifyFiles() {
+        PosixFileAttributes noFileKey = mock(PosixFileAttributes.class);   // fileKey() → null
+
+        assertThatThrownBy(() -> BreakGlassFile.requireFileKey(tmp.resolve("break-glass"), noFileKey))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("fileKey");
+    }
+
+    /**
+     * <b>가드가 아니라 환경 전제 확인이다.</b> 위 거부 분기가 <b>정상 배포를 죽이지 않는다</b>는 전제 —
+     * "이 호스트의 파일시스템은 {@code fileKey}를 실제로 준다" — 를 못 박는다. 그래서 이 테스트는
+     * {@link BreakGlassFile#requireFileKey}를 지워도 계속 통과한다(그 회귀는 위 테스트가 잡는다).
      * (리눅스 ext4/xfs·macOS APFS는 준다. 주지 않는 제공자는 POSIX 권한도 없어 기능 자체가 앞에서 비활성이다)
      */
     @Test
-    void open_dependsOnFileKeysWhichThisFileSystemProvides() throws IOException {
+    void open_worksHereBecauseThisFileSystemProvidesFileKeys() throws IOException {
         assumeTrue(posix(), "POSIX 미지원 — skip");
         Path file = sentinel600("emp=admin\n");
         assertThat(Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey())
@@ -628,11 +707,32 @@ class BreakGlassFileTest {
         }
     }
 
-    /** 같은 경로에 <b>다른 inode</b>의 규정대로 된 센티넬을 놓는다 — 교체를 탐지하는지 보는 유일한 방법이다. */
-    private static void swapWithAFreshFile(Path file, String content) throws IOException {
-        Files.delete(file);
-        Files.writeString(file, content, StandardCharsets.UTF_8);
-        Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+    /**
+     * 같은 이름을 <b>다른 inode</b>의 규정대로 된 센티넬로 갈아끼운다 — 교체 탐지가 보는 것이 정확히 그것이다
+     * (두 관측 시점의 {@code fileKey} 불일치, 그 이상도 이하도 아니다).
+     *
+     * <p><b>{@code delete} 후 {@code create}로 만들지 않는다.</b> {@code fileKey}의 유일성은 JDK 계약상
+     * <b>정적 파일시스템</b>에서만 보장되고 <b>삭제된 식별자의 재사용은 구현 의존</b>이다. ext4는 방금 해제한
+     * inode를 곧바로 재사용하는 일이 흔해서, 지웠다 다시 만든 '교체'는 같은 {@code fileKey}가 나올 수 있고
+     * 그러면 이 테스트가 리눅스에서 깨진다(탐지가 뚫리는 그 형태를 테스트가 그대로 재현하게 된다).
+     *
+     * <p>그래서 침입자 파일을 <b>먼저 다른 이름으로</b> 만들어 원본과 <b>동시에 살아 있게</b> 한다 —
+     * 같이 존재하는 두 파일은 반드시 서로 다른 inode다(같은 inode라면 하드링크이고 그건 교체가 아니다).
+     * 그 사실을 아래에서 단언한 뒤 원본 위로 원자적으로 rename한다. 즉 "다른 inode"는 우연이 아니라 구조다.
+     */
+    private static void swapWithADifferentInode(Path file, String content) throws IOException {
+        Object original = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
+        Path intruder = file.resolveSibling(file.getFileName() + ".intruder");
+        Files.writeString(intruder, content, StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(intruder, PosixFilePermissions.fromString("rw-------"));
+        Object replacement =
+            Files.readAttributes(intruder, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
+
+        assertThat(replacement)
+            .as("교체 탐지는 fileKey 불일치만 본다 — 두 파일이 같이 살아 있어야 다른 inode임이 보장된다")
+            .isNotNull().isNotEqualTo(original);
+
+        Files.move(intruder, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
     /**

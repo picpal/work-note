@@ -286,8 +286,11 @@ public final class BreakGlassFile {
      * 없으므로 <b>거부</b>한다 — {@code Objects.equals(null, null)}로 통과시키면 검사하는 척만 하는 것이다.
      * 리눅스·macOS의 일반 파일시스템은 준다. 주지 않는 제공자(zipfs 등)는 POSIX 소유자·권한도 없어
      * {@code StoragePermissions.posixSupported} 단계에서 이미 기능이 비활성이다.
+     *
+     * <p>패키지 가시성인 이유: 이 호스트에는 {@code fileKey}를 주지 않는 파일시스템이 없어 실파일로는
+     * 이 분기를 밟을 수 없다. 테스트가 속성 값을 직접 넣어 <b>거부한다는 사실 자체</b>를 가드한다.
      */
-    private static Object requireFileKey(Path file, PosixFileAttributes attrs) {
+    static Object requireFileKey(Path file, PosixFileAttributes attrs) {
         Object key = attrs.fileKey();
         if (key == null) {
             throw fail(file + " 의 파일 식별자(fileKey)를 제공하지 않는 파일시스템입니다 — 검증한 파일이 읽기·선점"
@@ -439,8 +442,23 @@ public final class BreakGlassFile {
      *
      * <p>부모 자신을 순회 밖에서 {@code readAttributes(parent)}로 다시 읽지 않는 이유는 {@link ResolvedParent}에
      * 적혀 있다 — 조상을 본 순간과 부모를 읽는 순간이 갈리면 그 사이의 교체를 fileKey 비교가 통과시킨다.
-     * 부모의 사실은 <b>순회가 실제로 들어간 그 디렉토리의 lstat</b>이다({@code ..}로 거슬러 올라갔거나 부모가
-     * 루트 자신이라 순회로 들어간 적이 없는 경로에서만 한 번 더 stat한다 — 그 두 형태에는 "들어간 순간"이 없다).
+     * 부모의 사실은 <b>순회가 실제로 들어간 그 디렉토리의 lstat</b>이다.
+     *
+     * <p>"들어간 순간"이 없는 형태는 둘뿐이고, 둘을 다르게 다룬다.
+     * <ul>
+     *   <li><b>부모 경로가 {@code ..}로 끝난다</b>(예: {@code /a/b/../worknote.db}의 부모) — <b>거부</b>한다.
+     *       {@code ..}는 들어가는 단계가 아니라 거슬러 올라가는 단계라 부모의 lstat이 남지 않고, 그러면 부모의
+     *       신원을 순회 <b>뒤</b>에 따로 stat해야 한다. 그 사이 그 디렉토리가 A에서 B로 갈아끼워지면
+     *       <b>조상 목록만 A</b>이고 부모도 핸들도 B라서 {@link #open}의 fileKey 비교가 통과한다 — 조상 규칙이
+     *       헛돈다. 닫을 방법이 없어서 거부한다: {@code openat(dirfd, "..")}에 해당하는 이식 가능한 API가 없고,
+     *       {@code cur.resolve("..")}를 다시 stat하는 것은 같은 경로 재해석이라 같은 창이 그대로 남는다.
+     *       렉시컬 {@code normalize()}로 {@code ..}를 없애는 것은 {@link #locate}가 일부러 하지 않는 그것이다
+     *       (심링크 뒤의 {@code ..}는 OS 해석과 갈린다). 정상 배포에서 DB 경로가 {@code ..}로 끝날 이유가 없고,
+     *       평상시 기동에는 영향이 없다(센티넬이 있을 때만 이 경로를 지난다). 운영자 가이드에도 같은 내용이 있다.</li>
+     *   <li><b>부모가 루트 자신이다</b> — 통과시키고 한 번 더 stat한다. 위와 달리 <b>루트는 교체 가능한 엔트리가
+     *       아니다</b>(누구도 {@code /}를 다른 디렉토리로 rename할 수 없다). 즉 여기엔 닫을 창이 없으므로,
+     *       fail-closed를 이유 없이 넓혀 멀쩡한 배치를 죽이지 않는다.</li>
+     * </ul>
      *
      * <p>렉시컬 부모 체인과 최종 실경로 체인 둘만 훑으면 <b>중간 심링크 타깃의 조상</b>이 통째로 빠진다.
      * <pre>
@@ -457,8 +475,21 @@ public final class BreakGlassFile {
      * <p>순환 심링크는 {@link #MAX_SYMLINKS}·{@link #MAX_STEPS}로 막는다 — 무한 루프는 곧 기동 행이다.
      * 도중에 stat이 실패하면 {@link IOException}이 그대로 올라가 기동 실패가 된다(fail-closed).
      *
-     * <p><b>한계.</b> 층마다 디렉토리 핸들을 여는 표준 API가 없어 각 단계는 결국 경로 stat이다 — 순회 <b>도중</b>의
-     * 교체까지 배제하지는 못한다. {@link #open}의 fileKey 비교는 "순회가 끝난 뒤 핸들을 열기까지"의 창을 닫는다.
+     * <p><b>한계.</b> 각 단계는 경로 stat이라 순회 <b>도중</b>의 교체까지 배제하지는 못한다.
+     * {@link #open}의 fileKey 비교는 "순회가 끝난 뒤 핸들을 열기까지"의 창을 닫는다.
+     *
+     * <p>층마다 핸들을 여는 <b>API 자체는 있다</b> — {@link SecureDirectoryStream#newDirectoryStream}이 상대 이름으로
+     * 하위 디렉토리를 열고, 그렇게 얻은 핸들은 부모 스트림과 독립적이다. 그걸 쓰지 않는 이유는 API가 없어서가
+     * 아니라 다음 둘이다.
+     * <ul>
+     *   <li><b>제공자 종속이라 규칙이 갈린다.</b> 핸들 체인은 {@link SecureDirectoryStream}을 주는 제공자(리눅스)에서만
+     *       가능하고, macOS 등 폴백 경로는 어차피 경로 stat이다. 지금은 <b>판정 규칙도 fileKey 재확인도 양쪽이
+     *       완전히 같고</b> 차이는 디렉토리 고정 하나뿐인데, 순회까지 갈라지면 "어느 플랫폼에서 무엇이 검사되는가"가
+     *       둘로 나뉜다. 게다가 절대 경로 심링크 타깃은 루트부터 다시 열어야 해 체인이 중간에 끊긴다.</li>
+     *   <li><b>그래도 창이 닫히지 않는다.</b> 우리가 열기 <b>전에</b> 갈아끼워진 엔트리는 새것으로 열릴 뿐이다 —
+     *       핸들 체인은 창을 더 좁힐 뿐 경합을 없애지 못한다.</li>
+     * </ul>
+     * 좁히는 값어치는 있으므로 <b>리눅스 한정 후속 과제로 검토할 만하다</b>(폴백과의 규칙 분리를 감수할지가 판단점).
      */
     static ResolvedParent resolveParent(Path parent) throws IOException {
         Path abs = parent.toAbsolutePath();
@@ -506,6 +537,14 @@ public final class BreakGlassFile {
             }
         }
         // 마지막으로 도달한 cur이 최종 부모다. 조상 목록에는 넣지 않는다 — 판정 규칙이 다르기 때문이다(700 요구).
+        if (curAttrs == null && cur.getParent() != null) {
+            // 순회가 들어간 적 없는 디렉토리 = 경로가 '..'로 끝났다(루트는 위 조건에서 빠진다 — 교체 불가라 창이 없다).
+            // 부모의 신원을 순회 뒤 따로 stat하면 조상 목록만 이전 디렉토리의 것이 되어 조상 규칙이 헛돈다(위 javadoc).
+            throw fail("DB 파일의 부모 경로가 '..' 로 끝납니다(" + parent + ") — 그 형태에서는 조상 검사와 부모 확인이"
+                + " 서로 다른 관측이 되어 디렉토리 교체를 탐지할 수 없으므로 실행하지 않습니다."
+                + " 앱이 실제로 여는 DB 파일의 경로를 확인해(readlink -f) '..' 없는 경로로 WORKNOTE_DB를 적고,"
+                + " 센티넬을 그 DB 옆에 놓은 뒤 재기동하세요");
+        }
         PosixFileAttributes attrs =
             curAttrs != null ? curAttrs : Files.readAttributes(cur, PosixFileAttributes.class);
         return new ResolvedParent(List.copyOf(found.values()), attrs.owner().getName(), attrs.permissions(),
