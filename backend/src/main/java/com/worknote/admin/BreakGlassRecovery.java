@@ -132,10 +132,12 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
             BreakGlassFile.Request req = session.read();   // 검증이 수술보다 먼저 — 반쯤 적용 금지
             requireKnownEmp(req.emp());    // 선점 전에 사번까지 확인 — 오타 하나로 .processing이 남아 다음 기동까지 막지 않게
             session.claim(processing);     // 선점 후 수술 — 재적용 창을 닫는다(남는 한계는 Sentinel#claim)
-            // 커밋보다 먼저 내구화한다 — 순서가 요점이다. rename이 디스크에 닿기 전에 전원이 끊기면
+            // 커밋보다 먼저 내구화를 시도한다 — 순서가 요점이다. rename이 디스크에 닿기 전에 전원이 끊기면
             // "복구는 적용됐는데 센티넬은 되살아난" 조합이 남고, 그건 선점이 막으려던 바로 그 상태다.
-            durable(processing, "선점", "지금 전원이 끊기면 센티넬이 되살아나 다음 기동이 같은 복구를 다시 적용할 수"
-                + " 있습니다 — 그사이 다시 켠 2FA와 바꾼 비밀번호가 되돌아갑니다.");
+            // 위험은 "지금"이 아니라 아래 커밋이 디스크에 남은 뒤부터다 — 커밋 전에 끊기면 DB가 그대로라
+            // 다음 기동은 정상적으로 처음부터 복구하거나(.processing이 안 남았으면) 중단될 뿐이다.
+            durable(processing, "선점", "이 복구가 커밋된 뒤에 전원이 끊기면 센티넬이 되살아나 다음 기동이 같은"
+                + " 복구를 다시 적용할 수 있습니다 — 그사이 관리자가 다시 켠 2FA나 바꾼 비밀번호가 되돌아갈 수 있습니다.");
             Outcome outcome = tx.execute(status -> apply(req));
             // 삭제보다 먼저 기록한다 — 삭제에 실패해 기동이 멈춰도 "무엇이 일어났는지"는 남아야 한다.
             log.warn("브레이크글래스 복구를 실행했습니다 — 사번 {}: 2FA 해제·유예 재시작{}{}. 처리 파일을 정리합니다.",
@@ -223,7 +225,8 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
     }
 
     /**
-     * 디렉토리 엔트리 변경을 디스크까지 밀어넣는다 — 근거와 "실패해도 세우지 않는" 이유는
+     * 디렉토리 엔트리 변경을 디스크까지 밀어넣기를 시도한다(성공 반환이 내구성을 증명하지는 않는다) —
+     * 근거와 "실패해도 세우지 않는" 이유는
      * {@link BreakGlassFile#syncDirectory}에 있다. 여기서는 못 밀어넣었다는 사실만 남긴다:
      * 조용히 지나가면 전원 차단 뒤에 벌어지는 일을 아무도 설명하지 못한다.
      *
@@ -258,7 +261,7 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
     void delete(BreakGlassFile.Sentinel session, Path processing) {
         try {
             session.discard(processing);
-            // 삭제도 내구화한다. 여기서 되살아난 .processing 은 권한 문제가 아니라 가용성 문제다 —
+            // 삭제도 같은 보강을 건다. 여기서 되살아난 .processing 은 권한 문제가 아니라 가용성 문제다 —
             // 복구는 끝났는데 다음 기동이 "중단 흔적"으로 읽고 멈춰 서서, 운영자가 지워 주기 전까지 못 뜬다.
             // 재적용이 아니다: 되살아나는 것은 센티넬이 아니라 .processing 이므로 위 run()의 중단 분기로 간다.
             durable(processing, "정리", "지금 전원이 끊기면 이 파일이 되살아나 다음 기동이 '중단된 흔적'으로 읽고"
