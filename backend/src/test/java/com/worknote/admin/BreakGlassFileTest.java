@@ -907,7 +907,7 @@ class BreakGlassFileTest {
             .isInstanceOf(IllegalStateException.class);
     }
 
-    // ---- syncDirectory: rename·unlink 를 디스크까지 (내구성) ----
+    // ---- syncDirectory: rename·unlink 를 디스크까지 밀어넣기 시도 (내구성 보강) ----
 
     /**
      * <b>가드가 아니라 환경 전제 확인이다.</b> 이 호출이 이 호스트에서 <b>오류 없이 돈다</b>는 것 —

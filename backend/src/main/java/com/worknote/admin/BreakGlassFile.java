@@ -443,7 +443,8 @@ public final class BreakGlassFile {
      *       NFS 마운트·ZFS처럼 이 모델을 쓰는 곳에 데이터 디렉토리를 두면 <b>700으로 보이는 조상에 제3자
      *       쓰기가 열려 있을 수 있고, 이 검사는 그것을 통과시킨다.</b> macOS도 같은 계열이다:
      *       {@code chmod +a}로 준 ACE는 모드를 700인 채로 두고 쓰기를 연다.</li>
-     *   <li><b>어느 쪽이든 JDK로는 볼 수 없다.</b> 확인한 리눅스·macOS 기본 provider 모두
+     *   <li><b>어느 쪽이든 우리가 확인한 provider로는 볼 수 없다.</b> {@code AclFileAttributeView} 자체는
+     *       JDK에 있고 지원 여부가 provider마다 다른데, 확인한 리눅스·macOS 기본 provider는 모두
      *       {@code supportsFileAttributeView("acl")}가 false이고 {@code AclFileAttributeView} 조회가 null이라,
      *       ACL 모델을 코드에서 판별할 방법이 없다. 그래서 이 전제는 <b>검사되지 않고 배포 조건으로 남는다</b> —
      *       데이터 디렉토리는 POSIX ACL을 쓰는 로컬 파일시스템에 두어야 한다(운영자 가이드에 적혀 있다).
@@ -831,9 +832,11 @@ public final class BreakGlassFile {
      * 이유는 아래 넷 모두 정상 반환으로 지나가기 때문이다. 최선의 노력이지 보장이 아니다.
      * <ul>
      *   <li>{@link FileChannel#force}의 계약은 <b>로컬 장치</b>로 한정된다 — NFS 등에서는 정상 반환 뒤에도
-     *       안정 저장소에 닿지 않을 수 있다. 게다가 명세가 보장하는 범위는 "<b>이 채널이 만들어진 뒤</b>
-     *       파일에 가해진 변경"인데, 우리가 밀어내려는 rename·unlink는 채널을 열기 <b>전에</b> 끝난 것이다.
-     *       실제 유닉스 구현은 그 fd에 걸린 변경을 전부 내보내지만, 그건 명세가 아니라 구현의 성질이다.</li>
+     *       안정 저장소에 닿지 않을 수 있다. 게다가 명세가 보장하는 범위는 우리 용법을 <b>두 겹으로</b>
+     *       벗어난다 — 시간으로는 "이 채널이 만들어진 뒤의 변경"인데 rename·unlink는 채널을 열기 <b>전에</b>
+     *       끝났고, 경로로는 "<b>이 클래스에 정의된 메서드를 통해</b> 가해진 변경"인데 rename·unlink는
+     *       {@code Files}·{@link SecureDirectoryStream}으로 했다. 실제 유닉스 구현은 그 fd에 걸린 변경을
+     *       전부 내보내지만, 그건 명세가 아니라 구현의 성질이다.</li>
      *   <li>디렉토리를 {@link FileChannel}로 여는 것 자체가 JDK의 명시적 계약이 아니다(리눅스·macOS에서
      *       실제로 되는 것을 확인했을 뿐이다).</li>
      *   <li>fsync를 거짓 보고하는 저장장치·가상화 계층에서는 어느 언어로 불러도 마찬가지다.</li>
