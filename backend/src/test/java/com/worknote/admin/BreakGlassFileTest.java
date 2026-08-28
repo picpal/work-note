@@ -556,23 +556,34 @@ class BreakGlassFileTest {
      * </ul>
      * {@code /var/lib/worknote}·root 소유 {@code /data} 형태는 조상이 전부 root/앱 계정이라 같은 규칙을 지나며,
      * 그 판정은 {@link #violation_acceptsAncestorsOwnedByTheAppAccountOrRoot()}가 본다(여기서 만들 수 없다).
+     *
+     * <p>base 자체가 이 호스트에서 <b>애초에 신뢰할 수 없는 형태</b>면 거부가 정답이므로 그 base는 건너뛴다 —
+     * 실패로 잡으면 코드 결함이 아닌 것을 결함으로 보고하게 된다. 가상의 우려가 아니다: 공식 {@code gradle}
+     * 이미지는 {@code $HOME}을 757(other-writable)로 배포한다(임의 uid로 쓰라는 의도). 리눅스 CI를 그 이미지로
+     * 돌리면 코드는 멀쩡한데 이 테스트만 붉어진다.
      */
     @Test
     void verifyProvenance_acceptsTheDeploymentLayoutsThatExistOnThisHost() throws IOException {
         assumeTrue(posix(), "POSIX 미지원 — skip");
+        int exercised = 0;
         for (Path base : List.of(Paths.get(System.getProperty("user.home")), Paths.get("/tmp"))) {
-            assumeTrue(Files.isDirectory(base) && Files.isWritable(base), base + " 를 쓸 수 없는 환경 — skip");
+            if (!Files.isDirectory(base) || !Files.isWritable(base) || !trustworthyBase(base)) {
+                continue;   // 이 base는 이 호스트에서 못 쓴다 — 테스트를 접지 말고 다음 형태를 마저 본다
+            }
             Path data = Files.createTempDirectory(base, "worknote-bg-");
             try {
                 Path file = sentinel600(data, "emp=admin\n");
                 assertThatCode(() -> BreakGlassFile.verifyProvenance(file))
                     .as("%s 아래의 정상 배치는 통과해야 한다", base)
                     .doesNotThrowAnyException();
+                exercised++;
             } finally {
                 Files.deleteIfExists(data.resolve(BreakGlassFile.FILE_NAME));
                 Files.deleteIfExists(data);
             }
         }
+        // 전부 건너뛰었으면 이 테스트는 아무것도 증명하지 않았다 — 통과로 위장시키지 않는다
+        assumeTrue(exercised > 0, "이 호스트에는 검증에 쓸 수 있는 정상 배포 형태가 없다 — skip");
     }
 
     // ---- open: 검증·읽기·선점을 한 세션에 묶는다(TOCTOU) ----
@@ -927,6 +938,35 @@ class BreakGlassFileTest {
         Files.setPosixFilePermissions(f, PosixFilePermissions.fromString("rw-------"));
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
         return f;
+    }
+
+    /**
+     * base를 "정상 배포"라고 부를 수 있는가 — <b>필요조건 한 가지만</b> 본다. 운영 규칙(소유자·심링크 해석·
+     * 조상 walk)의 사본이 아니다: 여기서 규칙을 두 번 적으면 테스트가 스스로 채점하는 꼴이 되고, 규칙이 바뀔 때
+     * 조용히 어긋난다. 그룹/타인이 쓸 수 있으면 그 안의 데이터 디렉토리를 통째로 바꿔치기할 수 있어 전제가
+     * 깨진다 — 단 sticky면 엔트리 소유자만 rename할 수 있어 {@code /tmp}(1777) 형태는 성립한다.
+     *
+     * <p>조상({@code /home}·{@code /Users}·{@code /})까지 흉내내지 않는다 — 그 층이 열려 있다면 이 호스트가
+     * 실제로 기능을 못 쓴다는 뜻이라, 건너뛰는 것보다 실패로 드러나는 편이 맞다.
+     */
+    private static boolean trustworthyBase(Path base) {
+        try {
+            Set<PosixFilePermission> perms = Files.getPosixFilePermissions(base);
+            boolean othersCanWrite = perms.contains(PosixFilePermission.GROUP_WRITE)
+                || perms.contains(PosixFilePermission.OTHERS_WRITE);
+            return !othersCanWrite || isSticky(base);
+        } catch (IOException | UnsupportedOperationException e) {
+            return false;   // 판정할 수 없으면 쓰지 않는다 — 이 클래스의 기본 태도와 같은 결
+        }
+    }
+
+    /** sticky는 POSIX 뷰에 없다 — raw mode로만 읽힌다(읽지 못하면 없는 것으로 본다: 더 엄격한 쪽). */
+    private static boolean isSticky(Path dir) {
+        try {
+            return (((Number) Files.getAttribute(dir, "unix:mode")).intValue() & 01000) != 0;
+        } catch (IOException | UnsupportedOperationException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /** {@code chmod 1777} — sticky는 POSIX 뷰에 없어 raw mode로만 세울 수 있다(못 세우면 테스트를 skip한다). */
