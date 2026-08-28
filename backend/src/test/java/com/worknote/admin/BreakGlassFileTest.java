@@ -907,6 +907,37 @@ class BreakGlassFileTest {
             .isInstanceOf(IllegalStateException.class);
     }
 
+    // ---- syncDirectory: rename·unlink 를 디스크까지 (내구성) ----
+
+    /**
+     * <b>가드가 아니라 환경 전제 확인이다.</b> 이 호출이 이 호스트에서 실제로 동작한다는 것 —
+     * 즉 아래 폴백이 <b>정상이 아니라 예외</b>라는 것을 못 박는다. 전부 false를 돌려주는 환경에서는
+     * 내구성 보강이 통째로 무의미해지는데, 그건 조용히 일어나므로 여기서 잡는다.
+     * (JDK가 디렉토리를 {@code FileChannel}로 여는 것은 문서화된 계약이 아니다 — macOS APFS·리눅스에서
+     * 실제로 되는 것을 확인했고, 안 되는 곳에서는 아래 테스트대로 false로 물러난다)
+     *
+     * <p><b>여기까지가 단위 테스트의 사정거리다.</b> fsync한 것이 전원 차단 후에도 남아 있는지는
+     * 프로세스 밖의 성질이라 증명하지 않는다 — 증명한 척하는 단언을 만들지 않는다.
+     */
+    @Test
+    void syncDirectory_worksHereSoTheDurabilityStepIsNotSilentlyANoOp() {
+        assertThat(BreakGlassFile.syncDirectory(tmp))
+            .as("이 호스트에서 디렉토리 fsync가 되지 않으면 선점·정리의 내구성 보강이 통째로 무의미해진다")
+            .isTrue();
+    }
+
+    /**
+     * 실패는 <b>던지지 않고 false</b>다 — 내구성 보강이 복구 차단으로 바뀌면 안 된다.
+     * 마지막 수단인 경로에서 "덜 내구적"과 "아예 못 고침"의 교환은 손해다.
+     */
+    @Test
+    void syncDirectory_reportsFailureInsteadOfThrowing() {
+        assertThat(BreakGlassFile.syncDirectory(tmp.resolve("없는-디렉토리"))).isFalse();
+        assertThat(BreakGlassFile.syncDirectory(null))
+            .as("부모가 없는 경로에서도 던지지 않는다")
+            .isFalse();
+    }
+
     // ---- helpers ----
 
     private boolean posix() {

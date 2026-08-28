@@ -5,6 +5,7 @@ import com.worknote.config.StoragePermissions;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -426,6 +427,22 @@ public final class BreakGlassFile {
      * (예: {@code /tmp/link}가 공격자 소유 심링크) 그 사람은 sticky 아래에서도 검증 직후 갈아끼울 수 있다.
      * 그래서 엔트리까지 앱 계정·root 소유일 때만 인정한다 — {@code /tmp} 아래에 앱 소유 디렉토리를 두는
      * 정상 배치는 통과하고, 공격자 소유 엔트리를 지나가는 배치는 걸린다.
+     *
+     * <p><b>이 판정이 기대는 전제: "모드 비트가 쓸 수 있는 사람을 남김없이 요약한다."</b> ACL이 있으면
+     * 자명하지 않으므로 확인했고, 결론은 <b>배포 플랫폼(리눅스)에서 성립한다</b>이다.
+     * <ul>
+     *   <li><b>리눅스 POSIX ACL — 가릴 수 없다.</b> 700 디렉토리에 {@code setfacl -m u:mallory:rwx}를 주면
+     *       모드가 <b>770으로 바뀐다</b>: group 비트가 곧 ACL mask라 부여가 그대로 드러난다. 반대로
+     *       {@code chmod g-w}로 mask를 낮추면 그 사람의 실효 권한도 {@code #effective:r-x}로 깎여 실제 쓰기가
+     *       거부된다. 즉 "모드에 안 보이는데 실제로는 쓸 수 있는" 상태를 만들 수 없다(둘 다 실측 확인).</li>
+     *   <li><b>macOS NFSv4 ACL — 가릴 수 있고, 볼 수도 없다.</b> {@code chmod +a}로 준 ACE는 모드를 바꾸지
+     *       않아 700인 채로 쓰기가 열린다. 게다가 JDK가 이 플랫폼에서 {@code AclFileAttributeView}를 제공하지
+     *       않으므로({@code supportsFileAttributeView("acl")}가 false, 뷰 조회는 null) <b>표준 API로는 탐지할
+     *       수단 자체가 없다</b>. 남는 것은 "여기서는 이 전제가 검사되지 않는다"를 적어 두는 것뿐이고,
+     *       macOS는 개발·검증 머신이지 배포 대상이 아니다.</li>
+     * </ul>
+     * SELinux·AppArmor 같은 MAC은 방향이 반대라 위험을 더하지 않는다 — 접근을 <b>더 막을</b> 뿐,
+     * 모드가 막은 것을 열어 주지 않는다.
      */
     private static String ancestorViolation(Ancestor a, String processUser) {
         if (!trusted(a.owner(), processUser)) {
@@ -786,6 +803,39 @@ public final class BreakGlassFile {
         }
         buffer.flip();
         return StandardCharsets.UTF_8.newDecoder().decode(buffer).toString();   // 기본 REPORT — 깨진 UTF-8은 예외
+    }
+
+    /**
+     * 디렉토리 엔트리 변경(rename·unlink)을 <b>디스크까지</b> 밀어넣는다. rename은 원자적이지만 <b>내구적이지
+     * 않다</b> — fsync 없이는 전원이 끊겼을 때 되돌아갈 수 있다.
+     *
+     * <p>그래서 중요한 것은 <b>순서</b>다. 선점 rename이 DB 커밋보다 먼저 내구화되지 않으면, 전원 차단 후
+     * "복구는 적용됐는데 센티넬은 되살아난" 조합이 남을 수 있다. 그건 이 기능이 {@code .processing} 선점으로
+     * 막으려는 바로 그 상태다 — 다음 기동이 같은 복구를 재적용해, 관리자가 그사이 다시 켠 2FA와 바꾼 비밀번호를
+     * 말없이 되돌린다. {@link #claimFailed}가 rename 실패를 기동 중단으로 다루는 것과 같은 이유이고,
+     * 다만 그쪽은 즉시 드러나는 반면 이쪽은 조용히 어긋난다.
+     *
+     * <p><b>실패해도 복구를 세우지 않는다.</b> 여기서 세우면 내구성 보강이 복구 차단으로 바뀐다 —
+     * 마지막 수단인 경로에서 그 교환은 손해다. 밀어넣지 못했을 때 남는 상태는 이 호출이 없던 때와 같으므로
+     * 실패는 후퇴가 아니라 제자리다. 대신 {@code false}를 돌려 호출부가 경고를 남길 수 있게 한다.
+     *
+     * <p><b>단위 테스트가 증명할 수 있는 범위</b>는 "이 호스트에서 이 호출이 실제로 동작한다"와 "실패해도
+     * 던지지 않는다"까지다. 전원이 끊긴 뒤에도 남아 있는지는 테스트 밖의 성질이라 여기서 증명하지 않는다.
+     *
+     * <p>경로로 여는 것이 핸들 기반(리눅스)의 디렉토리 고정을 깨지 않는가 — 깨지 않는다. 이 호출은 아무것도
+     * 판정하지 않고 아무 권한도 주지 않는다. 최악의 경우 엉뚱한 디렉토리를 밀어넣어 <b>내구성을 얻지 못할</b>
+     * 뿐이고, 그건 이 호출이 없던 상태와 같다.
+     */
+    static boolean syncDirectory(Path dir) {
+        if (dir == null) {
+            return false;   // 루트 바로 아래처럼 부모가 없는 경로 — 밀어넣을 대상이 없다
+        }
+        try (FileChannel channel = FileChannel.open(dir, StandardOpenOption.READ)) {
+            channel.force(true);
+            return true;
+        } catch (IOException | UnsupportedOperationException | SecurityException e) {
+            return false;   // 던지지 않는다 — 위 "실패해도 복구를 세우지 않는다" 참조
+        }
     }
 
     private static void closeQuietly(AutoCloseable closeable) {

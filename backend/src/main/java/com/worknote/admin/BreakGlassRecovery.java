@@ -132,6 +132,9 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
             BreakGlassFile.Request req = session.read();   // 검증이 수술보다 먼저 — 반쯤 적용 금지
             requireKnownEmp(req.emp());    // 선점 전에 사번까지 확인 — 오타 하나로 .processing이 남아 다음 기동까지 막지 않게
             session.claim(processing);     // 선점 후 수술 — 재적용 창을 닫는다(남는 한계는 Sentinel#claim)
+            // 커밋보다 먼저 내구화한다 — 순서가 요점이다. rename이 디스크에 닿기 전에 전원이 끊기면
+            // "복구는 적용됐는데 센티넬은 되살아난" 조합이 남고, 그건 선점이 막으려던 바로 그 상태다.
+            durable(processing, "선점");
             Outcome outcome = tx.execute(status -> apply(req));
             // 삭제보다 먼저 기록한다 — 삭제에 실패해 기동이 멈춰도 "무엇이 일어났는지"는 남아야 한다.
             log.warn("브레이크글래스 복구를 실행했습니다 — 사번 {}: 2FA 해제·유예 재시작{}{}. 처리 파일을 정리합니다.",
@@ -219,6 +222,19 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
     }
 
     /**
+     * 디렉토리 엔트리 변경을 디스크까지 밀어넣는다 — 근거와 "실패해도 세우지 않는" 이유는
+     * {@link BreakGlassFile#syncDirectory}에 있다. 여기서는 못 밀어넣었다는 사실만 남긴다:
+     * 조용히 지나가면 전원 차단 뒤에 벌어지는 일을 아무도 설명하지 못한다.
+     */
+    private void durable(Path processing, String what) {
+        if (!BreakGlassFile.syncDirectory(processing.getParent())) {
+            log.warn("브레이크글래스 {}: 디렉토리 변경을 디스크까지 밀어넣지 못했습니다({}). 복구는 그대로 진행합니다 —"
+                + " 다만 지금 전원이 끊기면 센티넬이 되살아나 다음 기동이 같은 복구를 다시 적용할 수 있습니다.",
+                what, processing.getParent());
+        }
+    }
+
+    /**
      * 커밋 뒤 정리 — <b>선점과 같은 세션</b>으로 지운다. 밖에서 rename만 되고 unlink만 실패하는 상태를 만들 수 없어
      * 테스트가 직접 호출한다.
      *
@@ -237,6 +253,9 @@ public class BreakGlassRecovery implements ApplicationListener<ApplicationStarte
     void delete(BreakGlassFile.Sentinel session, Path processing) {
         try {
             session.discard(processing);
+            // 삭제도 내구화한다. 여기서 되살아난 .processing 은 권한 문제가 아니라 가용성 문제다 —
+            // 복구는 끝났는데 다음 기동이 "중단 흔적"으로 읽고 멈춰 서서, 운영자가 지워 주기 전까지 못 뜬다.
+            durable(processing, "정리");
         } catch (IOException e) {
             // 남은 .processing은 다음 기동을 세운다(중단 흔적으로 읽히므로). 조용히 넘기면 그 정지가
             // 아무 설명 없이 찾아오므로, 지금 이 자리에서 이유와 함께 세운다.
