@@ -567,7 +567,7 @@ class BreakGlassFileTest {
         assumeTrue(posix(), "POSIX 미지원 — skip");
         int exercised = 0;
         for (Path base : List.of(Paths.get(System.getProperty("user.home")), Paths.get("/tmp"))) {
-            if (!Files.isDirectory(base) || !Files.isWritable(base) || !trustworthyBase(base)) {
+            if (!Files.isDirectory(base) || !Files.isWritable(base) || !baseIsNotTheKnownOpenHomeCase(base)) {
                 continue;   // 이 base는 이 호스트에서 못 쓴다 — 테스트를 접지 말고 다음 형태를 마저 본다
             }
             Path data = Files.createTempDirectory(base, "worknote-bg-");
@@ -910,14 +910,15 @@ class BreakGlassFileTest {
     // ---- syncDirectory: rename·unlink 를 디스크까지 (내구성) ----
 
     /**
-     * <b>가드가 아니라 환경 전제 확인이다.</b> 이 호출이 이 호스트에서 실제로 동작한다는 것 —
+     * <b>가드가 아니라 환경 전제 확인이다.</b> 이 호출이 이 호스트에서 <b>오류 없이 돈다</b>는 것 —
      * 즉 아래 폴백이 <b>정상이 아니라 예외</b>라는 것을 못 박는다. 전부 false를 돌려주는 환경에서는
      * 내구성 보강이 통째로 무의미해지는데, 그건 조용히 일어나므로 여기서 잡는다.
      * (JDK가 디렉토리를 {@code FileChannel}로 여는 것은 문서화된 계약이 아니다 — macOS APFS·리눅스에서
      * 실제로 되는 것을 확인했고, 안 되는 곳에서는 아래 테스트대로 false로 물러난다)
      *
-     * <p><b>여기까지가 단위 테스트의 사정거리다.</b> fsync한 것이 전원 차단 후에도 남아 있는지는
-     * 프로세스 밖의 성질이라 증명하지 않는다 — 증명한 척하는 단언을 만들지 않는다.
+     * <p><b>여기까지가 단위 테스트의 사정거리다.</b> {@code true}는 "내구화됐다"가 아니라 "오류 없이
+     * 반환했다"일 뿐이고({@link BreakGlassFile#syncDirectory}의 넷), 전원 차단 후에도 남아 있는지는
+     * 프로세스 밖의 성질이다 — 증명한 척하는 단언을 만들지 않는다.
      */
     @Test
     void syncDirectory_worksHereSoTheDurabilityStepIsNotSilentlyANoOp() {
@@ -972,15 +973,19 @@ class BreakGlassFileTest {
     }
 
     /**
-     * base를 "정상 배포"라고 부를 수 있는가 — <b>필요조건 한 가지만</b> 본다. 운영 규칙(소유자·심링크 해석·
-     * 조상 walk)의 사본이 아니다: 여기서 규칙을 두 번 적으면 테스트가 스스로 채점하는 꼴이 되고, 규칙이 바뀔 때
-     * 조용히 어긋난다. 그룹/타인이 쓸 수 있으면 그 안의 데이터 디렉토리를 통째로 바꿔치기할 수 있어 전제가
-     * 깨진다 — 단 sticky면 엔트리 소유자만 rename할 수 있어 {@code /tmp}(1777) 형태는 성립한다.
+     * <b>알려진 오탐 한 가지만 걸러낸다 — "이 base는 정상이다"를 판정하지 않는다.</b> 걸러내는 것은
+     * <b>base 자신이</b> 그룹/타인에게 열려 있는 경우뿐이다(공식 {@code gradle} 이미지의 757 {@code $HOME}).
+     * sticky면 엔트리 소유자만 rename할 수 있으므로 {@code /tmp}(1777) 형태는 통과시킨다.
      *
-     * <p>조상({@code /home}·{@code /Users}·{@code /})까지 흉내내지 않는다 — 그 층이 열려 있다면 이 호스트가
-     * 실제로 기능을 못 쓴다는 뜻이라, 건너뛰는 것보다 실패로 드러나는 편이 맞다.
+     * <p><b>필요조건이지 충분조건이 아니다.</b> 이걸 통과한 base가 정상 fixture라는 뜻은 아니다 — 예컨대
+     * {@code $HOME}이 700이어도 그 위의 {@code /build}가 non-sticky 0777이면 여기서는 통과하고 운영 코드는
+     * 조상을 보고 <b>올바르게</b> 거부하므로 테스트는 그대로 실패한다. 그건 의도다: 그런 호스트는 실제로
+     * 브레이크글래스를 쓸 수 없는 호스트이므로, 조용히 건너뛰는 것보다 실패로 드러나는 편이 맞다.
+     *
+     * <p>조상 walk를 여기 옮겨 적지 않는 이유: 그러면 운영 규칙(소유자·심링크 해석·sticky 조건)을 테스트가
+     * 두 번 적는 꼴이 되어 규칙이 바뀔 때 조용히 어긋난다. 사본을 늘리느니 사정거리를 좁게 적는다.
      */
-    private static boolean trustworthyBase(Path base) {
+    private static boolean baseIsNotTheKnownOpenHomeCase(Path base) {
         try {
             Set<PosixFilePermission> perms = Files.getPosixFilePermissions(base);
             boolean othersCanWrite = perms.contains(PosixFilePermission.GROUP_WRITE)
