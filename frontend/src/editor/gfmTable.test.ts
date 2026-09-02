@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   escapeCell, unescapeCell, parseGfmTable, serializeGfmTable,
   insertRow, deleteRow, insertColumn, deleteColumn, setAlign, renderInline,
+  isSeqColumn, seqColumns, setSeqColumn, renumberSeq,
 } from "./gfmTable";
 import type { TableModel } from "./gfmTable";
 
@@ -164,5 +165,138 @@ describe("구조조작", () => {
     const m = base();
     insertRow(m, 0); deleteColumn(m, 0); setAlign(m, 0, "right");
     expect(m.rows).toEqual([["a", "b"], ["c", "d"]]);
+  });
+});
+
+describe("seq 열", () => {
+  it("isSeqColumn: 가운데 정렬 + 1,2,3 인 열은 참", () => {
+    const m: TableModel = {
+      align: ["center", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"], ["2", "나"], ["3", "다"]],
+    };
+    expect(isSeqColumn(m, 0)).toBe(true);
+  });
+
+  it("isSeqColumn: 내용은 1,2,3 이지만 정렬이 center가 아니면 거짓", () => {
+    const m: TableModel = {
+      align: ["left", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"], ["2", "나"], ["3", "다"]],
+    };
+    expect(isSeqColumn(m, 0)).toBe(false);
+  });
+
+  it("isSeqColumn: 정렬은 center지만 번호가 끊기면(1,2,4) 거짓", () => {
+    const m: TableModel = {
+      align: ["center", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"], ["2", "나"], ["4", "다"]],
+    };
+    expect(isSeqColumn(m, 0)).toBe(false);
+  });
+
+  it("isSeqColumn: 본문 0행이면 거짓", () => {
+    const m: TableModel = { align: ["center"], header: ["No."], rows: [] };
+    expect(isSeqColumn(m, 0)).toBe(false);
+  });
+
+  it("isSeqColumn: 범위 밖 인덱스는 거짓", () => {
+    const m: TableModel = {
+      align: ["center", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"]],
+    };
+    expect(isSeqColumn(m, -1)).toBe(false);
+    expect(isSeqColumn(m, 2)).toBe(false);
+  });
+
+  it('isSeqColumn: "01"·" 1"·"1." 같은 유사 표기는 거짓', () => {
+    const withCell = (cell: string): TableModel => ({
+      align: ["center"],
+      header: ["No."],
+      rows: [[cell]],
+    });
+    expect(isSeqColumn(withCell("01"), 0)).toBe(false);
+    expect(isSeqColumn(withCell(" 1"), 0)).toBe(false);
+    expect(isSeqColumn(withCell("1."), 0)).toBe(false);
+  });
+
+  it("seqColumns: seq 열이 둘이면 둘 다 찾는다", () => {
+    const m: TableModel = {
+      align: ["center", "none", "center"],
+      header: ["No1", "항목", "No2"],
+      rows: [["1", "가", "1"], ["2", "나", "2"]],
+    };
+    expect(seqColumns(m)).toEqual([0, 2]);
+  });
+
+  it("setSeqColumn: 빈 열이 1..N + center로 채워진다", () => {
+    const m: TableModel = {
+      align: ["none", "none"],
+      header: ["No.", "항목"],
+      rows: [["", "가"], ["", "나"], ["", "다"]],
+    };
+    const out = setSeqColumn(m, 0);
+    expect(out.align[0]).toBe("center");
+    expect(out.rows.map((r) => r[0])).toEqual(["1", "2", "3"]);
+  });
+
+  it("setSeqColumn: 지정 결과가 곧 isSeqColumn을 만족한다(지정→감지 왕복)", () => {
+    const m: TableModel = {
+      align: ["none", "none"],
+      header: ["No.", "항목"],
+      rows: [["x", "가"], ["y", "나"]],
+    };
+    const out = setSeqColumn(m, 0);
+    expect(isSeqColumn(out, 0)).toBe(true);
+  });
+
+  it("setSeqColumn: 범위 밖이면 모델이 그대로다", () => {
+    const m: TableModel = {
+      align: ["none", "none"],
+      header: ["No.", "항목"],
+      rows: [["", "가"]],
+    };
+    expect(setSeqColumn(m, 9)).toEqual(m);
+  });
+
+  it("renumberSeq: 행 삽입으로 깨진 번호를 1..N으로 되돌린다", () => {
+    const m: TableModel = {
+      align: ["center", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"], ["", ""], ["2", "다"]],
+    };
+    const out = renumberSeq(m, [0]);
+    expect(out.rows.map((r) => r[0])).toEqual(["1", "2", "3"]);
+  });
+
+  it("renumberSeq: 빈 배열이면 같은 객체를 그대로 반환한다", () => {
+    const m: TableModel = {
+      align: ["center", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"]],
+    };
+    expect(renumberSeq(m, [])).toBe(m);
+  });
+
+  it("renumberSeq: 정렬은 바꾸지 않는다", () => {
+    const m: TableModel = {
+      align: ["left", "none"],
+      header: ["No.", "항목"],
+      rows: [["1", "가"], ["4", "다"]],
+    };
+    const out = renumberSeq(m, [0]);
+    expect(out.align).toEqual(["left", "none"]);
+  });
+
+  it("핵심 시나리오: 파싱 → seqColumns → insertRow → renumberSeq → 직렬화까지 왕복", () => {
+    const m = parseGfmTable("| No. | 항목 |\n|:---:|---|\n| 1 | 가 |\n| 2 | 다 |")!;
+    const cols = seqColumns(m);
+    expect(cols).toEqual([0]);
+    const next = insertRow(m, 1);
+    const renumbered = renumberSeq(next, cols);
+    const out = serializeGfmTable(renumbered);
+    expect(out).toBe("| No. | 항목 |\n| :---: | --- |\n| 1 | 가 |\n| 2 |  |\n| 3 | 다 |");
   });
 });
