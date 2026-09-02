@@ -125,4 +125,41 @@ test.describe("에디터 화면 (index.html)", () => {
     await expect(page.locator("textarea.title-input")).toHaveValue(target);
     await expect(page.locator(".crumbs .seg.cur")).toHaveText(target);
   });
+
+  test("표 열을 번호(seq) 열로 지정하면 1..N이 채워지고, 행 삽입 시 자동 재번호된다", async ({ page }) => {
+    await createRootNote(page, uniq("e2e-표번호노트"));
+
+    const tableSrc = ["| No. | 항목 |", "| --- | --- |", "|  | 가 |", "|  | 나 |"].join("\n");
+    await page.locator(".cm-host .cm-content").click();
+    await page.keyboard.type(tableSrc);
+    // 표 위젯은 커서가 표 안에 있으면 소스로 풀린다 — 포커스를 표 밖(제목 입력)으로 옮겨야 렌더된다
+    await page.locator("textarea.title-input").click();
+    await expect(page.locator(".cm-table-widget")).toBeVisible();
+
+    const bodyRows = page.locator(".cm-table tbody tr");
+    await expect(bodyRows).toHaveCount(2);
+    const firstCol = (i: number) => bodyRows.nth(i).locator(".cm-cell").first();
+
+    // 첫 열 핸들 → 열 메뉴 → "① 번호 열로 지정"
+    await page.locator(".cm-col-handle").first().click();
+    await expect(page.locator(".cm-table-menu")).toBeVisible();
+    await page.locator(".cm-table-menu button", { hasText: "① 번호 열로 지정" }).click();
+
+    await expect(firstCol(0)).toHaveText("1");
+    await expect(firstCol(0)).toHaveAttribute("data-align", "center");
+    await expect(firstCol(1)).toHaveText("2");
+    await expect(firstCol(1)).toHaveAttribute("data-align", "center");
+
+    // 두 번째 행 핸들 → 행 메뉴 → "↓ 아래에 행 삽입"
+    await page.locator(".cm-row-handle").nth(1).click();
+    await expect(page.locator(".cm-table-menu")).toBeVisible();
+    await page.locator(".cm-table-menu button", { hasText: "↓ 아래에 행 삽입" }).click();
+
+    // 새 행이 끼어들어도 번호 열은 1..N으로 자동 재번호된다
+    await expect(bodyRows).toHaveCount(3);
+    await expect(firstCol(0)).toHaveText("1");
+    await expect(firstCol(1)).toHaveText("2");
+    await expect(firstCol(2)).toHaveText("3");
+    await expect(firstCol(2)).toHaveAttribute("data-align", "center");
+  });
 });
