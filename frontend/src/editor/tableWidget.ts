@@ -3,7 +3,7 @@
 import { EditorView, WidgetType } from "@codemirror/view";
 import { undo, redo } from "@codemirror/commands";
 import { syntaxTree } from "@codemirror/language";
-import { parseGfmTable, serializeGfmTable, insertRow, deleteRow, insertColumn, deleteColumn, setAlign, renderInline } from "./gfmTable";
+import { parseGfmTable, serializeGfmTable, insertRow, deleteRow, insertColumn, deleteColumn, setAlign, renderInline, seqColumns, setSeqColumn, renumberSeq } from "./gfmTable";
 import type { TableModel, Align } from "./gfmTable";
 
 // 구조 변경으로 위젯이 재생성될 때, 새 toDOM이 소비해 포커스를 복원할 좌표. r=0은 헤더행, r>=1은 본문행(r-1).
@@ -202,6 +202,12 @@ export class TableWidget extends WidgetType {
     }
   }
 
+  /** 구조 연산을 seq 열 유지로 감싼다. 감지는 반드시 연산 *전* 모델에서 —
+   *  행을 넣고 나면 그 열은 1,2,"",3 이라 더 이상 seq로 보이지 않는다. */
+  private keepingSeq(fn: (m: TableModel) => TableModel): (m: TableModel) => TableModel {
+    return (m) => { const cols = seqColumns(m); return renumberSeq(fn(m), cols); };
+  }
+
   /** 위젯 내부(셀/범위)의 Ctrl/Cmd+Z·Shift+Z·Y를 CM 히스토리로 라우팅.
    *  위젯은 ignoreEvent=true라 CM 키맵이 못 받으므로 여기서 직접 undo/redo 호출.
    *  undo 전엔 디바운스 미커밋분을 먼저 commit해 "내 마지막 동작" 단위로 되돌림(redo는 커밋 금지 — 리두 스택 보존).
@@ -234,7 +240,7 @@ export class TableWidget extends WidgetType {
       // 마지막 셀에서 Tab → 새 본문 행 추가 후 첫 셀
       this.commit(); // 현재 편집분 먼저 반영
       const newRowVisual = 1 + this.bodyRowCount();
-      this.applyOp((m) => insertRow(m, m.rows.length), { r: newRowVisual, col: 0 });
+      this.applyOp(this.keepingSeq((m) => insertRow(m, m.rows.length)), { r: newRowVisual, col: 0 });
       return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
@@ -244,7 +250,7 @@ export class TableWidget extends WidgetType {
       const lastVisualRow = this.bodyRowCount(); // 본문 마지막 행의 visual r
       if (r >= lastVisualRow) {
         this.commit();
-        this.applyOp((m) => insertRow(m, m.rows.length), { r: 1 + this.bodyRowCount(), col });
+        this.applyOp(this.keepingSeq((m) => insertRow(m, m.rows.length)), { r: 1 + this.bodyRowCount(), col });
       } else {
         this.focusCellAt(r + 1, col);
       }
@@ -296,13 +302,15 @@ export class TableWidget extends WidgetType {
       { label: "⬅ 왼쪽 정렬", run: () => this.applyOp((m) => setAlign(m, col, "left"), { r: 0, col }) },
       { label: "⬛ 가운데 정렬", run: () => this.applyOp((m) => setAlign(m, col, "center"), { r: 0, col }) },
       { label: "➡ 오른쪽 정렬", run: () => this.applyOp((m) => setAlign(m, col, "right"), { r: 0, col }) },
+      { sep: true },
+      { label: "① 번호 열로 지정", run: () => this.applyOp((m) => setSeqColumn(m, col), { r: 0, col }) },
     ]);
   }
   private openRowMenu(bodyIdx: number, anchor: HTMLElement): void {
     this.openMenu(anchor, [
-      { label: "↑ 위에 행 삽입", run: () => this.applyOp((m) => insertRow(m, bodyIdx), { r: bodyIdx + 1, col: 0 }) },
-      { label: "↓ 아래에 행 삽입", run: () => this.applyOp((m) => insertRow(m, bodyIdx + 1), { r: bodyIdx + 2, col: 0 }) },
-      { label: "🗑 행 삭제", run: () => this.applyOp((m) => deleteRow(m, bodyIdx), { r: Math.max(0, bodyIdx), col: 0 }) },
+      { label: "↑ 위에 행 삽입", run: () => this.applyOp(this.keepingSeq((m) => insertRow(m, bodyIdx)), { r: bodyIdx + 1, col: 0 }) },
+      { label: "↓ 아래에 행 삽입", run: () => this.applyOp(this.keepingSeq((m) => insertRow(m, bodyIdx + 1)), { r: bodyIdx + 2, col: 0 }) },
+      { label: "🗑 행 삭제", run: () => this.applyOp(this.keepingSeq((m) => deleteRow(m, bodyIdx)), { r: Math.max(0, bodyIdx), col: 0 }) },
     ]);
   }
 
@@ -431,7 +439,7 @@ export class TableWidget extends WidgetType {
     e.preventDefault();
     const grid = text.replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n").map((line) => line.split("\t"));
     const start = this.coordOf(this.allCells().indexOf(cell));
-    this.applyOp((m) => {
+    this.applyOp(this.keepingSeq((m) => {
       const ncol = m.header.length;
       const next: TableModel = { align: m.align.slice(), header: m.header.slice(), rows: m.rows.map((r) => r.slice()) };
       for (let i = 0; i < grid.length; i++) {
@@ -445,7 +453,7 @@ export class TableWidget extends WidgetType {
         }
       }
       return next;
-    }, start);
+    }), start);
   }
 
   destroy(): void {
