@@ -203,9 +203,27 @@ export class TableWidget extends WidgetType {
   }
 
   /** 구조 연산을 seq 열 유지로 감싼다. 감지는 반드시 연산 *전* 모델에서 —
-   *  행을 넣고 나면 그 열은 1,2,"",3 이라 더 이상 seq로 보이지 않는다. */
-  private keepingSeq(fn: (m: TableModel) => TableModel): (m: TableModel) => TableModel {
-    return (m) => { const cols = seqColumns(m); return renumberSeq(fn(m), cols); };
+   *  행을 넣고 나면 그 열은 1,2,"",3 이라 더 이상 seq로 보이지 않는다.
+   *  exclude로 넘긴 열은 감지됐더라도 재번호에서 뺀다 — 붙여넣기가 그 열을 직접
+   *  덮은 경우, 붙여넣은 값을 1..N으로 되돌려 조용히 지우지 않기 위함. */
+  private keepingSeq(
+    fn: (m: TableModel) => TableModel,
+    exclude: Set<number> = new Set(),
+  ): (m: TableModel) => TableModel {
+    return (m) => { const cols = seqColumns(m).filter((c) => !exclude.has(c)); return renumberSeq(fn(m), cols); };
+  }
+
+  /** 행 조작 후 캐럿을 놓을 열 — seq 열은 자동 관리 셀이라 건너뛴다.
+   *  거기 그대로 두면 "행 추가 → 바로 입력" 흐름에서 방금 채워진 번호를 덮어써
+   *  판정을 깨고, 해제 메뉴가 없어 자동 재번호가 조용히·영구히 멈춘다.
+   *  (건너뛸 데가 없으면 원래 열 — seq가 유일한 열인 표에서도 포커스는 잃지 않는다) */
+  private firstEditableCol(preferred = 0): number {
+    const m = this.dom ? parseGfmTable(serializeFromDom(this.dom)) : null;
+    if (!m) return preferred;
+    const seq = new Set(seqColumns(m));
+    if (!seq.has(preferred)) return preferred;
+    for (let c = 0; c < m.header.length; c++) if (!seq.has(c)) return c;
+    return preferred;
   }
 
   /** 위젯 내부(셀/범위)의 Ctrl/Cmd+Z·Shift+Z·Y를 CM 히스토리로 라우팅.
@@ -237,10 +255,10 @@ export class TableWidget extends WidgetType {
         return;
       }
       if (idx + 1 < cells.length) { cells[idx + 1].focus(); return; }
-      // 마지막 셀에서 Tab → 새 본문 행 추가 후 첫 셀
+      // 마지막 셀에서 Tab → 새 본문 행 추가 후 첫 편집 가능 셀(seq 열은 건너뜀)
       this.commit(); // 현재 편집분 먼저 반영
       const newRowVisual = 1 + this.bodyRowCount();
-      this.applyOp(this.keepingSeq((m) => insertRow(m, m.rows.length)), { r: newRowVisual, col: 0 });
+      this.applyOp(this.keepingSeq((m) => insertRow(m, m.rows.length)), { r: newRowVisual, col: this.firstEditableCol() });
       return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
@@ -307,10 +325,11 @@ export class TableWidget extends WidgetType {
     ]);
   }
   private openRowMenu(bodyIdx: number, anchor: HTMLElement): void {
+    // 캐럿 열은 seq 열을 건너뛴다 — firstEditableCol() 참조.
     this.openMenu(anchor, [
-      { label: "↑ 위에 행 삽입", run: () => this.applyOp(this.keepingSeq((m) => insertRow(m, bodyIdx)), { r: bodyIdx + 1, col: 0 }) },
-      { label: "↓ 아래에 행 삽입", run: () => this.applyOp(this.keepingSeq((m) => insertRow(m, bodyIdx + 1)), { r: bodyIdx + 2, col: 0 }) },
-      { label: "🗑 행 삭제", run: () => this.applyOp(this.keepingSeq((m) => deleteRow(m, bodyIdx)), { r: Math.max(0, bodyIdx), col: 0 }) },
+      { label: "↑ 위에 행 삽입", run: () => this.applyOp(this.keepingSeq((m) => insertRow(m, bodyIdx)), { r: bodyIdx + 1, col: this.firstEditableCol() }) },
+      { label: "↓ 아래에 행 삽입", run: () => this.applyOp(this.keepingSeq((m) => insertRow(m, bodyIdx + 1)), { r: bodyIdx + 2, col: this.firstEditableCol() }) },
+      { label: "🗑 행 삭제", run: () => this.applyOp(this.keepingSeq((m) => deleteRow(m, bodyIdx)), { r: Math.max(0, bodyIdx), col: this.firstEditableCol() }) },
     ]);
   }
 
@@ -439,8 +458,14 @@ export class TableWidget extends WidgetType {
     e.preventDefault();
     const grid = text.replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n").map((line) => line.split("\t"));
     const start = this.coordOf(this.allCells().indexOf(cell));
+    // 붙여넣기 사각형이 실제로 덮는 열들(열 초과는 클램프되므로 ncol 미만만) — 이 열이 seq여도
+    // 재번호로 덮어쓰면 방금 붙여넣은 값이 조용히 사라진다. keepingSeq에서 빼둔다.
+    const ncol = this.colCount();
+    const width = Math.max(...grid.map((g) => g.length));
+    const pastedCols = new Set(
+      Array.from({ length: width }, (_, j) => start.col + j).filter((c) => c < ncol),
+    );
     this.applyOp(this.keepingSeq((m) => {
-      const ncol = m.header.length;
       const next: TableModel = { align: m.align.slice(), header: m.header.slice(), rows: m.rows.map((r) => r.slice()) };
       for (let i = 0; i < grid.length; i++) {
         const rVis = start.r + i; // r=0 헤더, r>=1 본문
@@ -453,7 +478,7 @@ export class TableWidget extends WidgetType {
         }
       }
       return next;
-    }), start);
+    }, pastedCols), start);
   }
 
   destroy(): void {

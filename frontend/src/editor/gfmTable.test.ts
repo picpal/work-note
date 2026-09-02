@@ -280,6 +280,22 @@ describe("seq 열", () => {
     expect(renumberSeq(m, [])).toBe(m);
   });
 
+  it("renumberSeq: 유효 인덱스가 없으면 같은 객체를 그대로 반환한다", () => {
+    const m: TableModel = { align: ["center"], header: ["No."], rows: [["1"]] };
+    expect(renumberSeq(m, [9])).toBe(m);
+  });
+
+  it("renumberSeq: seq 열 두 개를 동시에 재번호한다", () => {
+    const m: TableModel = {
+      align: ["center", "none", "center"],
+      header: ["No1", "항목", "No2"],
+      rows: [["1", "가", "1"], ["", "나", ""], ["2", "다", "2"]],
+    };
+    const out = renumberSeq(m, [0, 2]);
+    expect(out.rows.map((r) => r[0])).toEqual(["1", "2", "3"]);
+    expect(out.rows.map((r) => r[2])).toEqual(["1", "2", "3"]);
+  });
+
   it("renumberSeq: 정렬은 바꾸지 않는다", () => {
     const m: TableModel = {
       align: ["left", "none"],

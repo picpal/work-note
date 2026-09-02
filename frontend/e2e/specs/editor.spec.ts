@@ -161,5 +161,28 @@ test.describe("에디터 화면 (index.html)", () => {
     await expect(firstCol(1)).toHaveText("2");
     await expect(firstCol(2)).toHaveText("3");
     await expect(firstCol(2)).toHaveAttribute("data-align", "center");
+
+    // 회귀(수정 1): 행 삽입 직후 캐럿이 번호 셀이 아니라 다음 편집 가능한 열에 있어야 한다.
+    // 그렇지 않으면 "행 추가 → 바로 입력"이라는 주 사용 흐름에서 방금 채워진 번호를 덮어써
+    // 판정을 깨고, 해제 메뉴가 없으니 자동 재번호가 조용히·영구히 멈춘다.
+    await page.keyboard.type("새값");
+    await expect(firstCol(2)).toHaveText("3"); // 번호 열은 그대로 — 입력이 여기로 안 들어갔다
+    await expect(bodyRows.nth(2).locator(".cm-cell").nth(1)).toHaveText("새값"); // 입력은 항목 열로
+
+    // 회귀(수정 2): 멀티셀 붙여넣기가 번호 열을 덮으면, 붙여넣은 값이 재번호로 지워지지 않는다.
+    // OS 클립보드 권한 없이 합성 paste 이벤트로 검증(navigator.clipboard 미사용 — CI에서도 안정적).
+    const pasteTarget = firstCol(0); // 첫 행의 번호 셀(col 0)
+    await pasteTarget.evaluate((el) => (el as HTMLElement).focus());
+    await pasteTarget.evaluate((el, tsv) => {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", tsv);
+      const ev = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+      el.dispatchEvent(ev);
+    }, "9\t나2\n8\t다2\n7\t라2");
+
+    await expect(firstCol(0)).toHaveText("9"); // 붙여넣은 값이 살아있다(1로 되돌려지지 않는다)
+    await expect(firstCol(1)).toHaveText("8");
+    await expect(firstCol(2)).toHaveText("7");
+    await expect(bodyRows.nth(0).locator(".cm-cell").nth(1)).toHaveText("나2");
   });
 });
