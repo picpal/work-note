@@ -17,3 +17,6 @@ backend/seed_*.py
 .scannerwork/
 .context/
 backend/attachments/
+
+# SDD 작업 산출물(원장·브리프·리뷰 패키지) — git 기록이 최종 산출물이다
+.superpowers/
