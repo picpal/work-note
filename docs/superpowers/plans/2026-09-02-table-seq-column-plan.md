@@ -149,7 +149,7 @@ private keepingSeq(fn: (m: TableModel) => TableModel): (m: TableModel) => TableM
 
 ### 2-2. 적용 지점 — 행 삽입·행 삭제·붙여넣기 (호출부 4곳)
 
-기존 `applyOp(...)` 호출 중 아래 셋만 `this.keepingSeq(...)`로 감싼다:
+기존 `applyOp(...)` 호출 중 아래 네 곳만 `this.keepingSeq(...)`로 감싼다:
 
 1. `onCellKey`의 Tab — 마지막 셀에서 새 행 추가: `this.applyOp((m) => insertRow(m, m.rows.length), ...)`
 2. `onCellKey`의 Enter — 마지막 행에서 새 행 추가: 위와 같은 `insertRow` 호출
