@@ -17,36 +17,57 @@
 ```bash
 cd frontend && pnpm build && cd ../backend && ./gradlew bootJar
 
+# QA 계정 비밀번호는 이 셸에서 한 번만 정하고 이후 전부 참조한다(문서에 평문으로 박지 않는다).
+# localhost 전용 일회성 픽스처 값이라 유출 자산은 아니지만, 값을 문서에 남기면
+# 셸 히스토리·스캐너·복붙으로 계속 따라다니므로 매번 새로 만든다:
+#   export WN_QA_ADMIN_PW="qa-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')"
+ADMIN_PW="${WN_QA_ADMIN_PW:?로컬 QA용 admin 비밀번호를 지정하세요 (10자 이상)}"
+
 # QA 전용 디렉토리 — server 모드는 DB가 절대 경로여야 하고, 저장 디렉토리가
 # 그룹/타인에게 열려 있으면 기동을 거부한다. /tmp는 1777(전체 쓰기)이라 쓸 수 없다.
 QA_DIR="$HOME/worknote-qa"
 mkdir -p "$QA_DIR" && chmod 700 "$QA_DIR"   # QA 전용 디렉토리이므로 chmod 가능
 rm -f "$QA_DIR"/wn-qa.db*
 
-WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 \
+WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD="$ADMIN_PW" \
   WORKNOTE_DB="$QA_DIR/wn-qa.db" WORKNOTE_UPLOAD_DIR="$QA_DIR/uploads" \
   java -jar build/libs/worknote-0.1.0.jar   # 백그라운드 기동
 # 헬스: curl --retry-connrefused --retry 40 --retry-delay 1 http://localhost:8080/api/health
 ```
 - `WORKNOTE_DB`를 빼거나 `/tmp/...`로 두면 **기동 단계에서 실패**한다(절대 경로 요구 + 공용 디렉토리 거부). 상세는 [운영자 가이드 — 데이터 파일 권한](operator-guide.md#데이터-파일-권한).
 - `uploads`는 없으면 앱이 `700`으로 만든다. 재실행 시 남아 있어도 그대로 통과한다.
-- 로그인 계정: 사번 `admin` / 비번 `qa-admin-1234` (부트스트랩 관리자)
+- 로그인 계정: 사번 `admin` / 비번 `$ADMIN_PW` (부트스트랩 관리자 — 위에서 지정한 값)
 - 빈 DB면 첫 진입 시 시드 vault 자동 업로드(시작하기/아키텍처/운영 가이드/회의록/README)
+- 비번을 바꿔 다시 기동하려면 **DB부터 지워야** 한다(`rm -f "$QA_DIR"/wn-qa.db*`). 부트스트랩은 사용자 0명일 때만 돌기 때문이다.
 
 ### 0.2 픽스처 시딩 (권한·공유·관리자 시나리오 전제)
 admin 세션 쿠키로 제한 역할 유저·팀·ACL·public·공유 링크를 미리 생성. (Batch 5~8 전제)
 ```bash
 J=/tmp/wn-qa-cookies.txt; B=http://localhost:8080/api
-curl -s -c $J -X POST $B/auth/login -H 'Content-Type: application/json' -d '{"emp":"admin","password":"qa-admin-1234"}' >/dev/null
+
+# 0.1과 같은 셸이면 ADMIN_PW가 이미 있다. 새 셸이면 같은 값을 다시 지정한다.
+ADMIN_PW="${WN_QA_ADMIN_PW:?0.1에서 쓴 admin 비밀번호와 같은 값을 지정하세요}"
+OP_PW="${WN_QA_OP_PW:?OP1(제한 역할) 초기 비밀번호를 지정하세요 (10자 이상)}"
+PEND_PW="${WN_QA_PEND_PW:?PEND1(가입 대기) 비밀번호를 지정하세요 (10자 이상)}"
+
+# 비번을 JSON 문자열로 인코딩 — 따옴표·역슬래시가 든 비번도 깨진 JSON을 만들지 않는다
+jstr() { python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$1"; }
+
+curl -s -c $J -X POST $B/auth/login -H 'Content-Type: application/json' -d "{\"emp\":\"admin\",\"password\":$(jstr "$ADMIN_PW")}" >/dev/null
 # 제한 역할 유저(operator) + 대기 유저(visitor)
-curl -s -b $J -X POST $B/admin/users -H 'Content-Type: application/json' -d '{"emp":"OP1","name":"운영자","roleId":"operator","password":"op-12345678"}'
-curl -s -X POST $B/auth/signup -H 'Content-Type: application/json' -d '{"emp":"PEND1","name":"대기자","password":"pend-12345678"}'   # pending
+curl -s -b $J -X POST $B/admin/users -H 'Content-Type: application/json' -d "{\"emp\":\"OP1\",\"name\":\"운영자\",\"roleId\":\"operator\",\"password\":$(jstr "$OP_PW")}"
+curl -s -X POST $B/auth/signup -H 'Content-Type: application/json' -d "{\"emp\":\"PEND1\",\"name\":\"대기자\",\"password\":$(jstr "$PEND_PW")}"   # pending
 # 팀 + 멤버
 TID=$(curl -s -b $J -X POST $B/admin/teams -H 'Content-Type: application/json' -d '{"name":"품질팀"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
 # 노드 id는 GET /api/tree에서 확인 후 ACL/public/share 대상 지정
 curl -s -b $J $B/tree | python3 -m json.tool | head -40
+
+# 아래 Batch 프롬프트에 붙여넣을 계정 (터미널에만 출력)
+echo "admin/$ADMIN_PW"; echo "OP1/$OP_PW"
 ```
 > 노드 id를 얻은 뒤 ACL(`PUT /api/admin/nodes/{id}/acl`)·public(`PUT /api/admin/nodes/{id}/public`)·공유(`POST /api/nodes/{id}/share`)를 시딩.
+
+> **Batch 프롬프트의 `<ADMIN_PW>`·`<OP_PW>`** 는 위에서 지정한 실제 값으로 바꿔 넣는다(마지막 `echo` 출력을 그대로 붙여넣으면 된다). `/qa` 프롬프트는 셸이 아니라 브라우저 에이전트에 전달되는 자연어라 변수가 확장되지 않는다.
 
 ### 0.3 React 컨트롤드 입력 채우기 (자동화 팁)
 입력칸에 `id`/`name`이 없어 접근성 트리로 안 잡히는 폼은 네이티브 setter로 채운다:
@@ -60,8 +81,8 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 ## Batch 1 — 인증 (login.html, server) ✅
 
 ```
-/qa http://localhost:8080/login.html 사번 admin / 비번 qa-admin-1234 환경.
-1) 로그인 성공: admin/qa-admin-1234 → /index.html 진입, 우상단 "관리자 (admin)"
+/qa http://localhost:8080/login.html 사번 admin / 비번 <ADMIN_PW> 환경.
+1) 로그인 성공: admin/<ADMIN_PW> → /index.html 진입, 우상단 "관리자 (admin)"
 2) 로그인 실패(틀린 비번): admin/wrong → 에러 노출, 페이지 유지(리다이렉트 없음)
 3) 로그인 실패(없는 사번): NOPE/whatever1234 → 2)와 동일 문구(계정 존재 노출 금지)
 4) 가입 탭 전환 → 9자 비번(123456789) → "비밀번호는 10자 이상이어야 합니다"
@@ -76,10 +97,10 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 *(이미 1차 검증 완료 — 회귀 batch)*
 
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234 로그인 후 우상단 프로필 모달.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW> 로그인 후 우상단 프로필 모달.
 1) 이름→"관리자둘", 이메일→"admin2@corp.local" 저장 → 토스트 "프로필을 저장했습니다" + 우상단 라벨 즉시 "관리자둘 (admin)"
 2) 새 비번 "abc"(현재·확인 포함) → "새 비밀번호는 10자 이상이어야 합니다."
-3) 현재 qa-admin-1234 + 새 "newpass-1234" → 토스트 "비밀번호를 변경했습니다", 변경 후 /api/auth/me 200(세션 생존)
+3) 현재 <ADMIN_PW> + 새 "newpass-1234" → 토스트 "비밀번호를 변경했습니다", 변경 후 /api/auth/me 200(세션 생존)
 4) 모달 재오픈 시 이메일이 서버값(admin2@corp.local) 프리로드 확인
 ```
 **자동화 노트**: ✅. 비번 변경 시 **타 기기 세션 무효화**는 🔧 (2개 세션 필요 → API 통합테스트 ChangePasswordApiTest가 커버).
@@ -87,7 +108,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 ## Batch 3 — 에디터·노트 편집 (index) ✅⚠️
 
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234 로그인 후 에디터.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW> 로그인 후 에디터.
 1) 새 노트 생성(툴바 새 노트 버튼) → 인라인 rename "QA노트" → Enter
 2) 본문에 텍스트 입력 → 1.5초 후 "저장되었습니다" 토스트(디바운스 저장)
 3) 툴바 액션 각각 클릭해 마크다운 삽입 확인: H1, 굵게, 기울임, 인용, 목록, 체크리스트, 표, 링크, 이미지, 코드블록, Mermaid, 시퀀스
@@ -101,7 +122,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 ## Batch 4 — 트리 이동 (index, server) ✅⚠️🔧
 
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234 로그인 후 트리.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW> 로그인 후 트리.
 1) 폴더/노트 우클릭 → "이동" → 폴더 피커에서 다른 폴더 선택 → 이동 확인
 2) 노출이 넓어지는 이동(공개 폴더로/다른 스페이스로) → "노출 범위가 넓어집니다" 경고 모달 → 계속/취소
 3) 폴더를 자기 자신/자손으로 이동 시도 → 후보 목록에서 제외(선택 불가)
@@ -114,7 +135,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 
 진입: 사이드바 푸터 **휴지통 버튼**(http 모드 전용) → TrashModal.
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW>.
 1) 노트/폴더 삭제(우클릭 → 삭제) → 휴지통 버튼 클릭 → 모달 목록에 노출(라벨·노트/폴더 구분)
 2) 모달에서 복구 → 토스트 "복구했습니다" + 원위치 트리 재동기화(부모 폴더 펼치면 노출)
 3) 영구 삭제 → "영구 삭제 확인" 2단계 → 토스트 "영구 삭제했습니다" + 목록에서 제거
@@ -126,7 +147,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 
 *전제: 픽스처에서 노트 1개 공유 링크 생성하거나 시나리오 1에서 생성.*
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW>.
 1) 노트 우클릭 → "공유 링크" → days=7 생성 → 토큰/URL 발급
 2) 발급된 share.html?token=... 새 탭 열람 → read-only 본문 표시(편집 UI 없음)
 3) 링크 취소(revoke) 후 동일 토큰 열람 → 404(무효 사유 단일 404)
@@ -138,7 +159,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 ## Batch 7 — 관리자 화면 (admin.html, server, admin) ✅
 
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234 로그인 후 admin.html.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW> 로그인 후 admin.html.
 1) Dashboard: 요약 카드 표시
 2) Users: 목록 / 사용자 추가(10자 비번) / 이름·역할·상태 수정 / 비번 초기화
 3) Pending: 가입 대기자 승인 → active 전환
@@ -157,7 +178,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 
 *전제: 픽스처 OP1(operator) + 일부 노드 ACL deny/grant + public.*
 ```
-/qa http://localhost:8080/login.html OP1/op-12345678 로 로그인(제한 역할).
+/qa http://localhost:8080/login.html OP1/<OP_PW> 로 로그인(제한 역할).
 1) 트리에 읽을 수 있는 노드만 노출(경로 연결용 조상 폴더는 이름 스텁)
 2) 편집 권한 없는 노트 열어 편집 시도 → 저장 실패(403) 처리
 3) deny 우선: 개인 grant가 있어도 팀 deny 노드는 안 보임
@@ -168,7 +189,7 @@ React state는 클릭 직후 동기 조회 불가 → 검증 메시지/토스트
 ## Batch 9 — 설정·테마·단축키 (index) ✅
 
 ```
-/qa http://localhost:8080/login.html admin/qa-admin-1234 로그인 후 설정.
+/qa http://localhost:8080/login.html admin/<ADMIN_PW> 로그인 후 설정.
 1) 다크 모드 토글(상단 달/해 버튼) → data-theme 전환 + 새로고침 후 지속
 2) 설정 모달: 밀도(compact/comfortable/spacious) → row 높이 변화
 3) 사이드바 너비/본문 폰트 크기/가이드선/아이콘 토글 반영

@@ -16,18 +16,23 @@
 ```bash
 cd frontend && pnpm build && cd ../backend && ./gradlew bootJar
 
+# QA 계정 비밀번호는 셸에서 한 번만 정하고 참조한다(문서에 평문으로 박지 않는다).
+# localhost 전용 일회성 픽스처 값 — 매번 새로 만들면 된다:
+#   export WN_QA_ADMIN_PW="qa-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')"
+ADMIN_PW="${WN_QA_ADMIN_PW:?로컬 QA용 admin 비밀번호를 지정하세요 (10자 이상)}"
+
 # QA 전용 디렉토리 — server 모드는 DB가 절대 경로여야 하고, DB 부모·업로드 루트가
 # 그룹/타인에게 열려 있으면 기동을 거부한다. /tmp는 1777(전체 쓰기)이라 쓸 수 없다.
 QA_DIR="$HOME/worknote-qa-att"
 mkdir -p "$QA_DIR" && chmod 700 "$QA_DIR"   # QA 전용 디렉토리이므로 chmod 가능
 rm -f "$QA_DIR"/wn-att.db*; rm -rf "$QA_DIR/uploads"
 
-WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD=qa-admin-1234 \
+WORKNOTE_MODE=server WORKNOTE_ADMIN_PASSWORD="$ADMIN_PW" \
   WORKNOTE_DB="$QA_DIR/wn-att.db" WORKNOTE_UPLOAD_DIR="$QA_DIR/uploads" \
   java -jar build/libs/worknote-0.1.0.jar &
 # 헬스: curl --retry-connrefused --retry 40 --retry-delay 1 http://localhost:8080/api/health
 ```
-- 로그인: 사번 `admin` / 비번 `qa-admin-1234`
+- 로그인: 사번 `admin` / 비번 `$ADMIN_PW` (위에서 지정한 값 — `/qa` 프롬프트에는 실제 값을 넣는다)
 - 업로드 디렉토리: `$QA_DIR/uploads` (DB는 `$QA_DIR/wn-att.db`) — 업로드 루트는 지운 뒤 앱이 `700`으로 다시 만든다.
 - `/tmp` 아래 경로나 `WORKNOTE_DB` 미지정으로는 **기동 자체가 실패**한다. 상세는 [운영자 가이드 — 데이터 파일 권한](operator-guide.md#데이터-파일-권한).
 - **첨부는 http(server) 모드 전용.** 순수 localStorage 모드에는 백엔드가 없어 업로드 비활성(B12).
