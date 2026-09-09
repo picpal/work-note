@@ -50,10 +50,13 @@ ADMIN_PW="${WN_QA_ADMIN_PW:?0.1에서 쓴 admin 비밀번호와 같은 값을 �
 OP_PW="${WN_QA_OP_PW:?OP1(제한 역할) 초기 비밀번호를 지정하세요 (10자 이상)}"
 PEND_PW="${WN_QA_PEND_PW:?PEND1(가입 대기) 비밀번호를 지정하세요 (10자 이상)}"
 
-curl -s -c $J -X POST $B/auth/login -H 'Content-Type: application/json' -d "{\"emp\":\"admin\",\"password\":\"$ADMIN_PW\"}" >/dev/null
+# 비번을 JSON 문자열로 인코딩 — 따옴표·역슬래시가 든 비번도 깨진 JSON을 만들지 않는다
+jstr() { python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$1"; }
+
+curl -s -c $J -X POST $B/auth/login -H 'Content-Type: application/json' -d "{\"emp\":\"admin\",\"password\":$(jstr "$ADMIN_PW")}" >/dev/null
 # 제한 역할 유저(operator) + 대기 유저(visitor)
-curl -s -b $J -X POST $B/admin/users -H 'Content-Type: application/json' -d "{\"emp\":\"OP1\",\"name\":\"운영자\",\"roleId\":\"operator\",\"password\":\"$OP_PW\"}"
-curl -s -X POST $B/auth/signup -H 'Content-Type: application/json' -d "{\"emp\":\"PEND1\",\"name\":\"대기자\",\"password\":\"$PEND_PW\"}"   # pending
+curl -s -b $J -X POST $B/admin/users -H 'Content-Type: application/json' -d "{\"emp\":\"OP1\",\"name\":\"운영자\",\"roleId\":\"operator\",\"password\":$(jstr "$OP_PW")}"
+curl -s -X POST $B/auth/signup -H 'Content-Type: application/json' -d "{\"emp\":\"PEND1\",\"name\":\"대기자\",\"password\":$(jstr "$PEND_PW")}"   # pending
 # 팀 + 멤버
 TID=$(curl -s -b $J -X POST $B/admin/teams -H 'Content-Type: application/json' -d '{"name":"품질팀"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
 # 노드 id는 GET /api/tree에서 확인 후 ACL/public/share 대상 지정
