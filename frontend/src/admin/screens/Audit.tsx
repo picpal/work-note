@@ -4,7 +4,8 @@ import { AdminApi, ApiAudit } from "../api";
 import { buildAuditReport, buildReportHtmlDoc, monthBounds } from "../auditReport";
 import { auditDetailLines } from "../auditDetail";
 import { buildAuditCsv, fmtAuditAt } from "../auditExport";
-import { actLabel, actType, KNOWN_ACTS } from "../mappers";
+import { auditActsByGroup } from "../auditActs";
+import { actLabel, actType } from "../mappers";
 import { ApiError } from "../../api/http";
 import { SecHead, Empty, SkeletonTable } from "../common";
 import { Icon } from "../../components/Icon";
@@ -13,6 +14,9 @@ const { useState, useEffect } = React;
 const h = React.createElement;
 
 const LIMIT = 50;
+
+/** 필터 드롭다운 optgroup — 렌더마다 다시 만들 필요 없는 정적 파생. */
+const ACT_GROUPS = auditActsByGroup();
 
 /** 델타 부호 색 — 회수(−)만 경고색. 모노톤 유지를 위해 나머지는 절제. */
 const SIGN_COLOR: Record<string, string> = { "+": "#1b6e3c", "−": "#b3261e", "~": "var(--ink)" };
@@ -141,9 +145,12 @@ export function Audit({ toast }: { toast: (msg: string, icon?: string) => void }
           onChange: (e: React.ChangeEvent<HTMLInputElement>) => setWhoInput(e.target.value),
           onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.nativeEvent.isComposing) return; if (e.key === "Enter") applyWho(whoInput.trim()); },
           onBlur: () => applyWho(whoInput.trim()) })),
+      // 행위 67종 — 평평한 목록은 못 찾으니 분류(optgroup)로 묶는다.
       h("select", { className: "aselect", value: act, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => applyAct(e.target.value) },
         h("option", { value: "" }, "전체 행위"),
-        KNOWN_ACTS.map((k) => h("option", { key: k, value: k }, actLabel(k)))),
+        ACT_GROUPS.map((g) =>
+          h("optgroup", { key: g.group, label: g.label },
+            g.acts.map((d) => h("option", { key: d.act, value: d.act }, d.label))))),
       h("input", { className: "aselect", type: "date", value: from, title: "시작일",
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => applyFrom(e.target.value) }),
       h("input", { className: "aselect", type: "date", value: to, title: "종료일",
