@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
 import { countNotes, folderIconName, sortTreeNodes, type TreeSortKey } from "../lib/tree";
+import { canDropOn } from "../lib/dnd";
+import { onSearchRequest } from "./searchBus";
 import { piiWarns } from "../lib/pii";
 import type { VaultTree, VaultNode, NoteNode } from "../types";
 
@@ -28,12 +30,13 @@ interface RowProps {
   onRename: (id: string) => void;
   onRenameCommit: (id: string, value: string | null) => void;
   draggingId: string | null;
-  dragOverId: string | null;            // 폴더 id 또는 "__ROOT__"
+  dragOverId: string | null;            // 드롭 하이라이트 중인 폴더 id (루트 하이라이트는 Sidebar 로컬 상태)
   onNodeDragStart: (id: string, e: React.DragEvent) => void;
-  onNodeDragOver: (id: string | null, e: React.DragEvent) => void;
+  onNodeDragOver: (id: string | null, e: React.DragEvent) => void;   // null = 루트(최상위)
   onNodeDragLeave: (id: string | null) => void;
-  onNodeDrop: (id: string | null, e: React.DragEvent) => void;
+  onNodeDrop: (id: string | null, e: React.DragEvent) => void;       // null = 루트(최상위)
   onNodeDragEnd: () => void;
+  onRootOver: (v: boolean) => void;     // 행 위에 있는 동안은 루트 드롭 하이라이트를 끈다
 }
 
 function Row(props: RowProps): React.ReactElement {
@@ -57,14 +60,17 @@ function Row(props: RowProps): React.ReactElement {
 
   const pad = 6 + depth * INDENT;
 
-  // 드롭 타깃은 폴더만 — 폴더일 때만 over/leave/drop 핸들러를 객체로 합친다.
-  const dropProps = isFolder
-    ? {
-        onDragOver: (e: React.DragEvent) => onNodeDragOver(node.id, e),
-        onDragLeave: () => onNodeDragLeave(node.id),
-        onDrop: (e: React.DragEvent) => { e.stopPropagation(); onNodeDrop(node.id, e); },
-      }
-    : {};
+  // 드롭 타깃은 폴더만. 단 행 위의 드래그 이벤트는 폴더/노트 가릴 것 없이 전파를 끊는다 —
+  // .tree 컨테이너(= 루트 드롭 존)가 행 위 드래그를 "빈 영역"으로 오인하지 않도록.
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      e.stopPropagation();
+      props.onRootOver(false);
+      if (isFolder) onNodeDragOver(node.id, e);
+    },
+    onDragLeave: (e: React.DragEvent) => { e.stopPropagation(); if (isFolder) onNodeDragLeave(node.id); },
+    onDrop: (e: React.DragEvent) => { e.stopPropagation(); if (isFolder) onNodeDrop(node.id, e); },
+  };
 
   const rowEl = React.createElement(
     "div",
@@ -117,7 +123,13 @@ function Row(props: RowProps): React.ReactElement {
     rowEl,
     React.createElement(
       "div",
-      { className: "children", style: { "--gx": (pad + 7) + "px" } as React.CSSProperties },
+      {
+        className: "children",
+        style: { "--gx": (pad + 7) + "px" } as React.CSSProperties,
+        // 폴더 내부 영역("비어 있음" 포함)은 루트 드롭 존이 아니다 — 전파를 여기서 끊는다.
+        onDragOver: (e: React.DragEvent) => { e.stopPropagation(); props.onRootOver(false); },
+        onDrop: (e: React.DragEvent) => e.stopPropagation(),
+      },
       ((node as { children?: VaultNode[] }).children || []).length === 0
         ? React.createElement("div", { className: "row", style: { paddingLeft: pad + INDENT, color: "var(--text-faint)", fontStyle: "italic", height: 26 } }, "비어 있음")
         : sortTreeNodes((node as { children?: VaultNode[] }).children || [], props.sortKey).map((c) =>
@@ -146,11 +158,11 @@ interface SidebarProps {
   showTrash?: boolean;   // 휴지통 버튼 노출 (http 모드 + 세션)
   onTrash?: () => void;
   draggingId: string | null;
-  dragOverId: string | null;            // 폴더 id 또는 "__ROOT__"
+  dragOverId: string | null;            // 드롭 하이라이트 중인 폴더 id
   onNodeDragStart: (id: string, e: React.DragEvent) => void;
-  onNodeDragOver: (id: string | null, e: React.DragEvent) => void;
+  onNodeDragOver: (id: string | null, e: React.DragEvent) => void;   // null = 루트(최상위)
   onNodeDragLeave: (id: string | null) => void;
-  onNodeDrop: (id: string | null, e: React.DragEvent) => void;
+  onNodeDrop: (id: string | null, e: React.DragEvent) => void;       // null = 루트(최상위)
   onNodeDragEnd: () => void;
 }
 
@@ -160,6 +172,18 @@ export function Sidebar(props: SidebarProps) {
   const [sortKey, setSortKey] = useState<TreeSortKey>("name-asc");
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
+  // 루트(최상위) 드롭 하이라이트 — 폴더 하이라이트(dragOverId)와 달리 사이드바 로컬 상태다.
+  // 드롭 payload는 null(=루트)이어야 하므로 App의 dragOverId로는 "루트 위"를 표현할 수 없다.
+  const [rootOver, setRootOver] = useState(false);
+  const draggingId = props.draggingId;
+  const rootDroppable = !!draggingId && canDropOn(tree, draggingId, null);
+  useEffect(() => { if (!draggingId) setRootOver(false); }, [draggingId]);
+
+  // 에디터 태그 칩 클릭 → 검색창 열기 (App.tsx가 searchOpen을 쥐고 있어 버스로 받는다).
+  // 콜백은 ref로 최신값을 읽어 매 렌더 재구독을 피한다(App이 인라인 화살표를 넘긴다).
+  const openSearchRef = useRef(onOpenSearch);
+  openSearchRef.current = onOpenSearch;
+  useEffect(() => onSearchRequest(() => openSearchRef.current()), []);
 
   useEffect(() => {
     if (!sortOpen) return;
@@ -219,10 +243,34 @@ export function Sidebar(props: SidebarProps) {
     ),
     React.createElement(
       "div", {
-        className: "tree",
+        className: "tree" + (rootOver ? " drop-root" : ""),
         onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); props.onContext(e.clientX, e.clientY, null); },
+        // 빈 영역 드롭 = 루트(최상위)로 이동. 행 위 이벤트는 Row/children이 전파를 끊어 여기 오지 않는다.
+        onDragOver: (e: React.DragEvent) => {
+          if (!rootDroppable) return;
+          e.preventDefault();
+          setRootOver(true);
+          props.onNodeDragOver(null, e);
+        },
+        onDragLeave: (e: React.DragEvent) => {
+          const rel = e.relatedTarget as Node | null;
+          if (rel && (e.currentTarget as HTMLElement).contains(rel)) return; // 내부 이동은 유지
+          setRootOver(false);
+          props.onNodeDragLeave(null);
+        },
+        onDrop: (e: React.DragEvent) => {
+          setRootOver(false);
+          if (!rootDroppable) return;
+          props.onNodeDrop(null, e);   // parentId=null → App이 move-preview 경고 경로를 그대로 탄다
+        },
       },
-      sortTreeNodes(tree, sortKey).map((n) => React.createElement(Row, { key: n.id, ...props, node: n, depth: 0, sortKey }))
+      sortTreeNodes(tree, sortKey).map((n) =>
+        React.createElement(Row, { key: n.id, ...props, node: n, depth: 0, sortKey, onRootOver: setRootOver })),
+      // 드래그 중에만 보이는 루트 드롭 존 — 트리가 화면을 꽉 채워 빈 영역이 없을 때도 놓을 자리를 준다.
+      rootDroppable && React.createElement(
+        "div", { className: "tree-root-drop" + (rootOver ? " over" : "") },
+        React.createElement(Icon, { name: "book" }),
+        React.createElement("span", null, "여기에 놓으면 최상위로 이동"))
     ),
     React.createElement(
       "div", { className: "sb-footer" },

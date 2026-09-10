@@ -24,7 +24,11 @@ describe("canDropOn", () => {
   it("자기 자신 위로 불가", () => { expect(canDropOn(tree, "f2", "f2")).toBe(false); });
   it("자손 폴더로 불가(이동 가능 소스)", () => { expect(canDropOn(tree, "f2", "f4")).toBe(false); });
   it("이미 그 부모면 무변경(불가)", () => { expect(canDropOn(tree, "n1", "f1")).toBe(false); });
-  it("루트로는 드롭 불가(중첩 노트)", () => { expect(canDropOn(tree, "n1", null)).toBe(false); });
-  it("루트로는 드롭 불가(최상위 노트)", () => { expect(canDropOn(tree, "n3", null)).toBe(false); });
+  // D-6: 트리 빈 영역 드롭 = 루트 복귀. targetId=null이 루트를 뜻한다.
+  it("중첩 노트를 루트로 드롭 허용", () => { expect(canDropOn(tree, "n1", null)).toBe(true); });
+  it("중첩 폴더를 루트로 드롭 허용", () => { expect(canDropOn(tree, "f2", null)).toBe(true); });
+  it("이미 루트면 무변경(불가)", () => { expect(canDropOn(tree, "n3", null)).toBe(false); });
+  it("최상위 폴더는 루트로도 불가(immovable)", () => { expect(canDropOn(tree, "f1", null)).toBe(false); });
+  it("존재하지 않는 dragged는 루트로도 불가", () => { expect(canDropOn(tree, "zzz", null)).toBe(false); });
   it("존재하지 않는 dragged 불가", () => { expect(canDropOn(tree, "zzz", "f1")).toBe(false); });
 });
