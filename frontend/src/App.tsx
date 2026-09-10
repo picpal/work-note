@@ -24,9 +24,13 @@ import { shouldWarn } from "./components/moveWarning";
 import { ApiError, setOn2faRequired } from "./api/http";
 import { AuthApi } from "./api/auth";
 import { useVault } from "./state/useVault";
-import { useVaultSync, bootstrapIfEmpty } from "./state/useVaultSync";
+import { useVaultSync, bootstrapSeed } from "./state/useVaultSync";
 import { loadPending, clearAllPending } from "./state/pendingStore";
 import { pendingDiffers } from "./state/pendingRecovery";
+import { emptyVaultView } from "./state/emptyVaultPolicy";
+import { toastKind, toastDuration } from "./state/toastPolicy";
+import type { ToastKind } from "./state/toastPolicy";
+import { saveButtonState, syncBanner } from "./state/syncStatus";
 import { useSession } from "./state/useSession";
 import { repository, storageMode } from "./storage";
 import * as cm from "./editor/cm";
@@ -35,13 +39,13 @@ import { TemplateModal } from "./components/TemplateModal";
 import { usePersist } from "./state/usePersist";
 import { useContextMenu } from "./state/useContextMenu";
 import { useSettings } from "./state/useSettings";
-import { findNode, flattenNotes, crumbPath, firstNoteIn } from "./lib/tree";
+import { findNode, flattenNotes, crumbPath, firstNoteIn, dedupeIds } from "./lib/tree";
 import { Backlinks } from "./components/Backlinks";
 import { buildBacklinks } from "./lib/linkIndex";
 import { setMermaidTheme } from "./lib/markdown";
 import { newId } from "./lib/id";
 import { exportCommands } from "./commands/exportCommands";
-import { SEED_DEFAULT_TITLE } from "./seed";
+import { SEED, SEED_DEFAULT_TITLE } from "./seed";
 import type { ToolbarHandlers } from "./components/Editor";
 import { mustEnrollNow, shouldNudge } from "./lib/totp2fa";
 import { TotpEnrollGate } from "./components/TotpEnrollGate";
@@ -83,7 +87,8 @@ export function App() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingWarn, setPendingWarn] = useState<{ id: string; parentId: string | null; preview: MovePreview } | null>(null);
   const [linkWarn, setLinkWarn] = useState<{ id: string; name: string; count: number } | null>(null);
-  const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string }>>([]);
+  const [toasts, setToasts] = useState<Array<{ id: string; msg: string; icon?: string; kind: ToastKind }>>([]);
+  const [seeding, setSeeding] = useState(false); // 빈 서버 시드 업로드 중(관리자 명시 실행)
   const [dirty, setDirty] = useState(false); // 열린 노트에 미저장 편집이 있는지 — 우측 하단 저장 버튼 상태
   const { menu, openMenu, closeMenu } = useContextMenu();
   const toolbarRef = useRef<ToolbarHandlers>({} as ToolbarHandlers);
@@ -147,50 +152,69 @@ export function App() {
   }, [ready]);
 
   // ---- toasts ----
-  // 같은 메시지를 연타하면 위로 누적되던 문제 → throttle: 표시 시간(1.5초) 안에 동일 메시지가
-  // 다시 오면 무시(연타 동안 억제 갱신). 한 위치에 하나만 뜨고, 1.5초 지나면 다시 복사 시 정상 표시.
-  const TOAST_MS = 1500;
-  const lastToastRef = useRef<{ key: string; at: number }>({ key: "", at: 0 });
-  const toast = useCallback((msg: string, icon?: string) => {
+  // 같은 메시지를 연타하면 위로 누적되던 문제 → throttle: 표시 시간 안에 동일 메시지가
+  // 다시 오면 무시(연타 동안 억제 갱신). 한 위치에 하나만 뜨고, 표시 시간이 지나면 다시 정상 표시.
+  // 표시 시간은 성공/실패에 따라 다르다(toastPolicy) — 실패·경고는 토스트가 유일한 통지 채널인 곳이
+  // 많아 1.5초로는 읽을 수 없다(P-2). 수동 닫기(×)도 제공한다.
+  const lastToastRef = useRef<{ key: string; at: number; ms: number }>({ key: "", at: 0, ms: 0 });
+  const dismissToast = useCallback((id: string) => { setToasts((ts) => ts.filter((x) => x.id !== id)); }, []);
+  const toast = useCallback((msg: string, icon?: string, kind?: ToastKind) => {
+    const k = toastKind(msg, icon, kind);
+    const ms = toastDuration(k);
     const key = msg + "" + (icon ?? "");
     const now = Date.now();
     const last = lastToastRef.current;
-    if (last.key === key && now - last.at < TOAST_MS) {
+    if (last.key === key && now - last.at < last.ms) {
       last.at = now; // 연타가 이어지는 동안 억제 유지
       return;
     }
-    lastToastRef.current = { key, at: now };
+    lastToastRef.current = { key, at: now, ms };
     const id = newId();
-    setToasts((ts) => [...ts, { id, msg, icon }]);
-    setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), TOAST_MS);
+    setToasts((ts) => [...ts, { id, msg, icon, kind: k }]);
+    setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), ms);
   }, []);
 
   // ---- server sync (HTTP 모드: 액션 단위 동기화, local 모드: rawActions 그대로) ----
-  const { actions, flush: flushHttp } = useVaultSync(rawActions, toast);
+  const { actions, flush: flushHttp, syncState, retryNow } = useVaultSync(rawActions, toast);
 
   // 수동 저장 — 디바운스 대기 없이 즉시 persist(local localStorage / http PATCH 둘 다 호출, 반대 모드는 no-op).
+  // 성공 토스트는 서버 응답을 받은 뒤에만 — 실패했는데 "저장되었습니다"라고 말하지 않는다(D-2).
   const saveNow = () => {
-    if (!dirty) return;
-    flushHttp();
+    if (!dirty && syncState.unsynced === 0) return;
+    const hadQueue = syncState.unsynced > 0;
     flushLocal();
     setDirty(false);
-    toast("저장되었습니다", "check");
+    void flushHttp().then((r) => {
+      // 대기 큐가 있었다면 재전송을 돌리고 결과 토스트는 retry에 맡긴다(중복·모순 토스트 방지).
+      if (hadQueue) { retryNow(); return; }
+      if (r.ok) toast("저장되었습니다", "check");
+      else toast("서버에 저장하지 못했습니다" + (r.error ? ": " + r.error : "") + " — 연결되면 다시 보냅니다");
+    });
   };
   // 전역 단축키(⌘/Ctrl+S)는 []-deps useEffect라 첫 렌더 클로저를 잡는다 → ref로 최신 saveNow 유지(stale dirty 방지).
   const saveNowRef = useRef(saveNow);
   saveNowRef.current = saveNow;
 
-  // 빈 서버였으면 시드 1회 업로드 (HTTP 모드 한정 — 내부 가드)
-  useEffect(() => {
-    if (!ready || loadError) return; // 차단(다운) 상태에선 어떤 동기화도 돌지 않는다
-    void bootstrapIfEmpty(tree, toast);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+  // 빈 트리 안내 — "권한 없음"과 "빈 서버"를 구분해 화면 문구를 고른다(state/emptyVaultPolicy).
+  // 예전의 자동 시드 업로드는 제거했다: 빈 응답만으로는 둘을 구분할 수 없어 권한 없는 사용자가
+  // 시드를 서버에 만들어버렸다(D-1). 이제 관리자가 아래 버튼을 눌렀을 때만 업로드한다.
+  const emptyView = emptyVaultView({ mode: storageMode, ready, loadError, treeEmpty: tree.length === 0, isAdmin });
+  const seedVault = () => {
+    if (seeding) return;
+    setSeeding(true);
+    void bootstrapSeed(dedupeIds(SEED))
+      .then(() => { rawActions.reload(); toast("예제 노트를 만들었습니다", "check"); })
+      .catch((e) => toast("예제 노트 생성 실패: " + (e instanceof Error ? e.message : String(e))))
+      .finally(() => setSeeding(false));
+  };
 
   // ---- 미저장 편집 복구 (HTTP 모드: 401/크래시로 유실된 디바운스 편집을 재로그인 후 재적용·재전송) ----
   const recoveredRef = useRef(false);
   useEffect(() => {
     if (storageMode !== "http" || !ready || loadError || recoveredRef.current) return; // 차단 시 헛 PATCH 방지
+    // 빈 트리(권한 없음일 수도, 빈 vault일 수도)에서는 판단을 미룬다 — 여기서 clearAllPending을 하면
+    // 대상 노트를 못 찾은 채 미저장 편집 미러만 지워져 조용한 유실이 된다(D-1의 부작용).
+    if (tree.length === 0) return;
 
     recoveredRef.current = true;
     const pending = loadPending();
@@ -397,6 +421,8 @@ export function App() {
 
   // ---- 2FA 등록 권고 배너 (유예 기간 내, 강제 미만료) ----
   const showNudge = storageMode === "http" && me?.totp && shouldNudge(me.totp);
+  const syncWarn = syncBanner(syncState.unsynced, syncState.offline);
+  const saveBtn = saveButtonState(dirty, syncState.unsynced);
   const openSecurityProfile = () => { setProfileSection("security"); setProfileOpen(true); };
 
   return createElement(
@@ -459,6 +485,17 @@ export function App() {
         createElement("span", null, "관리자 계정은 2FA(TOTP) 등록을 완료하세요 — 유예 기간 내입니다. (프로필 > 보안)"),
         createElement("button", { className: "lact", style: { marginLeft: "auto" },
           onClick: openSecurityProfile }, "지금 등록")),
+      // 서버 동기화 실패 상시 배너 — 미전송 변경이 남아 있는 동안 계속 보인다(D-2).
+      // 토스트 한 번으로는 백엔드가 죽은 사실이 화면에서 사라져 "저장됨"만 남았다.
+      syncWarn && createElement("div", { className: "sync-warn-banner", style: {
+        background: "var(--err-bg, #fdecea)", borderBottom: "1px solid var(--err-bd, #f5c2c0)",
+        padding: "8px 20px", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
+        color: "var(--text-1)",
+      } },
+        createElement(Icon, { name: "alert" }),
+        createElement("span", null, syncWarn),
+        createElement("button", { className: "lact", style: { marginLeft: "auto" },
+          onClick: retryNow }, "지금 재시도")),
       // editor toolbar
       activeNote && createElement(
         "div", { className: "etoolbar" },
@@ -506,10 +543,25 @@ export function App() {
             })
           : createElement(
               "div", { className: "empty-state" },
-              createElement("div", { className: "es-inner" },
-                createElement("div", { className: "es-icon" }, createElement(Icon, { name: "fileLines" })),
-                createElement("h2", null, "열린 노트가 없습니다"),
-                createElement("p", null, "사이드바에서 노트를 선택하거나 ⌘K 로 검색하세요")))
+              // 빈 트리는 에러가 아니라 유효한 상태 — 사유별로 다음 행동을 알려준다(D-1).
+              emptyView === "noAccess"
+                ? createElement("div", { className: "es-inner" },
+                    createElement("div", { className: "es-icon" }, createElement(Icon, { name: "lock" })),
+                    createElement("h2", null, "열람할 수 있는 노트가 없습니다"),
+                    createElement("p", null, "이 계정에 열람 권한이 부여된 폴더가 없습니다. 관리자에게 접근 권한을 요청하세요."),
+                    createElement("p", { style: { marginTop: 6 } }, "권한이 부여된 뒤 새로고침하면 표시됩니다."))
+                : emptyView === "seedable"
+                  ? createElement("div", { className: "es-inner" },
+                      createElement("div", { className: "es-icon" }, createElement(Icon, { name: "folderPlus" })),
+                      createElement("h2", null, "서버에 노트가 없습니다"),
+                      createElement("p", null, "사이드바 빈 곳을 우클릭해 새 노트·폴더를 만들거나, 예제 노트로 시작할 수 있습니다."),
+                      createElement("div", { style: { marginTop: 14 } },
+                        createElement("button", { className: "pf-btn primary", disabled: seeding, onClick: seedVault },
+                          seeding ? "만드는 중…" : "예제 노트로 시작하기")))
+                  : createElement("div", { className: "es-inner" },
+                      createElement("div", { className: "es-icon" }, createElement(Icon, { name: "fileLines" })),
+                      createElement("h2", null, "열린 노트가 없습니다"),
+                      createElement("p", null, "사이드바에서 노트를 선택하거나 ⌘K 로 검색하세요")))
         , activeNote && createElement(Backlinks, {
             key: "bl-" + activeNote.id,
             items: backlinks.get(activeNote.id) || [],
@@ -520,14 +572,16 @@ export function App() {
         key: "ol-" + activeNote.id, content: activeNote.content, title: activeNote.title, viewRef: editorViewRef,
       }),
       // 우측 하단 수동 저장 버튼 — 미저장 편집이 있을 때 활성, 저장 후/자동저장 후 '저장됨'.
+      // 서버 전송 실패분이 남아 있으면 '저장 실패'가 우선 — 큐가 빌 때까지 '저장됨'이라 말하지 않는다(D-2).
       activeNote && createElement("button", {
-        className: "doc-save" + (dirty ? " dirty" : ""),
-        title: dirty ? "지금 저장" : "저장됨",
-        disabled: !dirty,
+        className: "doc-save" + (saveBtn.disabled ? "" : " dirty"),
+        title: saveBtn.title,
+        disabled: saveBtn.disabled,
+        style: saveBtn.danger ? { color: "#b3261e", borderColor: "#f5c2c0" } : undefined,
         onClick: saveNow,
       },
-        createElement(Icon, { name: dirty ? "save" : "check" }),
-        createElement("span", null, dirty ? "저장" : "저장됨"))
+        createElement(Icon, { name: saveBtn.icon }),
+        createElement("span", null, saveBtn.label))
     ),
     // overlays
     searchOpen && createElement(SearchModal, {
@@ -546,7 +600,11 @@ export function App() {
     }),
     settingsOpen && createElement(SettingsModal, { settings, onSet: set, onClose: () => setSettingsOpen(false) }),
     trashOpen && createElement(TrashModal, { onClose: () => setTrashOpen(false), toast, onRestored: rawActions.reload }),
-    shareNote && createElement(ShareModal, { note: shareNote, onClose: () => setShareNote(null), toast }),
+    // 공유 링크 생성 직전 강제 flush(⌘S와 같은 경로) — 디바운스 1분을 기다리면 수신자가 빈 노트를 본다(D-3).
+    shareNote && createElement(ShareModal, {
+      note: shareNote, onClose: () => setShareNote(null), toast,
+      flush: () => flushHttp().then((r) => { if (r.ok) setDirty(false); return r; }),
+    }),
     moveTarget && createElement(MoveModal, { node: moveTarget, tree, onMove: actions.move, onClose: () => setMoveTarget(null), toast }),
     redmineOpen && createElement(RedmineImportPanel, {
       onInsert: (md: string): boolean => { const v = editorViewRef.current; if (!v) return false; cm.insertAtCursor(v, md); return true; },
@@ -576,10 +634,21 @@ export function App() {
     // toasts
     createElement(
       "div", { className: "toast-wrap" },
+      // 실패·경고 토스트는 오래 남고(toastPolicy) 수동으로 닫을 수 있다 — 1.5초로는 읽을 수 없었다(P-2).
       toasts.map((t2) =>
-        createElement("div", { className: "toast", key: t2.id },
-          t2.icon && createElement(Icon, { name: t2.icon }),
-          createElement("span", null, t2.msg)))
+        createElement("div", {
+          className: "toast" + (t2.kind === "warn" ? " warn" : ""), key: t2.id,
+          style: t2.kind === "warn" ? { maxWidth: "min(560px, 92vw)", alignItems: "flex-start" } : undefined,
+        },
+          createElement(Icon, { name: t2.icon || (t2.kind === "warn" ? "alert" : "info") }),
+          createElement("span", null, t2.msg),
+          t2.kind === "warn" && createElement("button", {
+            title: "닫기", onClick: () => dismissToast(t2.id),
+            style: {
+              background: "none", border: "none", color: "inherit", cursor: "pointer",
+              opacity: 0.7, padding: "0 0 0 4px", marginLeft: 2, display: "flex", alignItems: "center",
+            },
+          }, createElement(Icon, { name: "x" }))))
     )
   );
 }

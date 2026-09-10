@@ -4,12 +4,12 @@ import type { VaultTree } from "../types";
 import { VaultApi } from "./VaultApi";
 
 export class HttpVaultRepository implements VaultRepository {
-  wasEmpty = false; // 최초 load가 빈 서버였는지 — 시드 부트스트랩 판단용 (useVaultSync.bootstrapIfEmpty)
-
+  /** 서버 응답을 그대로 돌려준다 — 빈 배열도 유효한 상태(권한 없음 또는 빈 vault)다.
+      예전에는 빈 트리를 null(=저장본 없음)로 바꿔 시드가 살아남았고, 권한 없는 사용자에게
+      시드 vault가 자기 노트처럼 보였다(D-1). 빈 트리의 사유 판별과 시드 생성 여부는
+      state/emptyVaultPolicy가 관리자 신호로 결정한다 — 저장소는 사실만 전달한다. */
   async load(): Promise<VaultTree | null> {
-    const tree = await VaultApi.tree();
-    this.wasEmpty = tree.length === 0;
-    return tree.length ? tree : null; // 빈 서버 = 시드 부트스트랩 대상 (Task 7)
+    return await VaultApi.tree();
   }
 
   async save(): Promise<void> {

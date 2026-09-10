@@ -28,7 +28,9 @@ export function useVault(repo: VaultRepository = defaultRepo) {
   // async initial load — replace seed with persisted data if available
   useEffect(() => {
     repo.load().then((saved) => {
-      if (saved) {
+      // saved != null — 빈 배열도 "서버가 준 유효한 상태"라 시드로 대체하지 않는다(D-1).
+      // null은 local 모드 첫 실행(저장본 없음)뿐이며 그때만 시드가 남는다.
+      if (saved != null) {
         justLoadedRef.current = true;
         dispatch({ type: "replace", tree: dedupeIds(saved) });
       }
@@ -97,7 +99,7 @@ export function useVault(repo: VaultRepository = defaultRepo) {
     // 서버 상태로 트리 재동기화 — 휴지통 복구 등 외부 변경 후 호출(초기 load와 동일 경로).
     reload: () => {
       void repo.load().then((saved) => {
-        if (saved) dispatch({ type: "replace", tree: dedupeIds(saved) });
+        if (saved != null) dispatch({ type: "replace", tree: dedupeIds(saved) });
       }).catch((e) => console.warn("vault reload failed", e));
     },
   };
