@@ -1,8 +1,10 @@
 packages:
   - "."
 
-onlyBuiltDependencies:
-  - esbuild
+# pnpm 11에서 onlyBuiltDependencies → allowBuilds 로 키가 바뀌었다.
+# 의도는 동일: 빌드 스크립트 실행은 esbuild에만 허용하고 나머지는 전부 차단한다.
+allowBuilds:
+  esbuild: true
 
 # 공급망 보안 (pnpm 11.5.3에서 전부 지원 — 각 설정 옆에 도입 버전 표기).
 # 갓 배포된 악성 버전(shai-hulud류 계정 탈취 후 즉시 publish) 유입을 시간으로 차단한다.
@@ -34,3 +36,4 @@ blockExoticSubdeps: true
 # uuid는 mermaid 10.x가 v9 API에 의존 → v11 강제 시 깨질 위험 + buf 미전달로 비익스플로잇 → 미오버라이드.
 overrides:
   dompurify: '>=3.4.13'
+

@@ -1,7 +1,6 @@
 package com.worknote.setting;
 
 import com.worknote.attachment.UploadPolicy;
-import com.worknote.vault.VaultException;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -72,13 +71,15 @@ public class SettingService {
 
     // ─── 업로드 정책 ─────────────────────────────────────────────────────
 
+    /**
+     * 형식을 어긴 값은 저장하지 않고 사유가 담긴 422로 되돌린다.
+     * 예전에는 "bad!" 같은 값이 그대로 들어가, 관리자는 허용했다고 믿는데 해당 업로드는
+     * 계속 거부되는 조용한 오설정이 됐다(어떤 파일 확장자와도 매치되지 않으므로).
+     */
     @Transactional
     public void setUploadPolicy(List<String> exts, long maxBytes) {
-        if (maxBytes < 1) {
-            throw VaultException.invalid("최대 용량은 1 이상이어야 합니다");
-        }
-        // UploadPolicy.of로 정규화(소문자·점 제거·중복 제거) 후 저장
-        String joined = String.join(",", UploadPolicy.of(exts, maxBytes).allowedExt());
+        UploadPolicy.validateMaxBytes(maxBytes);
+        String joined = String.join(",", UploadPolicy.validateExts(exts));
         mapper.put(KEY_EXT, joined);
         mapper.put(KEY_MAX, String.valueOf(maxBytes));
     }

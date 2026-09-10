@@ -13,6 +13,8 @@ import { Icon } from "./Icon";
 import { ApiError } from "../api/http";
 import { piiWarns } from "../lib/pii";
 import { PiiApi } from "../storage/PiiApi";
+import { requestSearch } from "./searchBus";
+import { tagQuery } from "./searchMatch";
 
 export interface ToolbarHandlers {
   h: (n: number) => void;
@@ -269,9 +271,14 @@ export function Editor(props: EditorProps) {
     piiBanner,
     createElement(
       "div", { className: "tags-row" },
+      // 칩 본체 = 그 태그로 검색(검색창이 "#태그" 질의로 열린다), × = 태그 삭제. 두 액션을 별도 버튼으로 분리.
       (note.tags || []).map((t) =>
-        createElement("span", { className: "tag", key: t }, "#" + t,
-          createElement("button", { onClick: () => removeTag(t), title: "삭제" }, "×"))),
+        createElement("span", { className: "tag", key: t },
+          createElement("button", {
+            className: "tag-name", title: "'" + t + "' 태그로 검색",
+            onClick: () => requestSearch(tagQuery(t)),
+          }, "#" + t),
+          createElement("button", { className: "tag-x", onClick: () => removeTag(t), title: "태그 삭제" }, "×"))),
       createElement("input", {
         className: "tag-input", placeholder: (note.tags || []).length ? "태그 추가" : "태그를 입력하세요",
         value: tagDraft,

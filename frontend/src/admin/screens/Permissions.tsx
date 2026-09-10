@@ -5,7 +5,8 @@ import { VaultApi } from "../../storage/VaultApi";
 import type { VaultNode, VaultTree } from "../../types";
 import { ApiError } from "../../api/http";
 import { useAdminData } from "../useAdminData";
-import { directPublicMode, effectivePublic, inheritedEntries } from "../aclView";
+import { ancestorDenyBlocks, directPublicMode, effectivePublic, inheritedEntries } from "../aclView";
+import type { DenyBlock } from "../aclView";
 import { SecHead, Empty, SkeletonTable } from "../common";
 import { folderIconName } from "../../lib/tree";
 import { Icon } from "../../components/Icon";
@@ -121,6 +122,9 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
   const inherited = useMemo(
     () => (selId && tree ? inheritedEntries(selId, tree, acl) : []),
     [selId, tree, acl]);
+  // deny-sticky(§5.1): 조상 deny에 막혀 지금은 효력이 없는 allow 행 — 저장은 되지만 결과가 없다.
+  const denyBlocks = useMemo(() => ancestorDenyBlocks(draft, inherited), [draft, inherited]);
+  const blockByRow = useMemo(() => new Map(denyBlocks.map((b) => [b.index, b])), [denyBlocks]);
 
   const select = (id: string) => {
     if (busy || id === selId) return;  // 저장 in-flight 중 선택 변경 금지 — draft 오염 경로 차단
@@ -136,6 +140,14 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
     return t ? t.name : id;
   };
 
+  const nodeName = (id: string) => { const n = byId.get(id); return n ? nodeLabel(n) : id; };
+
+  /** 무효 표시의 근거 — 어디의 어떤 deny에 막혔는지. */
+  const denyBlockHint = (b: DenyBlock): string =>
+    b.kind === "same"
+      ? `조상 "${nodeName(b.fromNodeId)}" 에 같은 주체의 거부가 있습니다. deny-sticky(스펙 §5.1) — 하위 allow로 뒤집을 수 없어 지금은 효력이 없습니다.`
+      : `조상 "${nodeName(b.fromNodeId)}" 에 전체 사용자(@all) 거부가 있습니다. deny 절대 우선 — 어떤 주체의 허용도 함께 막힙니다.`;
+
   // ---- draft 편집 ----
   const patchRow = (i: number, patch: Partial<ApiAclEntry>) =>
     setDraft((d) => d.map((e, j) => (j === i ? { ...e, ...patch } : e)));
@@ -146,9 +158,15 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
 
   const save = async () => {
     if (!sel) return;
+    // 조상 deny에 막힌 행이 있어도 저장은 막지 않는다 — 조상 deny가 걷히면 살아나므로 미리 걸어두는 건
+    // 정당한 운영이다. 다만 "저장했습니다"로 뭉개면 권한을 준 줄 알게 되니 결과를 토스트에 함께 말한다.
+    const blocked = denyBlocks.length;
+    const msg = blocked > 0
+      ? `${nodeLabel(sel)} ACL을 저장했습니다 — ${blocked}건은 조상 deny에 막혀 지금은 효력이 없습니다`
+      : nodeLabel(sel) + " ACL을 저장했습니다";
     // setDraft 불필요 — 성공 시 재로드된 acl에서 serverEntries가 다시 derive되어 dirty가 풀린다.
     // (draft를 여기서 덮어쓰면 in-flight 중 노드가 바뀌었을 때 이전 노드 entries로 오염될 수 있음)
-    await run(() => AdminApi.setAcl(sel.id, [...draft]), nodeLabel(sel) + " ACL을 저장했습니다", "check");
+    await run(() => AdminApi.setAcl(sel.id, [...draft]), msg, blocked > 0 ? "alert" : "check");
   };
 
   // ---- public 토글 ----
@@ -213,7 +231,7 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
                     h("thead", null, h("tr", null,
                       h("th", null, "주체 유형"), h("th", null, "주체"), h("th", null, "권한"), h("th", { className: "right" }, ""))),
                     h("tbody", null,
-                      draft.map((e, i) => h("tr", { key: i, style: dupKeys.has(principalKey(e)) ? { background: "var(--bg-sunken)" } : undefined },
+                      draft.map((e, i) => h("tr", { key: i, style: dupKeys.has(principalKey(e)) || blockByRow.has(i) ? { background: "var(--bg-sunken)" } : undefined },
                         h("td", null, h("select", { className: "aselect", value: e.principalType,
                           onChange: (ev: React.ChangeEvent<HTMLSelectElement>) => changeType(i, ev.target.value as ApiAclEntry["principalType"]) },
                           h("option", { value: "user" }, "사용자"),
@@ -224,9 +242,30 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
                           idOptions(e))),
                         h("td", null, h("select", { className: "aselect", value: e.grantType,
                           onChange: (ev: React.ChangeEvent<HTMLSelectElement>) => patchRow(i, { grantType: ev.target.value as ApiAclEntry["grantType"] }) },
-                          GRANTS.map(([k, label]) => h("option", { key: k, value: k }, label)))),
+                          GRANTS.map(([k, label]) => h("option", { key: k, value: k }, label))),
+                          // 조상 deny에 막힌 행 — "권한을 줬다"는 오독을 여기서 끊는다
+                          blockByRow.has(i) && h("span", {
+                            style: { marginLeft: 8, fontSize: 11, fontWeight: 600, color: "#b3261e", whiteSpace: "nowrap" },
+                            title: denyBlockHint(blockByRow.get(i)!),
+                          }, "조상 deny로 무효")),
                         h("td", { className: "right" },
                           h("button", { className: "lact danger", onClick: () => removeRow(i) }, "삭제")))))),
+              // deny-sticky 경고 — 상시 안내문과 달리 "지금 이 편집이 무효"라는 신호다. 저장은 막지 않는다.
+              denyBlocks.length > 0 && h("div", {
+                className: "changebar",
+                style: { position: "static", marginTop: 10, marginBottom: 0, alignItems: "flex-start" },
+              },
+                h(Icon, { name: "alert" }),
+                h("span", { className: "txt" },
+                  h("b", null, denyBlocks.length + "건"),
+                  " 은 조상 deny에 막혀 저장해도 효력이 없습니다 — ",
+                  denyBlocks.map((b, k) =>
+                    h("span", { key: k },
+                      k > 0 ? ", " : "",
+                      h("b", null, principalLabel(draft[b.index].principalType, draft[b.index].principalId)),
+                      ` ← ${nodeName(b.fromNodeId)}${b.kind === "all" ? " 의 @all 거부" : " 의 거부"}`)),
+                  ". 조상 deny를 먼저 걷어내야 적용됩니다(deny-sticky, 스펙 §5.1). 나중에 deny가 풀릴 것을 대비해 미리 저장해두는 것은 괜찮습니다.")),
+
               h("div", { className: "btn-row", style: { marginTop: 10 } },
                 h("button", { className: "btn sm", disabled: busy, onClick: addRow }, h(Icon, { name: "plus" }), "행 추가"),
                 h("span", { style: { flex: 1 } }),

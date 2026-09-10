@@ -5,6 +5,7 @@ import { AuthApi } from "../api/auth";
 import type { TotpInfo } from "../api/auth";
 import { canEnroll, enrollBlockReason } from "../lib/totp2fa";
 import { ApiError } from "../api/http";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const h = React.createElement;
 
@@ -25,6 +26,8 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
   const [qrFailed, setQrFailed] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // 해제 확인 — 네이티브 window.confirm 대신 앱 모달(P-1: 파괴적 동작 확인 방식 통일).
+  const [askDisable, setAskDisable] = useState(false);
 
   const blockReason = enrollBlockReason(totp);
 
@@ -64,7 +67,6 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
 
   const doDisable = async () => {
     if (busy) return;
-    if (!window.confirm("2FA를 비활성화하면 로그인 시 코드 인증이 생략됩니다. 계속하시겠습니까?")) return;
     setBusy(true); setMsg(null);
     try {
       await AuthApi.totpDisable();
@@ -75,6 +77,7 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
       setMsg({ type: "err", text: e instanceof ApiError ? e.message : "2FA 비활성화에 실패했습니다." });
     } finally {
       setBusy(false);
+      setAskDisable(false); // 성패와 무관하게 닫는다 — 결과 메시지는 확인창 뒤 탭에 뜬다
     }
   };
 
@@ -140,5 +143,17 @@ export function SecurityTab({ totp, onChanged, toast }: SecurityTabProps) {
     totp.enabled && h("div", { className: "pf-foot" },
       h("button", { className: "pf-btn danger", disabled: busy || totp.enforced,
         title: totp.enforced ? "관리자 계정은 2FA를 비활성화할 수 없습니다" : undefined,
-        onClick: doDisable }, "2FA 비활성화")));
+        onClick: () => setAskDisable(true) }, "2FA 비활성화")),
+    askDisable && h(ConfirmDialog, {
+      name: "2단계 인증",
+      action: "2FA 비활성화",
+      message: ["2FA를 비활성화하면 로그인할 때 코드 인증이 사라집니다. 계정 보호 수단이 비밀번호 하나만 남습니다.",
+        "인증 앱에 등록된 항목도 무효가 됩니다 — 다시 켜려면 QR부터 새로 등록해야 합니다."],
+      danger: true,
+      icon: "shield",
+      confirmLabel: "비활성화",
+      busy,
+      onConfirm: () => void doDisable(),
+      onCancel: () => { if (!busy) setAskDisable(false); },
+    }));
 }

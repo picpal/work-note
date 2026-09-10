@@ -2,6 +2,7 @@
    순수 함수: 입력(그 달 audit 전건 + 사용자 명부 + 역할 + 생성일시)만으로 결정 → vitest 단위 검증.
    "조회 건수"는 note.view(프런트 조회 핑)로 계측, "다운로드"는 attachment.download + note.export. */
 import type { ApiAudit, ApiUser, ApiRole } from "./api";
+import { auditActDef } from "./auditActs";
 import { actLabel } from "./mappers";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -33,10 +34,11 @@ export function adminRoleIds(roles: ApiRole[]): Set<string> {
   return new Set(roles.filter((r) => r.caps.some((c) => c.startsWith("admin."))).map((r) => r.id));
 }
 
-/** 관리자 작업으로 보는 act — 명백한 관리 행위(계정·역할·팀·ACL·공개·스페이스·설정·퍼지·관리자 2FA 초기화). */
-const ADMIN_ACTION_PREFIXES = ["user.", "role.", "team.", "acl.", "public.", "space.", "settings."];
+/** 관리자 작업으로 보는 act — auditActs.ts의 admin 플래그 단일 출처.
+    예전에는 접두사 목록("user.", "role.", …)이라 2FA·개인정보·템플릿·브레이크글래스처럼
+    접두사가 다른 관리 행위가 통째로 §3 집계에서 빠졌다. 이제는 act마다 명시한다. */
 export function isAdminAction(act: string): boolean {
-  return ADMIN_ACTION_PREFIXES.some((p) => act.startsWith(p)) || act === "2fa.admin.reset" || act === "node.purge";
+  return auditActDef(act)?.admin === true;
 }
 
 const DOWNLOAD_ACTS = new Set(["attachment.download", "note.export"]);

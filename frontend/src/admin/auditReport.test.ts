@@ -57,6 +57,23 @@ describe("관리자 판별", () => {
     expect(isAdminAction("login.success")).toBe(false);
     expect(isAdminAction("note.view")).toBe(false);
   });
+  it("접두사가 달라 §3에서 통째로 빠지던 관리 행위도 잡는다(D-4 회귀)", () => {
+    for (const a of ["pii.approve", "pii.reject", "pii.notice", "pii.view",
+                     "template.system.create", "template.system.update", "template.system.delete",
+                     "settings.upload", "settings.redmine", "auth.break_glass"]) {
+      expect(isAdminAction(a), a + " 가 관리자 작업으로 안 잡힘").toBe(true);
+    }
+  });
+  it("본인이 하는 self-service는 관리자 작업이 아니다", () => {
+    for (const a of ["2fa.setup", "2fa.enabled", "2fa.disabled", "2fa.verify.success",
+                     "pii.request", "redmine.import", "redmine.token.set",
+                     "attachment.add", "share.create", "node.create"]) {
+      expect(isAdminAction(a), a + " 가 관리자 작업으로 잘못 잡힘").toBe(false);
+    }
+  });
+  it("미등록 act는 관리자 작업으로 넘겨짚지 않는다", () => {
+    expect(isAdminAction("ghost.act")).toBe(false);
+  });
 });
 
 describe("buildAuditReport — 5분류 마크다운", () => {

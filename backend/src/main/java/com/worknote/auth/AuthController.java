@@ -136,7 +136,7 @@ public class AuthController {
             throw AuthException.unauthorized("인증 코드가 올바르지 않습니다");
         }
         limiter.recordSuccess("2fa", userId);
-        return completePending(session, userId, http, "2fa.verify.success");
+        return completePending(session, userId, http);
     }
 
     /**
@@ -208,8 +208,14 @@ public class AuthController {
         return toMe(user, auth.caps(user));
     }
 
-    /** 부분 인증 → 완전 인증 승격 (TOTP verify 및 복구 경로 공용). */
-    private MeResponse completePending(HttpSession session, String userId, HttpServletRequest http, String act) {
+    /**
+     * 부분 인증 → 완전 인증 승격 (TOTP verify 경로 전용 — 복구 경로는 시드 폐기까지 하느라 따로 쓴다).
+     *
+     * <p>act를 파라미터로 받지 않는 이유: 감사 행위 코드는 호출부 어디서든 문자열 리터럴이어야 한다.
+     * 관리자 화면의 라벨·필터가 백엔드 소스를 스캔해 파생되는데(frontend/src/admin/auditActs.ts),
+     * 변수로 넘기면 스캐너가 값을 못 읽어 화면에 라벨 없는 원시 코드가 새는 구멍이 된다.
+     */
+    private MeResponse completePending(HttpSession session, String userId, HttpServletRequest http) {
         UserRow user = users.findById(userId);
         CredentialRow cred = users.findCredential(userId);
         if (user == null || cred == null) {
@@ -218,7 +224,7 @@ public class AuthController {
         http.changeSessionId();   // 권한 상승 시점 세션 재발급 (defense-in-depth, OWASP 세션 고정 방어)
         session.removeAttribute(SESSION_2FA_PENDING);
         session.setAttribute(SESSION_CRED, cred.salt());
-        audit.logRaw(user.emp(), act, null, http.getRemoteAddr());
+        audit.logRaw(user.emp(), "2fa.verify.success", null, http.getRemoteAddr());
         return toMe(user, auth.caps(user));
     }
 

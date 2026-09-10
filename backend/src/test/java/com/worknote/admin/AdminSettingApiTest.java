@@ -96,6 +96,49 @@ class AdminSettingApiTest {
             .andExpect(jsonPath("$.maxBytes").value(5000));
     }
 
+    /** D-8: 화면 검증을 우회하는 API 직접 호출 경로도 형식을 어긴 값을 저장하지 못한다. */
+    @Test
+    void putUploadPolicy_rejectsMalformedExt_withReason() throws Exception {
+        MockHttpSession s = admin();
+        mvc.perform(put("/api/admin/settings/upload").session(s).contentType(APPLICATION_JSON)
+                .content("{\"allowedExt\":[\"png\",\".BAD!\"],\"maxBytes\":5000}"))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("영문 소문자·숫자")));
+        // 거부됐으니 시드가 그대로여야 한다 (부분 저장 없음)
+        mvc.perform(get("/api/admin/settings/upload").session(s))
+            .andExpect(jsonPath("$.maxBytes").value(26214400));
+    }
+
+    @Test
+    void putUploadPolicy_rejectsOverServletLimit_withReason() throws Exception {
+        MockHttpSession s = admin();
+        mvc.perform(put("/api/admin/settings/upload").session(s).contentType(APPLICATION_JSON)
+                .content("{\"allowedExt\":[\"png\"],\"maxBytes\":104857600000}"))   // 99999MB 오타
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("64MB")));
+    }
+
+    @Test
+    void putUploadPolicy_rejectsZeroAndNegativeMax() throws Exception {
+        MockHttpSession s = admin();
+        for (String max : new String[] {"0", "-1"}) {
+            mvc.perform(put("/api/admin/settings/upload").session(s).contentType(APPLICATION_JSON)
+                    .content("{\"allowedExt\":[\"png\"],\"maxBytes\":" + max + "}"))
+                .andExpect(status().isUnprocessableEntity());
+        }
+    }
+
+    @Test
+    void putUploadPolicy_normalizesDotAndCase() throws Exception {
+        MockHttpSession s = admin();
+        mvc.perform(put("/api/admin/settings/upload").session(s).contentType(APPLICATION_JSON)
+                .content("{\"allowedExt\":[\".PNG\",\" Jpg \"],\"maxBytes\":5000}"))
+            .andExpect(status().isNoContent());
+        mvc.perform(get("/api/admin/settings/upload").session(s))
+            .andExpect(jsonPath("$.allowedExt", hasItem("png")))
+            .andExpect(jsonPath("$.allowedExt", hasItem("jpg")));
+    }
+
     @Test
     void nonAdmin_is403() throws Exception {
         mvc.perform(get("/api/admin/settings/upload").session(login("10001", "pw-1234")))
