@@ -7,6 +7,7 @@ import { groupTemplates, canEdit, wrapForInsert } from "./templateList";
 import { validateTemplateName, validateTemplateBody } from "./templateValidation";
 import { renderMarkdown } from "../lib/markdown";
 import { useEscClose } from "../state/useEscClose";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
 const h = React.createElement;
@@ -27,8 +28,10 @@ export function TemplateModal({ onInsert, currentBody, onClose, toast }: Props) 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft>(null); // null이면 목록·미리보기 모드
+  // 삭제 확인 — 네이티브 window.confirm 대신 앱 모달(P-1: 파괴적 동작 확인 방식 통일).
+  const [pendingDelete, setPendingDelete] = useState<ApiTemplate | null>(null);
 
-  useEscClose(() => { if (draft) setDraft(null); else onClose(); });
+  useEscClose(() => { if (draft) setDraft(null); else onClose(); }, !pendingDelete);
 
   const fail = useCallback((e: unknown) => {
     toast?.(e instanceof ApiError ? e.message : "오류가 발생했습니다");
@@ -82,10 +85,10 @@ export function TemplateModal({ onInsert, currentBody, onClose, toast }: Props) 
 
   const remove = async (t: ApiTemplate) => {
     if (busy) return;
-    if (!window.confirm(`'${t.name}' 템플릿을 삭제할까요?`)) return;
     setBusy(true);
     try {
       await TemplateApi.remove(t.id);
+      setPendingDelete(null);
       await load();
       toast?.("삭제했습니다", "check");
     } catch (e) {
@@ -117,7 +120,7 @@ export function TemplateModal({ onInsert, currentBody, onClose, toast }: Props) 
         }, h(Icon, { name: "edit" })),
         h("button", {
           className: "icon-btn", title: "삭제",
-          onClick: (e: React.MouseEvent) => { e.stopPropagation(); void remove(t); },
+          onClick: (e: React.MouseEvent) => { e.stopPropagation(); setPendingDelete(t); },
         }, h(Icon, { name: "trash" }))),
     );
 
@@ -164,12 +167,28 @@ export function TemplateModal({ onInsert, currentBody, onClose, toast }: Props) 
       onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft({ ...draft, body: e.target.value }),
     }));
 
-  return h("div", { className: "pf-overlay", onMouseDown: onClose },
-    h("div", { className: "tpl-modal", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
-      h("div", { className: "tpl-modal-head" },
-        h(Icon, { name: "clipboard" }),
-        h("span", { className: "tpl-modal-title" }, "템플릿"),
-        busy && h("span", { className: "tpl-modal-busy" }, "로딩 중…"),
-        h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" }))),
-      h("div", { className: "tpl-split" }, listPanel, draft ? editPanel : previewPanel)));
+  // 확인 모달은 템플릿 모달의 형제로 둔다 — 오버레이 mousedown(=닫기)이 서로 섞이지 않도록.
+  const confirmDelete = pendingDelete && h(ConfirmDialog, {
+    name: pendingDelete.name,
+    action: "템플릿 삭제",
+    message: [`'${pendingDelete.name}' 템플릿을 삭제합니다. 되돌릴 수 없습니다.`,
+      "이미 노트에 삽입한 내용은 그대로 남습니다."],
+    danger: true,
+    icon: "trash",
+    confirmLabel: "삭제",
+    busy,
+    onConfirm: () => { const t = pendingDelete; if (t) void remove(t); },
+    onCancel: () => { if (!busy) setPendingDelete(null); },
+  });
+
+  return h(React.Fragment, null,
+    h("div", { className: "pf-overlay", onMouseDown: onClose },
+      h("div", { className: "tpl-modal", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
+        h("div", { className: "tpl-modal-head" },
+          h(Icon, { name: "clipboard" }),
+          h("span", { className: "tpl-modal-title" }, "템플릿"),
+          busy && h("span", { className: "tpl-modal-busy" }, "로딩 중…"),
+          h("button", { className: "icon-btn pf-x", onClick: onClose, title: "닫기" }, h(Icon, { name: "x" }))),
+        h("div", { className: "tpl-split" }, listPanel, draft ? editPanel : previewPanel))),
+    confirmDelete);
 }

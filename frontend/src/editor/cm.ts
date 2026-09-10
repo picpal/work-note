@@ -6,7 +6,7 @@
 // named imports/exports for the npm bundle.
 import { EditorState, Compartment, StateField, StateEffect } from "@codemirror/state";
 import type { Range } from "@codemirror/state";
-import { EditorView, Decoration, WidgetType, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
+import { EditorView, Decoration, WidgetType, ViewPlugin, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
 import { syntaxTree, StreamLanguage, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
@@ -20,7 +20,9 @@ import { java } from "@codemirror/lang-java";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { renderMarkdown, enhanceMermaid } from "../lib/markdown";
 import { TableWidget } from "./tableWidget";
-import { wikiConfigFacet, wikilinkDecorations } from "./wikilinkWidget";
+import { wikiConfigFacet, wikilinkDecorations, wikilinkRefresh } from "./wikilinkWidget";
+import { setActiveDocSource, clearActiveDocSource } from "./activeDoc";
+import { WIKILINK_BROKEN_HINT } from "./wikilinkState";
 import { wikilinkCompletion, type WikiCandidate } from "./wikilinkComplete";
 import { startCompletion } from "@codemirror/autocomplete";
 import type { WikiConfig } from "./wikilinkWidget";
@@ -413,7 +415,31 @@ const baseTheme = EditorView.theme({
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--ink)", borderLeftWidth: "2px" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "var(--sel)" },
   ".cm-placeholder": { color: "var(--text-faint)" },
+  // 끊긴 위키링크 클릭 안내 — 토큰 아래에 잠깐 뜬다(app.css를 건드리지 않도록 에디터 테마에 둔다).
+  ".cm-wikilink": { position: "relative" },
+  ".cm-wikilink.broken.notice::after": {
+    content: JSON.stringify(WIKILINK_BROKEN_HINT), // 위젯 title과 같은 문구 — 단일 출처
+    position: "absolute", top: "100%", left: "0", zIndex: "5", marginTop: "4px",
+    whiteSpace: "nowrap", pointerEvents: "none",
+    background: "var(--bg-elev)", color: "var(--text-2)",
+    border: "1px solid var(--border)", borderRadius: "7px",
+    boxShadow: "var(--shadow-pop)", padding: "5px 9px",
+    fontFamily: "var(--font-ui)", fontSize: "12px", lineHeight: "1.4",
+  },
 });
+
+// ---------- 활성 문서 등록 ----------
+// 에디터 밖 UI(첨부 삭제 확인 등)가 현재 본문을 읽을 수 있게 살아 있는 동안만 getter를 걸어둔다.
+const activeDocRegistry = ViewPlugin.fromClass(
+  class {
+    src: () => string;
+    constructor(view: EditorView) {
+      this.src = () => view.state.doc.toString();
+      setActiveDocSource(this.src);
+    }
+    destroy() { clearActiveDocSource(this.src); }
+  },
+);
 
 // ---------- public API ----------
 const editable = new Compartment(); // reserved: read-only 모드용 (프로토타입 계승)
@@ -457,7 +483,8 @@ export function create(parent: Element, opts?: CreateOpts): EditorView {
       focusField,
       decoField,
       atomicRanges,
-      ...(wiki ? [wikiConfigFacet.of(wiki)] : []),
+      ...(wiki ? [wikiConfigFacet.of(wiki), wikilinkRefresh] : []),
+      activeDocRegistry,
       baseTheme,
       cmPlaceholder((opts && opts.placeholder) || "내용을 입력하세요…  (Enter: 다음 줄 · Shift+Enter: 단락 내 줄바꿈)"),
       EditorView.updateListener.of((u) => {
