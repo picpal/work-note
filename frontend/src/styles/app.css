@@ -233,6 +233,18 @@ button { font-family: inherit; cursor: pointer; }
 .row.dragging { opacity: .5; }
 .row.drop-target { background: var(--border-strong); color: var(--ink); }
 
+/* 트리 빈 영역 = 루트(최상위) 드롭 존 — 드래그 중에만 안내 행이 나타난다 */
+.tree.drop-root { box-shadow: inset 0 0 0 2px var(--border-strong); border-radius: var(--radius-sm); }
+.tree-root-drop {
+  display: flex; align-items: center; gap: 7px;
+  margin: 8px 2px 0; padding: 0 8px; height: var(--row-h);
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
+  font-size: var(--row-fs); color: var(--text-3);
+  user-select: none; white-space: nowrap; overflow: hidden;
+}
+.tree-root-drop svg { width: 14px; height: 14px; flex: none; }
+.tree-root-drop.over { border-style: solid; background: var(--border-strong); color: var(--ink); }
+
 /* hierarchy guide line */
 .children { position: relative; }
 .app.guides .children::before {
@@ -394,6 +406,9 @@ button.topbar-me { font-family: var(--font-ui); }
 .mv-opt .ic { flex: none; color: var(--text-3); display: inline-flex; }
 .mv-opt .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mv-opt .here { flex: none; font-size: 11px; font-weight: 500; color: var(--text-3); }
+/* 루트(최상위) 목적지 — 폴더 목록과 구분되도록 첫 항목에 구분선 */
+.mv-opt.root { border-bottom: 1px solid var(--border); }
+.mv-opt.root .lbl { font-weight: 550; }
 /* 이동 팝업: 검색바 + 헤더 부모경로(말줄임) + 한글 제목 UI 폰트 */
 .mv-search { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; padding: 8px 11px; margin-bottom: 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; }
 .mv-search:focus { outline: none; border-color: var(--text-3); }
@@ -540,6 +555,11 @@ button.topbar-me { font-family: var(--font-ui); }
 }
 .tag button { border: none; background: none; color: var(--text-3); padding: 0; line-height: 1; font-size: 14px; }
 .tag button:hover { color: var(--ink); }
+/* 칩 본체 = 태그 검색, × = 삭제. 두 액션이 헷갈리지 않도록 크기·hover를 분리한다. */
+.tag .tag-name { font: inherit; font-size: inherit; color: inherit; cursor: pointer; }
+.tag .tag-name:hover { color: var(--ink); text-decoration: underline; }
+.tag .tag-x { cursor: pointer; }
+.tag .tag-x:hover { color: var(--danger, #d9534f); }
 .tag-input {
   border: none; outline: none; background: transparent; font: inherit;
   font-size: 13px; color: var(--text); min-width: 120px; padding: 4px 0;
@@ -976,6 +996,13 @@ button.topbar-me { font-family: var(--font-ui); }
 .sr-snippet { font-size: 12.5px; color: var(--text-2); line-height: 1.5; padding-left: 23px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sr-item mark { background: var(--sel); color: var(--ink); border-radius: 3px; padding: 0 1px; }
+/* 왜 매칭됐는지(제목/태그/본문) + 매칭된 태그 칩 */
+.sr-why { flex: none; font-size: 10.5px; color: var(--text-3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+.sr-tags { display: flex; flex-wrap: wrap; gap: 5px; padding-left: 23px; margin-top: 5px; }
+.sr-tag {
+  font-size: 11.5px; color: var(--text-2); background: var(--bg-sunken);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap;
+}
 .search-empty { padding: 36px 18px; text-align: center; color: var(--text-3); font-size: 13.5px; }
 .search-foot { display: flex; gap: 16px; padding: 9px 16px; border-top: 1px solid var(--border-soft); font-size: 11.5px; color: var(--text-3); }
 .search-foot span { white-space: nowrap; }

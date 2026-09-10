@@ -1,5 +1,7 @@
-/* MoveModal — 이동 폴더 피커(검색) + 노출 경고. 헤더에 대상명·현재 부모 경로 표시.
-   http 모드는 move-preview로 노출 변화 경고, local 모드는 즉시 이동. */
+/* MoveModal — 이동 목적지 피커(루트 + 폴더, 검색) + 노출 경고. 헤더에 대상명·현재 부모 경로 표시.
+   http 모드는 move-preview로 노출 변화 경고, local 모드는 즉시 이동.
+   목적지에는 "루트 (최상위)"가 포함된다 — 루트도 정상적인 위치이므로 되돌아갈 수 있어야 한다(D-6).
+   루트 선택도 target=null로 같은 onMoveClick 경로를 타므로 move-preview 경고를 우회하지 않는다. */
 import { useState, useEffect } from "react";
 import React from "react";
 import { Icon } from "./Icon";
@@ -9,7 +11,8 @@ import { ApiError } from "../api/http";
 import { storageMode } from "../storage";
 import { shouldWarn } from "./moveWarning";
 import { MoveWarnContent } from "./MoveWarnDialog";
-import { folderOptions, findNode } from "../lib/tree";
+import { findNode } from "../lib/tree";
+import { moveTargets, filterMoveTargets, isCurrentTarget, type MoveTarget } from "./moveTargets";
 import type { VaultTree } from "../types";
 
 const h = React.createElement;
@@ -34,9 +37,8 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
   const currentParentId = found.parentNode?.id ?? null;      // 현재 부모(루트면 null) — 같은 위치 이동 비활성
   const nodeType = found.node?.type ?? "note";               // 이동 대상 타입(헤더 아이콘)
   const parentPath = found.path.length ? found.path.join(" / ") : "루트 (최상위)"; // 헤더에 표시할 부모 디렉토리
-  const options = folderOptions(tree, node.id);
-  const q = query.trim().toLowerCase();
-  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+  const options = moveTargets(tree, node.id);              // [0] = 루트(최상위)
+  const filtered = filterMoveTargets(options, query);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -46,9 +48,9 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const pick = (id: string | null) => {
-    if (id === currentParentId) { toast("같은 위치입니다"); return; }
-    setTarget(id);
+  const pick = (t: MoveTarget) => {
+    if (isCurrentTarget(t, currentParentId)) { toast("같은 위치입니다"); return; }
+    setTarget(t.parentId);
     setSelected(true);
   };
 
@@ -90,17 +92,17 @@ export function MoveModal({ node, tree, onMove, onClose, toast }: MoveModalProps
           h("div", { className: "mv-list" },
             filtered.length === 0
               ? h("div", { style: { padding: "14px", color: "var(--text-3)", fontSize: 13 } },
-                  options.length === 0 ? "이동 가능한 폴더가 없습니다" : "검색 결과가 없습니다")
+                  "검색 결과가 없습니다")
               : filtered.map((o) =>
                   h("button", {
-                    key: o.id,
-                    className: "mv-opt" + (selected && target === o.id ? " sel" : ""),
-                    disabled: o.id === currentParentId,
-                    onClick: () => pick(o.id),
+                    key: o.key,
+                    className: "mv-opt" + (o.kind === "root" ? " root" : "") + (selected && target === o.parentId ? " sel" : ""),
+                    disabled: isCurrentTarget(o, currentParentId),
+                    onClick: () => pick(o),
                   },
-                    h("span", { className: "ic" }, h(Icon, { name: o.isRoot ? "space" : "folder" })),
+                    h("span", { className: "ic" }, h(Icon, { name: o.kind === "root" ? "book" : o.kind === "space" ? "space" : "folder" })),
                     h("span", { className: "lbl" }, o.label),
-                    o.id === currentParentId ? h("span", { className: "here" }, "현재 위치") : null))),
+                    isCurrentTarget(o, currentParentId) ? h("span", { className: "here" }, "현재 위치") : null))),
           h("div", { className: "pf-foot" },
             h("button", { className: "pf-btn", onClick: onClose }, "취소"),
             h("button", { className: "pf-btn primary", disabled: !selected || busy, onClick: onMoveClick }, "이동")))
