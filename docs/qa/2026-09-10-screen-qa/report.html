@@ -1,0 +1,484 @@
+<title>work-note 화면 QA 리포트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#FAFAF8; --panel:#FFFFFF; --panel-2:#F4F4F1;
+  --ink:#17191D; --ink-2:#43464C; --muted:#74777E;
+  --rule:#E3E3DE; --rule-2:#C9C9C3;
+  --crit:#A61B12; --crit-bg:#FBEDEC; --crit-edge:#E2B5B0;
+  --warn:#7A5200; --warn-bg:#FAF2E2; --warn-edge:#DFC98F;
+  --ok:#1F6446; --ok-bg:#EAF3EE; --ok-edge:#A8CDBA;
+  --sans:"IBM Plex Sans KR",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono","D2Coding",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --shell:1120px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#121317; --panel:#191A1F; --panel-2:#1F2027;
+    --ink:#E9E9E6; --ink-2:#B4B6BB; --muted:#85888F;
+    --rule:#292B31; --rule-2:#3A3D44;
+    --crit:#FF9084; --crit-bg:#2A1614; --crit-edge:#5C2C26;
+    --warn:#E8B65E; --warn-bg:#2A2113; --warn-edge:#5A4522;
+    --ok:#74CFA3; --ok-bg:#132620; --ok-edge:#27503E;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121317; --panel:#191A1F; --panel-2:#1F2027;
+  --ink:#E9E9E6; --ink-2:#B4B6BB; --muted:#85888F;
+  --rule:#292B31; --rule-2:#3A3D44;
+  --crit:#FF9084; --crit-bg:#2A1614; --crit-edge:#5C2C26;
+  --warn:#E8B65E; --warn-bg:#2A2113; --warn-edge:#5A4522;
+  --ok:#74CFA3; --ok-bg:#132620; --ok-edge:#27503E;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+.shell{max-width:var(--shell);margin:0 auto;padding:0 28px 96px}
+@media(max-width:640px){.shell{padding:0 18px 64px}}
+
+/* ---------- masthead ---------- */
+.mast{padding:56px 0 28px;border-bottom:2px solid var(--ink)}
+.eyebrow{
+  font-family:var(--mono); font-size:11.5px; font-weight:500;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+  display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:22px;
+}
+.eyebrow b{color:var(--ink-2);font-weight:600}
+h1{
+  font-size:clamp(30px,4.6vw,46px); line-height:1.15; font-weight:700;
+  letter-spacing:-.022em; margin:0 0 14px; text-wrap:balance;
+}
+.dek{font-size:17px;color:var(--ink-2);max-width:64ch;margin:0}
+.dek b{color:var(--ink);font-weight:600}
+
+/* ---------- ledger ---------- */
+.ledger{
+  display:grid; grid-template-columns:repeat(4,1fr);
+  border-bottom:1px solid var(--rule); margin-top:34px;
+}
+@media(max-width:640px){.ledger{grid-template-columns:repeat(2,1fr)}}
+.lg{padding:20px 22px 24px;border-left:1px solid var(--rule)}
+.lg:first-child{border-left:0;padding-left:0}
+.lg .n{
+  font-family:var(--mono); font-size:clamp(30px,4.4vw,42px); font-weight:600;
+  line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums;
+}
+.lg .k{
+  font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin-top:9px;
+}
+.lg .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+.lg.pass .n{color:var(--ok)} .lg.fail .n{color:var(--crit)} .lg.ux .n{color:var(--warn)}
+
+/* ---------- generic sections ---------- */
+section{padding-top:56px}
+h2{
+  font-size:13px; font-family:var(--mono); font-weight:600;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+  margin:0 0 6px; display:flex; align-items:baseline; gap:12px;
+}
+h2::after{content:"";flex:1;height:1px;background:var(--rule)}
+.h2sub{font-size:24px;font-weight:700;letter-spacing:-.018em;margin:0 0 26px;text-wrap:balance}
+p{margin:0 0 15px;max-width:70ch}
+.prose{color:var(--ink-2)}
+code{
+  font-family:var(--mono); font-size:.875em; background:var(--panel-2);
+  border:1px solid var(--rule); border-radius:3px; padding:.08em .34em; color:var(--ink);
+}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); background:var(--panel-2); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+td.who{font-family:var(--mono);font-size:12.5px;color:var(--muted);white-space:nowrap}
+
+/* ---------- filter ---------- */
+.filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 24px}
+.filter .lbl{
+  font-family:var(--mono);font-size:11px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin-right:4px;
+}
+.chip{
+  font:inherit; font-size:13px; font-weight:500; cursor:pointer;
+  background:var(--panel); color:var(--ink-2);
+  border:1px solid var(--rule-2); border-radius:999px; padding:5px 14px;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.chip:hover{border-color:var(--ink-2)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.chip .c{font-family:var(--mono);font-size:11.5px;opacity:.65;margin-left:6px}
+
+/* ---------- defect blocks ---------- */
+.defects{display:flex;flex-direction:column;gap:18px}
+.d{
+  background:var(--panel); border:1px solid var(--rule);
+  border-left:4px solid var(--rule-2); border-radius:4px; padding:20px 24px 22px;
+}
+.d.s-high{border-left-color:var(--crit)}
+.d.s-mid{border-left-color:var(--warn)}
+.d.s-low{border-left-color:var(--rule-2)}
+.dhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;margin-bottom:5px}
+.did{
+  font-family:var(--mono); font-size:13px; font-weight:600;
+  letter-spacing:.06em; color:var(--muted);
+}
+.d.s-high .did{color:var(--crit)}
+.d.s-mid .did{color:var(--warn)}
+.dt{font-size:18.5px;font-weight:700;letter-spacing:-.014em;margin:0;flex:1 1 320px;text-wrap:balance}
+.pill{
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; padding:3px 9px; border-radius:3px; white-space:nowrap;
+  border:1px solid transparent;
+}
+.pill.high{background:var(--crit-bg);color:var(--crit);border-color:var(--crit-edge)}
+.pill.mid{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-edge)}
+.pill.low{background:var(--panel-2);color:var(--muted);border-color:var(--rule-2)}
+.src{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:0 0 14px}
+.d p{margin:0 0 12px;color:var(--ink-2);max-width:none}
+.d p:last-child{margin-bottom:0}
+.d strong{color:var(--ink);font-weight:600}
+
+pre{
+  font-family:var(--mono); font-size:12.5px; line-height:1.6; margin:0 0 14px;
+  background:var(--panel-2); border:1px solid var(--rule); border-radius:4px;
+  padding:13px 15px; overflow-x:auto; color:var(--ink-2);
+}
+pre b{color:var(--ink);font-weight:600}
+
+.fix{
+  border-top:1px dashed var(--rule-2); margin-top:16px; padding-top:14px;
+  font-size:14.5px; color:var(--ink-2);
+}
+.fix .k{
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--muted); display:block; margin-bottom:5px;
+}
+
+/* ---------- cross-validation ---------- */
+.pat{
+  border:1px solid var(--rule); border-radius:4px; background:var(--panel);
+  padding:20px 24px 22px; margin-bottom:16px;
+}
+.phead{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-bottom:10px}
+.pt{font-size:18px;font-weight:700;letter-spacing:-.014em;margin:0;flex:1 1 300px}
+.dots{display:flex;gap:5px;align-items:center}
+.dots i{
+  width:9px;height:9px;border-radius:50%;display:block;
+  border:1px solid var(--rule-2); background:transparent;
+}
+.dots i.on{background:var(--ink);border-color:var(--ink)}
+.dots span{
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+  color:var(--muted);margin-left:5px;white-space:nowrap;
+}
+
+/* ---------- callout ---------- */
+.note{
+  border:1px solid var(--warn-edge); background:var(--warn-bg);
+  border-radius:4px; padding:18px 22px; margin-top:8px;
+}
+.note h3{font-size:16px;font-weight:700;margin:0 0 8px;letter-spacing:-.01em}
+.note p{margin:0;color:var(--ink-2);max-width:none;font-size:14.5px}
+.note code{background:transparent;border-color:var(--warn-edge)}
+
+/* ---------- footer ---------- */
+.foot{
+  margin-top:64px;padding-top:22px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:12px;color:var(--muted);
+  display:flex;flex-wrap:wrap;gap:6px 22px;
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="shell">
+
+  <header class="mast">
+    <div class="eyebrow">
+      <span>2026-09-10</span>
+      <span>테스터 <b>4명 병렬</b></span>
+      <span>ego-lite 실브라우저</span>
+      <span>증적 <b>194장</b></span>
+    </div>
+    <h1>work-note 전체 화면 QA</h1>
+    <p class="dek">엔트리 4종(index · login · admin · share)과 관리자 13스크린을 전수 조사해 <b>132항목</b>으로 나누고, 테스터 4명이 각자 전용 서버·DB에서 실화면을 조작하며 검증했다. <b>결함 7건, 개선 제안 31건.</b></p>
+  </header>
+
+  <div class="ledger">
+    <div class="lg"><div class="n">132</div><div class="k">검증 항목</div><div class="sub">체크리스트 + 추가 발견 2</div></div>
+    <div class="lg pass"><div class="n">106</div><div class="k">Pass</div><div class="sub">80.3%</div></div>
+    <div class="lg fail"><div class="n">6</div><div class="k">Fail</div><div class="sub">중복 제거 후 결함 7건</div></div>
+    <div class="lg ux"><div class="n">20</div><div class="k">UX</div><div class="sub">개선 제안 31건</div></div>
+  </div>
+
+  <section>
+    <h2>담당 분할</h2>
+    <p class="h2sub">테스터별 결과</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>테스터</th><th>담당 영역</th><th class="num">항목</th><th class="num">Pass</th><th class="num">Fail</th><th class="num">UX</th></tr></thead>
+        <tbody>
+          <tr><td class="who">QA1</td><td>인증 · 보안 · 공유 <span style="color:var(--muted)">(login / share / 2FA / 공유링크 / 감사로그)</span></td><td class="num">34</td><td class="num">30</td><td class="num">1</td><td class="num">3</td></tr>
+          <tr><td class="who">QA2</td><td>메인 셸 · 트리 · 모달 <span style="color:var(--muted)">(사이드바 / 검색 / 설정 / 휴지통 / 이동)</span></td><td class="num">33</td><td class="num">30</td><td class="num">3</td><td class="num">0</td></tr>
+          <tr><td class="who">QA3</td><td>에디터 코어 <span style="color:var(--muted)">(툴바 / 프리뷰 / 표 / 위키링크 / 첨부)</span></td><td class="num">36</td><td class="num">28</td><td class="num">1</td><td class="num">7</td></tr>
+          <tr><td class="who">QA4</td><td>관리자 13스크린</td><td class="num">29</td><td class="num">18</td><td class="num">1</td><td class="num">10</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose" style="margin-top:14px;font-size:14.5px">QA4의 Pass 비율이 낮은 것은 품질 문제가 아니다. 관리자 화면은 <strong>기능은 되지만 운영 편의가 빠진 항목</strong>(필터 없음, 연결 테스트 없음, 이름 컬럼 없음)이 많아 UX 판정으로 빠졌다.</p>
+  </section>
+
+  <section>
+    <h2>결함</h2>
+    <p class="h2sub">심각도순 8건 <span style="font-weight:400;color:var(--muted);font-size:17px">— D-4는 QA1·QA4가 독립 발견한 동일 건</span></p>
+
+    <div class="filter">
+      <span class="lbl">심각도</span>
+      <button class="chip" data-f="all" aria-pressed="true">전체<span class="c">8</span></button>
+      <button class="chip" data-f="high" aria-pressed="false">높음<span class="c">3</span></button>
+      <button class="chip" data-f="mid" aria-pressed="false">중간<span class="c">4</span></button>
+      <button class="chip" data-f="low" aria-pressed="false">낮음<span class="c">1</span></button>
+    </div>
+
+    <div class="defects" id="defects">
+
+      <article class="d s-high" data-sev="high">
+        <div class="dhead"><span class="did">D-1</span><h3 class="dt">권한이 없는 사용자에게 시드 vault가 자기 노트처럼 보인다</h3><span class="pill high">높음</span></div>
+        <p class="src">QA4 발견 · 메인 에이전트가 소스로 독립 확인</p>
+        <p>관리자가 폴더에 deny를 걸어 <code>GET /api/tree</code>가 <code>[]</code>를 반환해도, 화면에는 시드 vault 전체(시작하기 · 아키텍처 · 결제 파이프라인 · 운영 가이드 · 회의록 · README)가 뜨고 <strong>열람·편집까지 되며 "저장됨"이라고 표시된다.</strong></p>
+        <pre><b>HttpVaultRepository.load()</b>  →  tree.length ? tree : null   <span style="opacity:.6">// 빈 트리 = null</span>
+<b>useVault</b>                     →  if (saved) dispatch(replace) <span style="opacity:.6">// null이면 SEED 유지</span></pre>
+        <p>파급이 보고보다 크다. 같은 <code>wasEmpty</code> 플래그가 <code>bootstrapIfEmpty</code>도 켜므로, 그 사용자는 <strong>시드를 서버에 생성하려 시도</strong>한다. 방문자 역할은 <code>res.create</code>가 없어 실패하지만 <code>일반사용자</code> 역할이면 실제로 생성된다.</p>
+        <p>백엔드 ACL enforce는 정상 — 프런트만의 문제다. 그러나 관리자가 권한을 회수해도 대상 화면은 그대로라 <strong>권한 설정이 먹혔는지 검증할 수단이 없다.</strong> 근거: 방문자 화면 README 수정일이 시드 고정값(2026-06-06)인 반면 관리자 화면 DB 값은 2026-09-10이다.</p>
+        <div class="fix"><span class="k">조치</span>빈 트리와 로드 실패를 구분한다. HTTP 모드에서 <code>[]</code>는 "권한 없음 / 빈 vault"라는 유효한 상태이므로 시드로 대체하지 말고 빈 상태를 렌더한다. 시드 부트스트랩은 <code>wasEmpty</code>가 아니라 "서버 최초 기동"이라는 별도 신호에 걸어야 한다.</div>
+      </article>
+
+      <article class="d s-high" data-sev="high">
+        <div class="dhead"><span class="did">D-2</span><h3 class="dt">백엔드가 죽어도 "저장됨"이라고 말하고, 그동안 만든 노트는 사라진다</h3><span class="pill high">높음</span></div>
+        <p class="src">QA2 발견</p>
+        <p>앱이 열려 있는 상태에서 백엔드가 내려가면 앱은 이를 전혀 감지하지 못한다. 노트를 만들면 트리에 추가되고 저장 표시는 <code>저장됨</code>인데 서버에는 아무것도 없다. 새로고침하면 소멸한다.</p>
+        <div class="tw" style="margin-bottom:14px">
+          <table>
+            <thead><tr><th>방어선</th><th>실제</th></tr></thead>
+            <tbody>
+              <tr><td>실패 알림</td><td><code>서버 동기화 실패: Failed to fetch</code> 토스트 <strong>1.5초 1회</strong>가 전부</td></tr>
+              <tr><td>저장 표시</td><td>계속 <code>저장됨</code> — 디바운스 PATCH 큐 기준이라 create 실패를 반영 못 함</td></tr>
+              <tr><td>재전송</td><td><code>useVaultSync</code>에서 create·move는 pending 미러 대상이 아님</td></tr>
+              <tr><td>ConnectionLost</td><td><strong>초기 로드 실패에만</strong> 걸리는 가드 → 이 경로를 못 잡음</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>폐쇄망 사내 서버는 재기동·점검이 잦아 마주칠 확률이 낮지 않다. <strong>사용자가 유실을 인지할 수 없는 조용한 데이터 손실</strong>이라 심각도가 높다.</p>
+        <div class="fix"><span class="k">조치</span>create·move도 pending write-through에 포함해 재연결 시 재전송하고, 동기화 실패가 누적되면 저장 표시를 실패 상태로 고정한다.</div>
+      </article>
+
+      <article class="d s-high" data-sev="high">
+        <div class="dhead"><span class="did">D-3</span><h3 class="dt">공유 링크가 미저장 본문을 flush하지 않아 수신자가 빈 노트를 본다</h3><span class="pill high">높음</span></div>
+        <p class="src">QA1 발견 · 판정은 UX였으나 결과가 결함급이라 승격</p>
+        <p>본문은 1분 디바운스 PATCH로 저장되는데 공유 링크 생성은 이 flush를 트리거하지 않는다. QA 중 실제로 재현됐다 — 노트 작성 직후 링크를 만들어 열었더니 제목은 <code>제목 없는 노트</code>, 본문은 비어 있고 첨부만 표시됐다. 약 1분 뒤 디바운스가 발화한 뒤에야 정상 렌더됐다.</p>
+        <p>링크를 만든 사람은 <strong>이미 복사해서 전달한 뒤</strong>다. 수신자는 빈 노트를 보고 되돌아온다.</p>
+        <div class="fix"><span class="k">조치</span>링크 생성 직전 pending write를 강제 flush(⌘S와 동일 경로)하고, 실패 시 "저장되지 않은 변경이 있습니다" 경고 후 생성 여부를 묻는다.</div>
+      </article>
+
+      <article class="d s-mid" data-sev="mid">
+        <div class="dhead"><span class="did">D-4</span><h3 class="dt">감사 로그가 25종 행위를 한글 라벨·필터에서 누락</h3><span class="pill mid">중간</span></div>
+        <p class="src">QA1 · QA4 독립 발견 — 교차 검증됨</p>
+        <p>화면 스스로 "ISMS · PCI-DSS 추적용"이라 표시하는데, 보안 담당자가 실제로 뽑아야 하는 이벤트가 원시 코드로 노출되고 필터 목록에도 없다.</p>
+        <div class="tw" style="margin-bottom:14px">
+          <table>
+            <thead><tr><th>분류</th><th>누락 코드</th></tr></thead>
+            <tbody>
+              <tr><td>2FA <span style="color:var(--muted)">12종</span></td><td><code>2fa.setup</code> <code>2fa.enabled</code> <code>2fa.disabled</code> <code>2fa.disable.blocked</code> <code>2fa.admin.reset</code> <code>2fa.challenge</code> <code>2fa.verify.success</code> <strong><code>2fa.verify.fail</code></strong> <code>2fa.locked</code> <code>2fa.recover.*</code> <code>2fa.grace_start</code></td></tr>
+              <tr><td>계정 잠금</td><td><strong><code>login.locked</code></strong></td></tr>
+              <tr><td>첨부</td><td><code>attachment.add</code> <code>attachment.remove</code></td></tr>
+              <tr><td>개인정보</td><td><code>pii.request</code> <strong><code>pii.approve</code></strong> <code>pii.reject</code> <code>pii.notice</code> — <code>pii.view</code>는 라벨만 있고 필터 없음</td></tr>
+              <tr><td>설정 · 연동</td><td><code>settings.upload</code> <code>settings.redmine</code> <code>redmine.import</code> <code>redmine.token.set/delete</code></td></tr>
+              <tr><td>템플릿</td><td><code>template.system.create/update/delete</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>라벨 맵(<code>ACTS</code>)과 필터 목록(<code>KNOWN_ACTS</code>)이 서로 어긋나 있는 것도 문제다. 월간 감사 리포트의 <code>isAdminAction()</code>도 <code>2fa.admin.reset</code>만 예외 처리해 나머지 2FA 사건은 "관리자 작업"에 잡히지 않는다.</p>
+        <div class="fix"><span class="k">조치</span>백엔드 행위 코드를 단일 출처로 두고 라벨·필터를 거기서 파생시킨다.</div>
+      </article>
+
+      <article class="d s-mid" data-sev="mid">
+        <div class="dhead"><span class="did">D-5</span><h3 class="dt">태그를 붙일 수는 있는데 태그로 찾을 방법이 없다</h3><span class="pill mid">중간</span></div>
+        <p class="src">QA2 발견</p>
+        <p>태그 입력 · 저장 · 표시는 되는데 <strong>소비 경로가 0개</strong>다. 검색은 제목과 본문만 대상이라 <code>qa2tag</code> 검색 결과가 0건이고, 태그 칩을 클릭해도 아무 일이 없다(<code>×</code> 삭제만 동작). 사용자가 태그를 붙이는 노력이 전부 버려진다.</p>
+        <div class="fix"><span class="k">조치</span>검색 대상에 태그를 포함하거나, 태그 칩 클릭 시 해당 태그로 필터링한다.</div>
+      </article>
+
+      <article class="d s-mid" data-sev="mid">
+        <div class="dhead"><span class="did">D-6</span><h3 class="dt">폴더에 넣은 노트를 최상위로 되돌릴 수 없다</h3><span class="pill mid">중간</span></div>
+        <p class="src">QA2 발견</p>
+        <p>이동 모달 목적지에 "루트(최상위)"가 없고, 트리 빈 영역 드롭도 미구현이다(<code>dragOverId</code> 주석의 <code>"__ROOT__"</code>는 구현되지 않은 잔재). 모달 헤더는 현재 부모를 "루트 (최상위)"라 표시해 <strong>루트가 1급 위치임을 인정하면서도 그리로 돌아갈 길이 없다.</strong> 오조작을 사용자가 스스로 되돌릴 수 없다.</p>
+        <div class="fix"><span class="k">조치</span>이동 모달에 루트 목적지를 추가하거나 트리 빈 영역을 드롭 존으로 구현한다.</div>
+      </article>
+
+      <article class="d s-mid" data-sev="mid">
+        <div class="dhead"><span class="did">D-7</span><h3 class="dt">삭제된 위키링크가 정상으로 보이고, 클릭하면 보던 노트까지 닫힌다</h3><span class="pill mid">중간</span></div>
+        <p class="src">QA3 발견</p>
+        <p>대상 노트를 삭제하면 삭제 경고 모달이 "그 링크들은 '연결할 수 없음'이 됩니다"라고 <strong>명시</strong>하는데, 실제로는 파란 정상 링크 그대로 남는다. 클릭하면 편집기가 사라지고 "열린 노트가 없습니다" 빈 화면이 된다 — <strong>작업 중이던 노트까지 닫히고 아무 메시지도 없다.</strong> 새로고침해야 <code>🔒 연결할 수 없음</code>으로 바뀐다.</p>
+        <p>추정 원인: <code>WikilinkWidget.eq()</code>가 id·label만 비교해 대상이 사라져도 위젯이 재생성되지 않는다.</p>
+        <div class="fix"><span class="k">조치</span>위젯 동등성 판정에 대상 존재 여부를 포함해 삭제 시 <code>resolve</code>가 다시 돌게 한다.</div>
+      </article>
+
+      <article class="d s-low" data-sev="low">
+        <div class="dhead"><span class="did">D-8</span><h3 class="dt">업로드 허용 확장자에 잘못된 문자열이 검증 없이 저장된다</h3><span class="pill low">낮음</span></div>
+        <p class="src">QA4 발견</p>
+        <p><code>.BAD!</code>를 입력하면 <code>bad!</code>로 저장된다. 화면 안내("점 없이 소문자")와 달리 프런트·백엔드 모두 문자 검증이 없다. 보안 완화는 아니고 <strong>조용한 오설정</strong>이다 — 관리자는 허용했다고 믿지만 해당 형식 업로드는 계속 거부된다.</p>
+        <div class="fix"><span class="k">조치</span>확장자 입력에 형식 검증을 걸고 위반 사유를 알린다.</div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>교차 검증</h2>
+    <p class="h2sub">서로 다른 화면을 맡은 테스터가 독립적으로 같은 것을 지적</p>
+    <p class="prose">담당 영역이 겹치지 않는 테스터들이 같은 문제를 짚었다면 국소적 취향이 아니라 <strong>제품 전반의 일관성 결함</strong>이다.</p>
+
+    <div class="pat">
+      <div class="phead">
+        <h3 class="pt">P-1 · 파괴적 동작의 확인 방식이 화면마다 다르다</h3>
+        <span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><span>4 / 4 지적</span></span>
+      </div>
+      <div class="tw" style="margin-bottom:14px">
+        <table>
+          <thead><tr><th>화면</th><th>확인 방식</th></tr></thead>
+          <tbody>
+            <tr><td>휴지통 영구삭제</td><td>인라인 2단계 (<code>영구 삭제 → 확인/취소</code>)</td></tr>
+            <tr><td>노트 삭제 · 이동</td><td>앱 모달 (LinkWarnDialog · MoveWarnDialog)</td></tr>
+            <tr><td>가입 반려 · 역할/팀 삭제 · 사용자 비활성화</td><td>앱 모달</td></tr>
+            <tr><td><strong>공유 링크 취소 (index)</strong></td><td><strong>확인 없음 — 즉시 실행</strong></td></tr>
+            <tr><td><strong>공유 링크 취소 (admin)</strong></td><td><strong>네이티브 <code>confirm()</code></strong></td></tr>
+            <tr><td><strong>개인 템플릿 · 시스템 템플릿 · 첨부 삭제</strong></td><td><strong>네이티브 <code>confirm()</code></strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="color:var(--ink-2);margin:0">네이티브 대화상자는 모노톤 디자인·다크 모드와 이질적이고 <code>localhost:8341 says</code> 같은 출처 문구가 그대로 노출된다. 특히 <strong>공유 모달의 "복사"와 "취소"는 나란히 붙은 같은 크기 버튼</strong>인데 취소는 확인 없이 즉시 실행되고 되돌릴 수 없다.</p>
+    </div>
+
+    <div class="pat">
+      <div class="phead">
+        <h3 class="pt">P-2 · 토스트가 1.5초 만에 사라진다</h3>
+        <span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span>3 / 4 지적</span></span>
+      </div>
+      <p style="color:var(--ink-2)"><code>TOAST_MS = 1500</code>이 성공과 실패를 구분하지 않는다. 그런데 아래는 전부 토스트가 <strong>유일한 통지 채널</strong>이다.</p>
+      <pre>서버 동기화 실패: Failed to fetch          <span style="opacity:.6">← D-2의 유일한 신호</span>
+프로필에서 Redmine 키를 먼저 등록하세요
+만료 일수는 1~365 사이여야 합니다: 0
+허용하지 않는 파일 형식입니다: .exe</pre>
+      <p style="color:var(--ink-2);margin:0">한국어 한 문장을 읽기에 1.5초는 짧고 다시 볼 방법이 없다. QA 중 실제로 "아무 반응이 없다"고 오인한 사례가 나왔다. <strong>실패 토스트 4~5초 + 닫기 버튼</strong>이 최소 조치다.</p>
+    </div>
+
+    <div class="pat">
+      <div class="phead">
+        <h3 class="pt">P-3 · 되돌릴 수 없는 동작에 되돌리기 수단이 없다</h3>
+        <span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span>3 / 4 지적</span></span>
+      </div>
+      <p style="color:var(--ink-2);margin:0">공유 링크 취소(재발급 불가), 노트 삭제(휴지통을 알아야 함), 첨부 삭제, 루트로 되돌리기 불가(D-6). <strong>삭제 토스트에 "실행 취소"를 붙이는 것만으로 상당 부분 해소된다.</strong></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>개선 제안</h2>
+    <p class="h2sub">31건 <span style="font-weight:400;color:var(--muted);font-size:17px">— 원본 36건에서 중복 제거</span></p>
+
+    <div class="tw" style="margin-bottom:22px">
+      <table>
+        <thead><tr><th style="width:86px">우선순위</th><th>항목</th><th style="width:120px">화면</th><th style="width:86px">출처</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill high">높음</span></td><td>공유 링크 생성 시 미저장 본문 flush 안 함 <span style="color:var(--muted)">→ D-3으로 승격</span></td><td>공유 모달</td><td class="who">QA1</td></tr>
+          <tr><td><span class="pill high">높음</span></td><td><strong>조상 deny 위에 allow를 저장해도 "저장했습니다"만 뜨고 무효라는 신호가 없다</strong></td><td>권한 관리</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>실패 토스트 지속시간 <span style="color:var(--muted)">(P-2)</span></td><td>전역</td><td class="who">QA1·2·3</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>"새 노트 / 새 폴더"가 우클릭 안에만 있음 — 사이드바에 <code>+</code> 없음</td><td>사이드바</td><td class="who">QA2</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>휴지통에 "며칠 남았는지"가 없음 (30일 정책만 안내)</td><td>휴지통</td><td class="who">QA2</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>툴바 서식 버튼에 해제 토글 없음 — 체크리스트 3회 → <code>- [ ] - [ ] - [ ]</code></td><td>에디터</td><td class="who">QA3</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>아웃라인이 1240px 이하에서 예고 없이 사라짐 <span style="color:var(--muted)">(1440 노트북에서 안 보임)</span></td><td>에디터</td><td class="who">QA3</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>이미지 드롭이 문장 한가운데를 쪼갬</td><td>에디터</td><td class="who">QA3</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>본문이 쓰는 첨부를 삭제할 때 참조 경고 없음</td><td>첨부함</td><td class="who">QA3</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>관리자 nav를 접으면 아이콘 레일 없이 통째로 사라짐</td><td>관리자 전역</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>사용자 목록에 이름 컬럼 없음 <span style="color:var(--muted)">(이름 검색은 되는데 결과에 이름이 안 보임)</span></td><td>사용자 관리</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>사용자 이름·이메일 수정 UI 없음 — 오타 시 2FA 복구가 막힘</td><td>사용자 관리</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>스페이스 해제 시 자동 부여된 팀 edit ACL 잔존, 안내 없음</td><td>팀·스페이스</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>개인정보 점검에 검색·유형·기간 필터 전무</td><td>PII</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>업로드 용량 상한 없음(97GB 저장 가능) + 하한 보정 미고지</td><td>업로드 정책</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>Redmine 연결 테스트 기능 부재</td><td>Redmine</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>템플릿 편집 패널 저장 버튼이 뷰포트 밖(y=957 &gt; 900), 자동 스크롤 없음</td><td>템플릿</td><td class="who">QA4</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>SMTP 미설정 시 2FA 복구 발송이 조용히 무동작</td><td>login</td><td class="who">QA1</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>2FA 정책이 보안 설정 화면에 한 줄도 없음</td><td>보안 설정</td><td class="who">QA1</td></tr>
+          <tr><td><span class="pill mid">중간</span></td><td>관리자 공유 링크 화면이 만료·취소 링크를 안 보여줌 (상태 컬럼 없음)</td><td>공유 링크</td><td class="who">QA1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="prose"><strong>낮음 9건</strong> — 네이티브 confirm 통일(P-1) · 로그인 카드 320px 우측 잘림 · 공유 "로그인하러 가기"가 원래 링크로 복귀 안 함 · "지금 등록" 배너가 2FA 섹션으로 스크롤 안 함 · 트리 펼침·정렬이 새로고침 시 초기화 · LinkWarn이 참조 노트 목록을 안 보여줌 · H5·H6 크기가 같고 본문보다 작음 · <code>[[</code> 자동완성에서 루트 노트만 아이콘 어긋남 · 1024px 미만에서 좌측 nav가 화면 밖으로 밀림 · 빈 상태 문구 4가지 형식 혼재</p>
+
+    <div class="note">
+      <h3>부수 관찰 — PII 오탐 가능성</h3>
+      <p>QA3가 저장 확인용으로 넣은 13자리 타임스탬프 <code>1789015782259</code>가 <strong>주민등록번호로 탐지</strong>됐다. 하이픈 없는 13자리 숫자를 곧바로 RRN으로 보는 규칙이라 실제 업무 문서의 주문번호·트랜잭션 ID·에포크 밀리초에서 광범위한 오탐이 예상된다. 판정 외 항목이나 별도 검증을 권한다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>검증 방법과 한계</h2>
+    <p class="h2sub">어떻게 확인했고, 무엇을 확인하지 못했나</p>
+
+    <p class="prose">서버 4대를 <strong>포트 · DB · 업로드 디렉토리까지 완전히 분리</strong>해 기동했다(8341~8344). 한 대로 돌리면 전역 설정(업로드 정책 · 보안 정책)과 감사 집계, 공유 계정이 서로를 밟아 가짜 FAIL과 가짜 PASS가 섞인다. 각 테스터는 ego-lite의 격리 task space에서 실화면을 조작했고, DOM 확인만으로 PASS 판정하지 않았다 — 레이아웃 관련 항목은 스크린샷으로 육안 확인했다. 테스터에게는 코드 수정과 git 조작을 금지해 QA와 수정을 분리했다.</p>
+
+    <div class="tw" style="margin-bottom:20px">
+      <table>
+        <thead><tr><th style="width:34%">미검증 항목</th><th>사유</th></tr></thead>
+        <tbody>
+          <tr><td>PDF 내보내기 <em>실행</em></td><td><code>window.print()</code> 네이티브 대화상자가 자동화 세션을 블록 — 메뉴 렌더와 코드 경로만 확인</td></tr>
+          <tr><td>2FA 복구 코드 실제 수신·검증</td><td>이 환경에 SMTP 미설정(<code>NoopMailSender</code>) — UI 전환만 확인</td></tr>
+          <tr><td>관리자 반응형 S7·S8 스크린샷</td><td><code>Page.captureScreenshot</code> 타임아웃 — DOM 실측값(요소 폭 · overflow · 클리핑 검사)으로 대체 검증</td></tr>
+          <tr><td>네이티브 <code>confirm()</code> 경로</td><td>대화상자가 실제로 뜨는 것을 확인한 뒤, 진행을 위해 <code>window.confirm</code>을 스텁 처리하고 동작 검증</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="border-color:var(--rule);background:var(--panel-2)">
+      <h3>환경 이슈 — 제품 결함 아님</h3>
+      <p>4개 서버를 같은 브라우저 프로필에서 쓰는데 <strong>쿠키는 포트를 구분하지 않는다.</strong> <code>JSESSIONID</code>가 호스트 <code>localhost</code> 하나로 공유되어, 다른 테스터가 로그인하면 세션이 덮여 강제 로그아웃되는 일이 초반에 발생했다. 각 테스터가 <code>qa1.localhost</code> · <code>qa2.localhost</code> · <code>[::1]</code> 등으로 오리진을 분리해 해결했다. 폐쇄망 실배포는 서버가 하나이므로 제품 영향은 없다 — 다만 향후 병렬 QA에서는 서버별 호스트명 분리를 처음부터 설계에 넣어야 한다.</p>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>docs/qa/2026-09-10-screen-qa/</span>
+    <span>FINAL-REPORT.md</span>
+    <span>CHECKLIST.md · 132항목</span>
+    <span>reports/qa1~qa4-report.md</span>
+    <span>shots/ · 194장</span>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var cards = Array.prototype.slice.call(document.querySelectorAll('#defects .d'));
+  chips.forEach(function(chip){
+    chip.addEventListener('click', function(){
+      var f = chip.getAttribute('data-f');
+      chips.forEach(function(c){ c.setAttribute('aria-pressed', String(c === chip)); });
+      cards.forEach(function(card){
+        card.hidden = (f !== 'all' && card.getAttribute('data-sev') !== f);
+      });
+    });
+  });
+})();
+</script>
