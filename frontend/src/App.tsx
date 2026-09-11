@@ -30,7 +30,7 @@ import { pendingDiffers } from "./state/pendingRecovery";
 import { emptyVaultView } from "./state/emptyVaultPolicy";
 import { toastKind, toastDuration } from "./state/toastPolicy";
 import type { ToastKind } from "./state/toastPolicy";
-import { saveButtonState, syncBanner } from "./state/syncStatus";
+import { saveButtonState, saveButtonClass, syncBanner } from "./state/syncStatus";
 import { useSession } from "./state/useSession";
 import { repository, storageMode } from "./storage";
 import * as cm from "./editor/cm";
@@ -76,6 +76,8 @@ export function App() {
   const [collapsed, setCollapsed] = usePersist<boolean>("wn.sbCollapsed", false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  // 태그 칩 클릭 → 그 태그로 검색창을 연다. 열릴 때 1회만 쓰이고 닫으면 비운다.
+  const [searchSeed, setSearchSeed] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
@@ -487,15 +489,10 @@ export function App() {
           onClick: openSecurityProfile }, "지금 등록")),
       // 서버 동기화 실패 상시 배너 — 미전송 변경이 남아 있는 동안 계속 보인다(D-2).
       // 토스트 한 번으로는 백엔드가 죽은 사실이 화면에서 사라져 "저장됨"만 남았다.
-      syncWarn && createElement("div", { className: "sync-warn-banner", style: {
-        background: "var(--err-bg, #fdecea)", borderBottom: "1px solid var(--err-bd, #f5c2c0)",
-        padding: "8px 20px", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
-        color: "var(--text-1)",
-      } },
+      syncWarn && createElement("div", { className: "sync-warn-banner" },
         createElement(Icon, { name: "alert" }),
         createElement("span", null, syncWarn),
-        createElement("button", { className: "lact", style: { marginLeft: "auto" },
-          onClick: retryNow }, "지금 재시도")),
+        createElement("button", { className: "lact", onClick: retryNow }, "지금 재시도")),
       // editor toolbar
       activeNote && createElement(
         "div", { className: "etoolbar" },
@@ -540,6 +537,7 @@ export function App() {
               toast, canUpload: storageMode === "http",
               onSetPii: (id, pii) => actions.setNotePii(id, pii),
               wikiCandidates, resolveLink, onNavigate: (id: string) => setActiveId(id),
+              onTagClick: (q: string) => { setSearchSeed(q); setSearchOpen(true); },
             })
           : createElement(
               "div", { className: "empty-state" },
@@ -574,7 +572,7 @@ export function App() {
       // 우측 하단 수동 저장 버튼 — 미저장 편집이 있을 때 활성, 저장 후/자동저장 후 '저장됨'.
       // 서버 전송 실패분이 남아 있으면 '저장 실패'가 우선 — 큐가 빌 때까지 '저장됨'이라 말하지 않는다(D-2).
       activeNote && createElement("button", {
-        className: "doc-save" + (saveBtn.disabled ? "" : " dirty"),
+        className: saveButtonClass(saveBtn),
         title: saveBtn.title,
         disabled: saveBtn.disabled,
         style: saveBtn.danger ? { color: "#b3261e", borderColor: "#f5c2c0" } : undefined,
@@ -586,7 +584,8 @@ export function App() {
     // overlays
     searchOpen && createElement(SearchModal, {
       notes: flattenNotes(tree),
-      onClose: () => setSearchOpen(false),
+      initialQuery: searchSeed,
+      onClose: () => { setSearchOpen(false); setSearchSeed(""); },
       onOpen: openNote,
     }),
     profileOpen && createElement(ProfileModal, {
@@ -638,16 +637,11 @@ export function App() {
       toasts.map((t2) =>
         createElement("div", {
           className: "toast" + (t2.kind === "warn" ? " warn" : ""), key: t2.id,
-          style: t2.kind === "warn" ? { maxWidth: "min(560px, 92vw)", alignItems: "flex-start" } : undefined,
         },
           createElement(Icon, { name: t2.icon || (t2.kind === "warn" ? "alert" : "info") }),
           createElement("span", null, t2.msg),
           t2.kind === "warn" && createElement("button", {
-            title: "닫기", onClick: () => dismissToast(t2.id),
-            style: {
-              background: "none", border: "none", color: "inherit", cursor: "pointer",
-              opacity: 0.7, padding: "0 0 0 4px", marginLeft: 2, display: "flex", alignItems: "center",
-            },
+            className: "toast-x", title: "닫기", onClick: () => dismissToast(t2.id),
           }, createElement(Icon, { name: "x" }))))
     )
   );

@@ -55,6 +55,10 @@
   --shadow-pop:   0 1px 2px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.12);
   --shadow-soft:  0 1px 3px rgba(0,0,0,.06);
   --overlay:      rgba(28,28,26,.34);
+  --danger:       #b3261e;
+  --err-ink:      #b3261e;
+  --err-bg:       #fdecea;
+  --err-bd:       #f0c4c0;
   --on-ink:       #ffffff;
   color-scheme: light;
 }
@@ -91,6 +95,10 @@
   --shadow-pop:   0 1px 2px rgba(0,0,0,.3), 0 12px 34px rgba(0,0,0,.5);
   --shadow-soft:  0 1px 3px rgba(0,0,0,.4);
   --overlay:      rgba(0,0,0,.55);
+  --danger:       #e0746c;
+  --err-ink:      #e0746c;
+  --err-bg:       #2e1b19;
+  --err-bd:       #4d2b27;
   --on-ink:       #1a1a18;
   color-scheme: dark;
 }
@@ -1285,3 +1293,38 @@ button.topbar-me { font-family: var(--font-ui); }
 .tpl-edit-body { flex: 1; margin: 12px 14px 14px; resize: none; padding: 10px;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-0);
   color: var(--text-1); font-size: 12.5px; line-height: 1.6; font-family: var(--font-mono); }
+
+
+/* ---- 동기화 실패 표면 (D-2/P-2) ----------------------------------------
+   실패는 지속되는 자리에 남아야 한다. 색은 테마 토큰에서 오므로 다크에서도
+   맞는다 — 인라인 hex를 쓰면 라이트 색이 다크에 그대로 박힌다. */
+.sync-warn-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px; font-size: 13px;
+  background: var(--err-bg); color: var(--err-ink);
+  border-bottom: 1px solid var(--err-bd);
+}
+.sync-warn-banner svg { width: 15px; height: 15px; flex: none; }
+.sync-warn-banner .lact { margin-left: auto; color: var(--err-ink); }
+
+/* 경고 토스트 — 성공과 같은 모양이면 "실패를 구분한다"는 목적이 사라진다.
+   길어서 두 줄이 될 수 있으므로 위쪽 정렬하고 폭을 넓힌다. */
+.toast.warn {
+  background: var(--err-ink); color: var(--on-ink);
+  align-items: flex-start; max-width: min(560px, 92vw);
+  text-align: left; line-height: 1.5;
+}
+.toast.warn svg { margin-top: 1px; }
+.toast .toast-x {
+  background: none; border: 0; color: inherit; cursor: pointer;
+  opacity: .7; padding: 0 0 0 4px; margin-left: 2px;
+  display: flex; align-items: center; flex: none;
+}
+.toast .toast-x:hover { opacity: 1; }
+
+/* 저장 실패 — 미저장(dirty)과 같은 색이면 텍스트를 읽어야만 구분된다. */
+.doc-save.danger {
+  background: var(--err-ink); color: var(--on-ink); border-color: var(--err-ink);
+  box-shadow: var(--shadow-pop);
+}
+.doc-save.danger:hover { opacity: .9; }

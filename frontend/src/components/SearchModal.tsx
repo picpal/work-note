@@ -6,7 +6,6 @@ import React from "react";
 import { Icon } from "./Icon";
 import { mdToText } from "../lib/markdown";
 import { parseSearchQuery, rankMatches, FIELD_LABEL, type MatchResult, type SearchTarget } from "./searchMatch";
-import { consumeSearchSeed } from "./searchBus";
 import type { NoteNode } from "../types";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -31,7 +30,7 @@ interface SearchModalProps {
   notes: Array<{ note: NoteNode; path: string[] }>;
   onClose: () => void;
   onOpen: (note: NoteNode) => void;
-  /** 열릴 때 채워둘 질의. 없으면 searchBus 시드(태그 칩 클릭)를 소비한다. */
+  /** 열릴 때 채워둘 질의(태그 칩 클릭). 없으면 빈 검색창. */
   initialQuery?: string;
 }
 
@@ -43,7 +42,7 @@ interface Entry {
 
 export function SearchModal({ notes, onClose, onOpen, initialQuery }: SearchModalProps) {
   // 마운트 시 1회: 명시 prop > 태그 칩 시드 > 빈 질의
-  const [q, setQ] = useState(() => initialQuery ?? consumeSearchSeed());
+  const [q, setQ] = useState(() => initialQuery ?? "");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);

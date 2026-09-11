@@ -4,7 +4,6 @@ import React from "react";
 import { Icon } from "./Icon";
 import { countNotes, folderIconName, sortTreeNodes, type TreeSortKey } from "../lib/tree";
 import { canDropOn } from "../lib/dnd";
-import { onSearchRequest } from "./searchBus";
 import { piiWarns } from "../lib/pii";
 import type { VaultTree, VaultNode, NoteNode } from "../types";
 
@@ -181,10 +180,6 @@ export function Sidebar(props: SidebarProps) {
 
   // 에디터 태그 칩 클릭 → 검색창 열기 (App.tsx가 searchOpen을 쥐고 있어 버스로 받는다).
   // 콜백은 ref로 최신값을 읽어 매 렌더 재구독을 피한다(App이 인라인 화살표를 넘긴다).
-  const openSearchRef = useRef(onOpenSearch);
-  openSearchRef.current = onOpenSearch;
-  useEffect(() => onSearchRequest(() => openSearchRef.current()), []);
-
   useEffect(() => {
     if (!sortOpen) return;
     const close = (e: MouseEvent) => {

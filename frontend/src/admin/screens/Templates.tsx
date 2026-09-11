@@ -7,6 +7,7 @@ import { SecHead } from "../common";
 import { Icon } from "../../components/Icon";
 import { renderMarkdown } from "../../lib/markdown";
 import { validateTemplateName, validateTemplateBody } from "../../components/templateValidation";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 
 const { useState, useEffect, useCallback } = React;
 const h = React.createElement;
@@ -17,6 +18,8 @@ export function Templates({ toast }: { toast: (msg: string, icon?: string) => vo
   const [items, setItems] = useState<ApiSystemTemplate[]>([]);
   const [draft, setDraft] = useState<Draft>(null);
   const [busy, setBusy] = useState(false);
+  // 삭제 확인 — 네이티브 window.confirm 대신 앱 모달(P-1: 파괴적 동작 확인 방식 통일).
+  const [pendingDelete, setPendingDelete] = useState<ApiSystemTemplate | null>(null);
 
   const fail = useCallback((e: unknown) => {
     toast(e instanceof ApiError ? e.message : "오류가 발생했습니다");
@@ -50,7 +53,7 @@ export function Templates({ toast }: { toast: (msg: string, icon?: string) => vo
 
   const remove = async (t: ApiSystemTemplate) => {
     if (busy) return;
-    if (!window.confirm(`'${t.name}' 시스템 템플릿을 삭제할까요? 모든 사용자에게서 사라집니다.`)) return;
+    setPendingDelete(null);
     setBusy(true);
     try {
       await AdminApi.deleteTemplate(t.id);
@@ -88,7 +91,7 @@ export function Templates({ toast }: { toast: (msg: string, icon?: string) => vo
             },
               h("span", { style: { flex: 1, fontSize: 13 } }, t.name),
               h("button", { className: "btn", onClick: () => setDraft({ id: t.id, name: t.name, body: t.body }) }, "편집"),
-              h("button", { className: "btn", onClick: () => void remove(t) }, "삭제"))))),
+              h("button", { className: "btn", onClick: () => setPendingDelete(t) }, "삭제"))))),
 
     draft && h("div", { className: "panel", style: { marginTop: 16 } },
       h("div", { className: "panel-head" },
@@ -113,5 +116,12 @@ export function Templates({ toast }: { toast: (msg: string, icon?: string) => vo
         h("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
           h("button", { className: "btn primary", disabled: busy, onClick: () => void save() },
             h(Icon, { name: "check" }), "저장"),
-          h("button", { className: "btn", onClick: () => setDraft(null) }, "취소")))));
+          h("button", { className: "btn", onClick: () => setDraft(null) }, "취소")))),
+    pendingDelete && h(ConfirmDialog, {
+      key: "del", name: pendingDelete.name, action: "시스템 템플릿 삭제",
+      message: ["되돌릴 수 없습니다.", "모든 사용자에게서 이 템플릿이 사라집니다."],
+      danger: true, busy,
+      onConfirm: () => void remove(pendingDelete),
+      onCancel: () => setPendingDelete(null),
+    }));
 }

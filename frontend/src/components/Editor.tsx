@@ -13,7 +13,6 @@ import { Icon } from "./Icon";
 import { ApiError } from "../api/http";
 import { piiWarns } from "../lib/pii";
 import { PiiApi } from "../storage/PiiApi";
-import { requestSearch } from "./searchBus";
 import { tagQuery } from "./searchMatch";
 
 export interface ToolbarHandlers {
@@ -45,6 +44,8 @@ interface EditorProps {
   wikiCandidates?: () => import("../editor/wikilinkComplete").WikiCandidate[];
   resolveLink?: (id: string) => string | null;
   onNavigate?: (id: string) => void;
+  /** 태그 칩 클릭 — 그 태그로 검색창을 연다(D-5). */
+  onTagClick?: (query: string) => void;
 }
 
 const TEMPLATES = {
@@ -276,7 +277,7 @@ export function Editor(props: EditorProps) {
         createElement("span", { className: "tag", key: t },
           createElement("button", {
             className: "tag-name", title: "'" + t + "' 태그로 검색",
-            onClick: () => requestSearch(tagQuery(t)),
+            onClick: () => props.onTagClick && props.onTagClick(tagQuery(t)),
           }, "#" + t),
           createElement("button", { className: "tag-x", onClick: () => removeTag(t), title: "태그 삭제" }, "×"))),
       createElement("input", {

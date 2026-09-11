@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { saveButtonState, syncBanner, shareFlushGate } from "./syncStatus";
+import { saveButtonState, saveButtonClass, syncBanner, shareFlushGate } from "./syncStatus";
 
 describe("saveButtonState", () => {
   it("미저장 편집이 없으면 '저장됨'", () => {
@@ -64,5 +64,25 @@ describe("shareFlushGate", () => {
     const g = shareFlushGate({ ok: false, unsynced: 2 });
     expect(g.proceed).toBe(false);
     expect(g.message).toContain("2");
+  });
+});
+
+describe("saveButtonClass", () => {
+  it("저장됨 = 기본 스타일", () => {
+    expect(saveButtonClass(saveButtonState(false, 0))).toBe("doc-save");
+  });
+
+  it("미저장(dirty) = dirty 스타일", () => {
+    expect(saveButtonClass(saveButtonState(true, 0))).toBe("doc-save dirty");
+  });
+
+  it("저장 실패는 dirty와 다르게 보여야 한다 — 텍스트로만 구분되면 못 알아챈다 (D-2)", () => {
+    const fail = saveButtonClass(saveButtonState(true, 3));
+    expect(fail).toBe("doc-save danger");
+    expect(fail).not.toBe(saveButtonClass(saveButtonState(true, 0)));
+  });
+
+  it("dirty가 아니어도 미전송분이 있으면 실패 스타일", () => {
+    expect(saveButtonClass(saveButtonState(false, 1))).toBe("doc-save danger");
   });
 });

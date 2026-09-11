@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import React from "react";
 import { Icon } from "./Icon";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { ShareApi, shareUrl } from "../api/share";
 import type { ShareLink, CreateShareBody } from "../api/share";
 import { ApiError } from "../api/http";
@@ -30,6 +31,7 @@ function copyText(text: string): Promise<void> {
 /** 되돌릴 수 없는 동작 앞의 확인 단계 — MoveWarnDialog/LinkWarnDialog와 동일한 오버레이·카드 마크업.
     공용 컴포넌트로 빼지 않는 이유: 이 모달 위에 겹쳐 뜨는 전용 확인이라 형제로 렌더해야 한다
     (ShareModal 카드 안에 넣으면 바깥 오버레이의 mousedown-닫기에 걸린다). */
+/* 확인 모달은 공용 ConfirmDialog를 쓴다 — 앱 전체가 같은 확인 방식이어야 한다(P-1). */
 interface ConfirmSpec {
   icon: string;
   title: string;
@@ -38,23 +40,6 @@ interface ConfirmSpec {
   confirmLabel: string;
   cancelLabel?: string;   // 기본 "취소" — 취소 액션을 확인할 때는 문구가 겹치므로 "돌아가기"를 쓴다
   onConfirm: () => void;
-}
-
-function ShareConfirm({ note, spec, onCancel }: { note: string; spec: ConfirmSpec; onCancel: () => void }) {
-  return h("div", { className: "pf-overlay", onMouseDown: onCancel },
-    h("div", { className: "pf-card", onMouseDown: (e: React.MouseEvent) => e.stopPropagation() },
-      h("div", { className: "pf-head" },
-        h("span", { className: "pf-av" }, h(Icon, { name: spec.icon })),
-        h("div", { className: "pf-id" },
-          h("div", { className: "pf-emp" }, note),
-          h("div", { className: "pf-role" }, spec.title)),
-        h("button", { className: "icon-btn pf-x", onClick: onCancel, title: "닫기" }, h(Icon, { name: "x" }))),
-      h("div", { className: "pf-body" },
-        h("div", { className: "pf-sec" },
-          h("div", { className: "pf-msg err" }, spec.body),
-          h("div", { className: "pf-foot" },
-            h("button", { className: "pf-btn", onClick: onCancel }, spec.cancelLabel ?? "취소"),
-            h("button", { className: "pf-btn" + (spec.danger ? " danger" : " primary"), onClick: spec.onConfirm }, spec.confirmLabel))))));
 }
 
 interface ShareModalProps {
@@ -221,5 +206,10 @@ export function ShareModal({ note, onClose, toast, flush }: ShareModalProps) {
             h("div", { className: "pf-foot" },
               h("button", { className: "pf-btn primary", disabled: busy, onClick: () => { void create(); } }, "링크 만들기"))))),
     ),
-    confirm && h(ShareConfirm, { key: "confirm", note: note.name, spec: confirm, onCancel: () => setConfirm(null) }));
+    confirm && h(ConfirmDialog, {
+      key: "confirm", name: note.name, action: confirm.title, message: confirm.body,
+      danger: confirm.danger, icon: confirm.icon,
+      confirmLabel: confirm.confirmLabel, cancelLabel: confirm.cancelLabel,
+      onConfirm: confirm.onConfirm, onCancel: () => setConfirm(null),
+    }));
 }
