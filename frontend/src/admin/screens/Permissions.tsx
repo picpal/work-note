@@ -10,6 +10,7 @@ import type { DenyBlock } from "../aclView";
 import { SecHead, Empty, SkeletonTable } from "../common";
 import { folderIconName } from "../../lib/tree";
 import { Icon } from "../../components/Icon";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 
 const { useState, useEffect, useMemo, useCallback } = React;
 const h = React.createElement;
@@ -62,6 +63,8 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
   const [acl, setAcl] = useState<ApiAclRow[]>([]);
   const [flags, setFlags] = useState<ApiPublicFlag[]>([]);
   const [selId, setSelId] = useState<string | null>(null);
+  // 미저장 변경을 버리고 이동할지 — 네이티브 confirm 대신 앱 모달(P-1).
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
   const [draft, setDraft] = useState<ApiAclEntry[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -126,11 +129,15 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
   const denyBlocks = useMemo(() => ancestorDenyBlocks(draft, inherited), [draft, inherited]);
   const blockByRow = useMemo(() => new Map(denyBlocks.map((b) => [b.index, b])), [denyBlocks]);
 
-  const select = (id: string) => {
-    if (busy || id === selId) return;  // 저장 in-flight 중 선택 변경 금지 — draft 오염 경로 차단
-    if (dirty && !window.confirm("저장되지 않은 변경이 있습니다. 버리고 이동할까요?")) return;
+  const applySelect = useCallback((id: string) => {
     setSelId(id);
     setDraft(acl.filter((r) => r.nodeId === id).map(({ principalType, principalId, grantType }) => ({ principalType, principalId, grantType })));
+  }, [acl]);
+
+  const select = (id: string) => {
+    if (busy || id === selId) return;  // 저장 in-flight 중 선택 변경 금지 — draft 오염 경로 차단
+    if (dirty) { setPendingNav(id); return; }  // 미저장 변경이 있으면 물어본다
+    applySelect(id);
   };
 
   const principalLabel = (type: ApiAclEntry["principalType"], id: string): string => {
@@ -309,5 +316,12 @@ export function Permissions({ toast }: { toast: (msg: string, icon?: string) => 
                     : h("span", { className: "badge inactive" }, h("span", { className: "bdot" }), "전체 공개 아님")),
                 sel.type === "note"
                   ? hintLine("exclude는 공개 폴더 안에서 이 노트만 비공개로 빼는 카브아웃입니다.")
-                  : hintLine("폴더 공개는 하위로 cascade되며, 하위 노트는 exclude로 개별 제외할 수 있습니다."))))));
+                  : hintLine("폴더 공개는 하위로 cascade되며, 하위 노트는 exclude로 개별 제외할 수 있습니다.")))))
+    , pendingNav && h(ConfirmDialog, {
+      key: "nav", name: "저장되지 않은 권한 변경", action: "다른 노드로 이동",
+      message: ["변경 내용을 버리고 이동합니다.", "이동하면 이 노드에 적용하지 않은 ACL 편집이 사라집니다."],
+      danger: true, confirmLabel: "버리고 이동", cancelLabel: "돌아가기",
+      onConfirm: () => { const id = pendingNav; setPendingNav(null); applySelect(id); },
+      onCancel: () => setPendingNav(null),
+    }));
 }

@@ -33,6 +33,13 @@ export function saveButtonState(dirty: boolean, unsynced: number): SaveButtonSta
   return { label: "저장됨", icon: "check", title: "저장됨", disabled: true, danger: false };
 }
 
+/** 저장 버튼 클래스 — 실패는 미저장(dirty)과 다른 색이어야 한다.
+    상태 로직이 danger를 계산해도 화면이 안 쓰면 사용자에겐 없는 것과 같다(D-2). */
+export function saveButtonClass(s: SaveButtonState): string {
+  if (s.danger) return "doc-save danger";
+  return s.disabled ? "doc-save" : "doc-save dirty";
+}
+
 /** 상단 상시 배너 문구. offline = 마지막 실패가 fetch 자체 실패(서버 다운·네트워크 단절)였는가. */
 export function syncBanner(unsynced: number, offline: boolean): string | null {
   if (unsynced <= 0) return null;
